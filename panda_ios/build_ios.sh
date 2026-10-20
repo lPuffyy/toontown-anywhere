@@ -76,13 +76,7 @@ echo "::endgroup::"
 echo "::group::Python for iOS (BeeWare)"
 cd "$W"
 if [ ! -d pysup/Python.xcframework ]; then
-  URL=$(curl -s "https://api.github.com/repos/beeware/Python-Apple-support/releases?per_page=30" | python3 -c "
-import sys,json
-for r in json.load(sys.stdin):
-    for a in r['assets']:
-        if 'Python-3.10-iOS-support' in a['name'] and a['name'].endswith('.tar.gz'):
-            print(a['browser_download_url']); sys.exit()
-")
+  URL="${PYTHON_IOS_SUPPORT_URL:-https://github.com/beeware/Python-Apple-support/releases/download/3.10-b14/Python-3.10-iOS-support.b14.tar.gz}"
   echo "python support: $URL"
   mkdir -p pysup && curl -sL "$URL" | tar xz -C pysup
 fi
