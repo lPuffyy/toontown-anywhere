@@ -13,6 +13,7 @@ import threading
 import time
 import traceback
 import urllib.request
+import urllib.error
 from concurrent.futures import ThreadPoolExecutor
 
 _st = {"msg": "starting", "detail": "", "done": False, "err": None, "bytes": 0, "total": 0, "files": 0, "nfiles": 0}
@@ -126,8 +127,38 @@ def _upload_log(docs, server):
 RESOURCE_SERVER_HINT = [None]
 
 
+def _fetch_art(docs, server):
+    """Start-screen art (hosted on the game server, never bundled in the app)."""
+    try:
+        d = os.path.join(docs, "ui")
+        os.makedirs(d, exist_ok=True)
+        for name in ("background.jpg", "logo.png"):
+            with urllib.request.urlopen("%s/_ui/%s" % (server, name), timeout=15) as r:
+                data = r.read()
+            with open(os.path.join(d, name + ".part"), "wb") as f:
+                f.write(data)
+            os.replace(os.path.join(d, name + ".part"), os.path.join(d, name))
+    except Exception:
+        pass
+
+
+def check_login(server, cookie):
+    """Ask the server whether user:password is acceptable (creates the account if registration is open).
+    Returns 'ok' or a message to show the player."""
+    from urllib.parse import urlparse
+    try:
+        rq = urllib.request.Request("http://%s:7381/auth" % urlparse(server).hostname, data=cookie.encode(), method="POST")
+        with urllib.request.urlopen(rq, timeout=10) as r:
+            return "ok"
+    except urllib.error.HTTPError as e:
+        return e.read().decode("utf-8", "replace") or "Sign-in failed."
+    except Exception as e:
+        return "Can't reach the Toontown server. Check your Wi-Fi."
+
+
 def start_download(docs, server):
     RESOURCE_SERVER_HINT[0] = server
+    threading.Thread(target=_fetch_art, args=(docs, server), daemon=True).start()
     threading.Thread(target=_download_all, args=(docs, server), daemon=True).start()
     threading.Thread(target=_upload_log, args=(docs, server), daemon=True).start()
 
