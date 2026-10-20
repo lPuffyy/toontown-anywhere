@@ -307,10 +307,13 @@ def launch(docs, frameworks, game_server, cookie, app_dir):
     import faulthandler
     _fh = open(os.path.join(docs, "ttr_log.txt"), "a")
     faulthandler.enable(file=_fh)
-    faulthandler.dump_traceback_later(25, repeat=True, file=_fh)
     sys.argv = ["ToontownStart"]
     print("ios_game.launch: starting ToontownStart in", os.getcwd(), flush=True)
     import runpy
+    try:
+        _hook_entries()
+    except BaseException:
+        print("entry hook failed", traceback.format_exc(), flush=True)
     try:
         runpy.run_module("toontown.toonbase.ToontownStart", run_name="__main__")
         print("ios_game.launch: ToontownStart returned normally; base=%s" % getattr(__import__("builtins"), "base", None), flush=True)
@@ -332,9 +335,6 @@ def _fix_two_channel_textures():
     from panda3d.core import TexturePool, SamplerState
     tc = TexturePool.find_all_textures()
     n = tc.get_num_textures()
-    if n == _tex_seen[0]:
-        return
-    _tex_seen[0] = n
     for i in range(n):
         t = tc.get_texture(i)
         if t.get_num_components() in (1, 2) and t.uses_mipmaps():
@@ -424,7 +424,7 @@ def step():
                     (w.get_x_size(), w.get_y_size()) if w else None, w.get_gsg() if w else None), flush=True)
             if _frames[0] == 2:
                 _fix_clear(b)
-            if _frames[0] % 8 == 0:
+            if _frames[0] % 16 == 0:
                 _fix_two_channel_textures()
             if _frames[0] % 150 == 0:
                 _debug_poll()
@@ -466,3 +466,111 @@ def ui_jump(down):
         _input_state().set("jump", bool(down), "touch")
     except BaseException:
         print("ui_jump error", traceback.format_exc(), flush=True)
+
+
+# ---- touch UI bridge: camera, action button, chat keyboard ------------------------------------
+
+_entries = []
+
+
+def _hook_entries():
+    """Remember every DirectEntry so the native side can mirror the iOS keyboard into the focused one."""
+    import weakref
+    from direct.gui import DirectEntry as DE
+    cls = DE.DirectEntry
+    if getattr(cls, "_ios_hooked", False):
+        return
+    orig = cls.__init__
+
+    def init(self, *a, **k):
+        orig(self, *a, **k)
+        _entries.append(weakref.ref(self))
+    cls.__init__ = init
+    cls._ios_hooked = True
+
+
+def _focused_entry():
+    found = None
+    alive = []
+    for r in _entries:
+        e = r()
+        if e is None:
+            continue
+        alive.append(r)
+        try:
+            if not e.isEmpty() and e.guiItem.getFocus() and not e.isHidden():
+                found = e
+        except BaseException:
+            pass
+    _entries[:] = alive
+    return found
+
+
+def ui_text_state():
+    """'1|text' while a game text box has focus (native shows the keyboard), else '0|'."""
+    try:
+        e = _focused_entry()
+        if e is None:
+            return "0|"
+        return "1|" + e.get().replace(chr(10), " ")
+    except BaseException:
+        return "0|"
+
+
+def ui_text_set(text):
+    try:
+        e = _focused_entry()
+        if e is not None:
+            e.set(text)
+    except BaseException:
+        print("ui_text_set error", traceback.format_exc(), flush=True)
+
+
+def ui_text_submit():
+    try:
+        e = _focused_entry()
+        if e is not None:
+            e.commandFunc(None)
+    except BaseException:
+        print("ui_text_submit error", traceback.format_exc(), flush=True)
+
+
+def ui_camera():
+    """Camera button: the same as the Tab key (next camera position)."""
+    try:
+        import builtins
+        la = getattr(builtins, "localAvatar", None)
+        if la is not None:
+            la.nextCameraPos(1)
+    except BaseException:
+        print("ui_camera error", traceback.format_exc(), flush=True)
+
+
+def ui_action_available():
+    """1 when something other than the plain jump input is listening for the Control key (cranes, banquet
+    tables, minigames, racing...)."""
+    try:
+        import builtins
+        m = getattr(builtins, "messenger", None)
+        who = m.whoAccepts("control") if m is not None else None
+        if not who:
+            return 0
+        for entry in list(who.values()):
+            cb = entry[0]
+            owner = getattr(cb, "__self__", None)
+            if owner is None or type(owner).__name__.startswith("InputState"):
+                continue
+            return 1
+        return 0
+    except BaseException:
+        return 0
+
+
+def ui_action(down):
+    try:
+        import builtins
+        m = getattr(builtins, "messenger", None)
+        if m is not None:
+            m.send("control" if down else "control-up")
+    except BaseException:
+        print("ui_action error", traceback.format_exc(), flush=True)
