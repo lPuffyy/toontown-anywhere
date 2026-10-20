@@ -360,7 +360,7 @@ static NSString *pyString(const char *code, const char *var) {
     JumpButton *jump = [[JumpButton alloc] initWithFrame:CGRectMake(b.size.width - jb - MAX(safe.right, 24) - 30, b.size.height - jb - MAX(safe.bottom, 16) - 130, jb, jb)];
     [vc.view addSubview:jump];
 
-    UIView *hot = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 90, 70)];
+    UIView *hot = [[UIView alloc] initWithFrame:CGRectMake(b.size.width / 2 - 50, 0, 100, 40)];   // top centre: nothing in the game lives here
     hot.backgroundColor = [UIColor clearColor];
     UITapGestureRecognizer *five = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleLog)];
     five.numberOfTapsRequired = 5;
