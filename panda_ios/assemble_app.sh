@@ -30,6 +30,7 @@ cp "$W"/panda3d/built-host/panda3d/__init__.py "$APP/app/panda3d/" 2>/dev/null
 cp "$W/panda_ios/m2_test.py" "$APP/app/m2_test.py"
 cp "$W/panda_ios/m3_test.py" "$APP/app/m3_test.py"
 cp "$W/panda_ios/ios_game.py" "$APP/app/ios_game.py"
+cp "$W/panda_ios/cacert.pem" "$APP/app/cacert.pem"
 
 # The game's Python code and resources are NOT bundled: the app downloads them from the server on first launch.
 # Server addresses come from the build (env TTR_RESOURCE_SERVER / TTR_GAME_SERVER) into a header the app compiles in.
