@@ -25,6 +25,17 @@ def _install_ca():
 
 
 _install_ca()
+
+
+def _install_ua():
+    """Cloudflare rejects Python's default user agent (403), so identify as the app."""
+    import urllib.request as _u
+    op = _u.build_opener()
+    op.addheaders = [("User-Agent", "TTR-Mobile/1.0 (iOS)")]
+    _u.install_opener(op)
+
+
+_install_ua()
 from concurrent.futures import ThreadPoolExecutor
 
 _st = {"msg": "starting", "detail": "", "done": False, "err": None, "bytes": 0, "total": 0, "files": 0, "nfiles": 0}
