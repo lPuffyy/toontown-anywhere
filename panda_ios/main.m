@@ -591,6 +591,7 @@ static NSString *const kService = @"com.ttr.mobile";
     vc.view = [self buildSplash:[UIScreen mainScreen].bounds];
     self.window.rootViewController = vc;
     [self.window makeKeyAndVisible];
+    [self applyArt];   // cached art from an earlier launch, so the placeholder never flashes
     [self.spinner startAnimating];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         self.report = [self startPython];
