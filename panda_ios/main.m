@@ -541,7 +541,11 @@ static NSString *const kService = @"com.ttr.mobile";
 }
 
 - (void)tick:(CADisplayLink *)link {
+    static int n = 0;
+    n++;
+    if (n <= 3 || n % 300 == 0) fprintf(stderr, "TICK %d\n", n);
     pyRun("import ios_game\nios_game.step()\n");
+    if (n <= 3) fprintf(stderr, "TICK %d done\n", n);
 }
 
 // ----- controls and log overlay -------------------------------------------------------------
@@ -586,7 +590,7 @@ static NSString *const kService = @"com.ttr.mobile";
         return;
     }
     NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"ttr_log.txt"];
-    self.logWindow = [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, [UIScreen mainScreen].bounds.size.width, 170)];
+    self.logWindow = [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, [UIScreen mainScreen].bounds.size.width, 330)];
     self.logWindow.windowLevel = UIWindowLevelAlert + 10;
     self.logWindow.userInteractionEnabled = NO;
     self.logWindow.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
@@ -600,7 +604,7 @@ static NSString *const kService = @"com.ttr.mobile";
     self.logTimer = [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *t) {
         if (self.logWindow.hidden) return;
         NSData *d = [NSData dataWithContentsOfFile:logPath];
-        if (d.length > 2400) d = [d subdataWithRange:NSMakeRange(d.length - 2400, 2400)];
+        if (d.length > 4200) d = [d subdataWithRange:NSMakeRange(d.length - 4200, 4200)];
         NSString *str = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] ?: @"";
         self.logView.text = str;
         [self.logView scrollRangeToVisible:NSMakeRange(str.length > 0 ? str.length - 1 : 0, 1)];
