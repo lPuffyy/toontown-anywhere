@@ -14,6 +14,17 @@ import time
 import traceback
 import urllib.request
 import urllib.error
+import ssl
+
+
+def _install_ca():
+    """iOS has no system CA store for Python's OpenSSL: use the bundled public CA list for https."""
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cacert.pem")
+    if os.path.exists(p):
+        ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=p)
+
+
+_install_ca()
 from concurrent.futures import ThreadPoolExecutor
 
 _st = {"msg": "starting", "detail": "", "done": False, "err": None, "bytes": 0, "total": 0, "files": 0, "nfiles": 0}
@@ -147,7 +158,7 @@ def check_login(server, cookie):
     Returns 'ok' or a message to show the player."""
     from urllib.parse import urlparse
     try:
-        rq = urllib.request.Request("http://%s:7381/auth" % urlparse(server).hostname, data=cookie.encode(), method="POST")
+        rq = urllib.request.Request(server.rstrip("/") + "/auth", data=cookie.encode(), method="POST")
         with urllib.request.urlopen(rq, timeout=10) as r:
             return "ok"
     except urllib.error.HTTPError as e:
@@ -160,7 +171,6 @@ def start_download(docs, server):
     RESOURCE_SERVER_HINT[0] = server
     threading.Thread(target=_fetch_art, args=(docs, server), daemon=True).start()
     threading.Thread(target=_download_all, args=(docs, server), daemon=True).start()
-    threading.Thread(target=_upload_log, args=(docs, server), daemon=True).start()
 
 
 def _stub_http():
@@ -226,7 +236,7 @@ def launch(docs, frameworks, game_server, cookie, app_dir):
             json.dump({"game": {"mongodb-client": False, "auto-start-server": False, "elections": False,
                                 "smoothanimations": True, "retro-rewritten": False, "antialiasing": 0}}, f)
     from urllib.parse import urlparse
-    _debug_state["url"] = "http://%s:7380/debug/run.py" % urlparse(RESOURCE_SERVER_HINT[0]).hostname if RESOURCE_SERVER_HINT[0] else None
+    _debug_state["url"] = None   # remote debug hook disabled in public builds
     os.environ["TTR_PLAYCOOKIE"] = cookie
     os.environ["TTR_GAMESERVER"] = game_server
     from panda3d.core import loadPrcFileData
