@@ -1,0 +1,59 @@
+name: panda-ios-app
+on:
+  workflow_dispatch:
+    inputs:
+      resource_server:
+        description: "URL of your resource/code file server, e.g. http://192.168.1.10:7380"
+        required: true
+      game_server:
+        description: "host:port of your game server, e.g. 192.168.1.10:7298"
+        required: true
+      run_id:
+        description: "panda-ios run whose panda-ios-stage artifact to reuse"
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  app:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: panda_ios
+      - uses: actions/cache@v4
+        with:
+          path: pysup
+          key: pysup-v1
+      - name: Fetch Python for iOS if not cached
+        run: |
+          if [ ! -d pysup/Python.xcframework ]; then
+            URL=$(curl -s "https://api.github.com/repos/beeware/Python-Apple-support/releases?per_page=30" | python3 -c "
+          import sys,json
+          for r in json.load(sys.stdin):
+              for a in r['assets']:
+                  if 'Python-3.10-iOS-support' in a['name'] and a['name'].endswith('.tar.gz'):
+                      print(a['browser_download_url']); sys.exit()
+          ")
+            mkdir -p pysup && curl -sL "$URL" | tar xz -C pysup
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: panda-ios-stage
+          path: panda3d
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Assemble
+        env:
+          TTR_RESOURCE_SERVER: ${{ inputs.resource_server }}
+          TTR_GAME_SERVER: ${{ inputs.game_server }}
+        run: |
+          PYXC="$GITHUB_WORKSPACE/pysup/Python.xcframework/ios-arm64"
+          PYINC=$(dirname "$(find "$PYXC" -name Python.h | head -1)")
+          set -o pipefail
+          bash panda_ios/assemble_app.sh "$GITHUB_WORKSPACE" "$PYXC" "$PYINC" 2>&1 | tee assemble.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TTRPanda-ipa
+          path: out/TTRPanda.ipa
