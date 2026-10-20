@@ -222,6 +222,55 @@ def _stub_http():
     c.HTTPClient = HTTPClient
 
 
+def _start_relay(game_server):
+    """The game's own sockets are IPv4-only. Run a local relay so it talks to 127.0.0.1 while the app
+    reaches the real server with the phone's normal networking (works on IPv6-only cellular too)."""
+    import socket
+    host, _, port = game_server.rpartition(":")
+    port = int(port)
+    lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    lsock.bind(("127.0.0.1", 0))
+    lsock.listen(8)
+    lport = lsock.getsockname()[1]
+
+    def pipe(a, b):
+        try:
+            while True:
+                d = a.recv(65536)
+                if not d:
+                    break
+                b.sendall(d)
+        except Exception:
+            pass
+        for x in (a, b):
+            try:
+                x.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+
+    def serve():
+        while True:
+            c, _ = lsock.accept()
+            try:
+                c.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                print("RELAY: connecting to %s:%d" % (host, port), flush=True)
+                u = socket.create_connection((host, port), timeout=15)
+                u.settimeout(None)
+                u.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                print("RELAY: connected via %s" % (u.getpeername(),), flush=True)
+            except Exception as e:
+                print("RELAY: connect failed: %r" % (e,), flush=True)
+                c.close()
+                continue
+            threading.Thread(target=pipe, args=(c, u), daemon=True).start()
+            threading.Thread(target=pipe, args=(u, c), daemon=True).start()
+
+    threading.Thread(target=serve, daemon=True).start()
+    print("RELAY: listening on 127.0.0.1:%d for %s:%d" % (lport, host, port), flush=True)
+    return "127.0.0.1:%d" % lport
+
+
 def launch(docs, frameworks, game_server, cookie, app_dir):
     _stub_http()
     os.chdir(docs)
@@ -249,7 +298,7 @@ def launch(docs, frameworks, game_server, cookie, app_dir):
     from urllib.parse import urlparse
     _debug_state["url"] = None   # remote debug hook disabled in public builds
     os.environ["TTR_PLAYCOOKIE"] = cookie
-    os.environ["TTR_GAMESERVER"] = game_server
+    os.environ["TTR_GAMESERVER"] = _start_relay(game_server)
     from panda3d.core import loadPrcFileData
     for line in ("plugin-path " + frameworks, "load-display pandagles", "audio-library-name " + ("p3openal_audio" if os.path.exists(os.path.join(frameworks, "libp3openal_audio.dylib")) else "null"), "sync-video 0",
                  "toontown-auto-run 0", "want-dev #f", "connect-method native",
