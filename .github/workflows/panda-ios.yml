@@ -1,0 +1,67 @@
+name: panda-ios
+on:
+  workflow_dispatch:
+    inputs:
+      resource_server:
+        description: "URL of your resource/code file server, e.g. http://192.168.1.10:7380"
+        required: true
+      game_server:
+        description: "host:port of your game server, e.g. 192.168.1.10:7298"
+        required: true
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: panda_ios
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ios-deps
+            pysup
+          key: panda-ios-deps-v1
+      - name: Clone the Panda3D fork
+        run: git clone --depth 1 -b 1.10.11 https://github.com/RegDogg/TTR-Offline-panda3d.git panda3d
+      - name: Build
+        env:
+          TTR_RESOURCE_SERVER: ${{ inputs.resource_server }}
+          TTR_GAME_SERVER: ${{ inputs.game_server }}
+        run: |
+          set -o pipefail
+          bash panda_ios/build_ios.sh 2>&1 | tee build.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: panda-ios-logs
+          path: |
+            build.log
+            host_verbose.log
+            replay.log
+            assemble.log
+            brew.log
+            dep_*.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TTRPanda-ipa
+          path: out/TTRPanda.ipa
+          if-no-files-found: warn
+      - name: Stage build outputs for quick re-assembly
+        if: always()
+        run: |
+          mkdir -p stage/built-ios/lib stage/built-ios/panda3d stage/built-host/panda3d
+          cp panda3d/built-ios/lib/*.1.10.dylib panda3d/built-ios/lib/libpandagles.dylib panda3d/built-ios/lib/libp3openal_audio.dylib stage/built-ios/lib/ || true
+          cp panda3d/built-ios/panda3d/*.so stage/built-ios/panda3d/ || true
+          cp panda3d/built-host/panda3d/__init__.py stage/built-host/panda3d/ || true
+          cp -R panda3d/built-host/direct stage/built-host/direct || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: panda-ios-stage
+          path: stage
+          if-no-files-found: warn
