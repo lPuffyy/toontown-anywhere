@@ -424,7 +424,6 @@ static NSString *const kService = @"com.ttr.mobile";
                 [self.loginView removeFromSuperview];
                 self.loginWindow.hidden = YES;
                 self.loginWindow = nil;
-                [self.window makeKeyAndVisible];
                 [[NSNotificationCenter defaultCenter] removeObserver:self];
                 self.statusLabel.hidden = NO;
                 self.statusLabel.text = @"Starting Toontown...";
@@ -533,7 +532,7 @@ static NSString *const kService = @"com.ttr.mobile";
         self.statusLabel.hidden = YES;
         self.detailLabel.hidden = YES;
         self.bar.hidden = YES;
-        self.window.rootViewController.view.backgroundColor = [UIColor blackColor];
+        self.window.hidden = YES;   // the game has its own window underneath: do not cover it
         [self showControls];
     } else {
         [self showError:g];
