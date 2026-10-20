@@ -70,7 +70,7 @@ python3 -m pip install --quiet pillow > /dev/null 2>&1 || pip3 install --quiet p
 python3 "$W/panda_ios/make_icon.py" "$APP" || echo "icon generation failed (app will use the default icon)"
 
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=15.0 -fobjc-arc \
-  -I "$PYINC" -I "$W/out/gen" "$W/panda_ios/main.m" -F "$PYXC" -framework Python -framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics \
+  -I "$PYINC" -I "$W/out/gen" "$W/panda_ios/main.m" -F "$PYXC" -framework Python -framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics -framework Security \
   -Wl,-rpath,@executable_path/Frameworks -o "$APP/TTRPanda" 2>&1 | head -30
 [ -x "$APP/TTRPanda" ] || { echo "FATAL: main executable was not built"; exit 1; }
 ls -la "$APP" | head -20
