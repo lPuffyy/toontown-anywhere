@@ -523,6 +523,17 @@ static NSString *const kService = @"com.ttr.mobile";
         self.link = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
         [self.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
         [self.spinner stopAnimating];
+        // the game draws into this window now: take the start-screen art out of the way
+        [self.bgView removeFromSuperview];
+        [self.logoView removeFromSuperview];
+        self.bgView = nil;
+        self.logoView = nil;
+        self.gradient.hidden = YES;
+        for (UIView *f in self.fallbackViews) f.hidden = YES;
+        self.statusLabel.hidden = YES;
+        self.detailLabel.hidden = YES;
+        self.bar.hidden = YES;
+        self.window.rootViewController.view.backgroundColor = [UIColor blackColor];
         [self showControls];
     } else {
         [self showError:g];
