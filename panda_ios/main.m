@@ -148,6 +148,7 @@ static NSString *pyString(const char *code, const char *var) {
 @property (strong, nonatomic) CAGradientLayer *gradient;
 @property (strong, nonatomic) NSArray<UIView *> *fallbackViews;
 @property (strong, nonatomic) UIView *loginView;
+@property (strong, nonatomic) UIWindow *loginWindow;
 @property (strong, nonatomic) UITextField *userField;
 @property (strong, nonatomic) UITextField *passField;
 @property (strong, nonatomic) UILabel *loginError;
@@ -365,7 +366,16 @@ static NSString *const kService = @"com.ttr.mobile";
         tap.cancelsTouchesInView = NO;
         [tf addGestureRecognizer:tap];
     }
-    [self.window.rootViewController.view addSubview:self.loginView];
+    // its own window (like the game controls): touches reach it reliably
+    self.loginWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.loginWindow.windowLevel = UIWindowLevelAlert;
+    self.loginWindow.backgroundColor = [UIColor clearColor];
+    UIViewController *lvc = [UIViewController new];
+    lvc.view.backgroundColor = [UIColor clearColor];
+    self.loginWindow.rootViewController = lvc;
+    self.loginView.frame = lvc.view.bounds;
+    [lvc.view addSubview:self.loginView];
+    [self.loginWindow makeKeyAndVisible];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardChange:) name:UIKeyboardWillShowNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardChange:) name:UIKeyboardWillHideNotification object:nil];
 }
@@ -390,7 +400,7 @@ static NSString *const kService = @"com.ttr.mobile";
 }
 
 - (void)signIn {
-    [self.window endEditing:YES];
+    [self.loginWindow endEditing:YES];
     NSString *user = [[self.userField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] lowercaseString];
     NSString *pw = self.passField.text ?: @"";
     if (user.length == 0 || pw.length == 0) {
@@ -412,6 +422,9 @@ static NSString *const kService = @"com.ttr.mobile";
                 [[NSUserDefaults standardUserDefaults] setObject:user forKey:@"ttr_user"];
                 [self saveKeychainPassword:pw];
                 [self.loginView removeFromSuperview];
+                self.loginWindow.hidden = YES;
+                self.loginWindow = nil;
+                [self.window makeKeyAndVisible];
                 [[NSNotificationCenter defaultCenter] removeObserver:self];
                 self.statusLabel.hidden = NO;
                 self.statusLabel.text = @"Starting Toontown...";
