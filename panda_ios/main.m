@@ -275,9 +275,11 @@ static NSString *pyString(const char *code, const char *var) {
     self.bgView.contentMode = UIViewContentModeScaleAspectFill;
     self.bgView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [root insertSubview:self.bgView atIndex:0];
-    CGFloat lw = MIN(b.size.width * 0.5, 520), lh = lw * logo.size.height / logo.size.width;
+    CGFloat lh = MIN(b.size.height * 0.40, 200), lw = lh * logo.size.width / logo.size.height;
     self.logoView = [[UIImageView alloc] initWithImage:logo];
-    self.logoView.frame = CGRectMake((b.size.width - lw) / 2, MAX(b.size.height * 0.07, 24), lw, lh);
+    self.logoView.frame = CGRectMake((b.size.width - lw) / 2, MAX(b.size.height * 0.04, 10), lw, lh);
+    self.logoView.userInteractionEnabled = NO;
+    self.bgView.userInteractionEnabled = NO;
     self.logoView.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
     [root insertSubview:self.logoView aboveSubview:self.bgView];
     for (UIView *f in self.fallbackViews) f.hidden = YES;
@@ -307,7 +309,7 @@ static NSString *const kService = @"com.ttr.mobile";
 
 - (UITextField *)fieldWithPlaceholder:(NSString *)ph y:(CGFloat)y secure:(BOOL)secure width:(CGFloat)w {
     CGRect b = self.window.rootViewController.view.bounds;
-    UITextField *f = [[UITextField alloc] initWithFrame:CGRectMake((b.size.width - w) / 2, y, w, 48)];
+    UITextField *f = [[UITextField alloc] initWithFrame:CGRectMake((b.size.width - w) / 2, y, w, 44)];
     f.backgroundColor = [UIColor colorWithWhite:1 alpha:0.92];
     f.layer.cornerRadius = 14;
     f.layer.borderWidth = 3;
@@ -332,29 +334,37 @@ static NSString *const kService = @"com.ttr.mobile";
     self.detailLabel.hidden = YES;
     CGRect b = self.window.rootViewController.view.bounds;
     CGFloat w = MIN(b.size.width * 0.5, 380);
-    CGFloat y0 = b.size.height * (self.logoView ? 0.52 : 0.40);
+    CGFloat y0 = b.size.height * (self.logoView ? 0.47 : 0.36);
     self.loginView = [[UIView alloc] initWithFrame:b];
     self.loginView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.userField = [self fieldWithPlaceholder:@"Toon name" y:y0 secure:NO width:w];
-    self.passField = [self fieldWithPlaceholder:@"Password" y:y0 + 58 secure:YES width:w];
+    self.passField = [self fieldWithPlaceholder:@"Password" y:y0 + 52 secure:YES width:w];
     self.userField.text = [[NSUserDefaults standardUserDefaults] stringForKey:@"ttr_user"];
     self.passField.text = [self keychainPassword];
     self.playButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.playButton.frame = CGRectMake((b.size.width - 240) / 2, y0 + 126, 240, 56);
+    self.playButton.frame = CGRectMake((b.size.width - 220) / 2, y0 + 106, 220, 48);
     self.playButton.backgroundColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.15 alpha:1];
     self.playButton.layer.cornerRadius = 18;
     self.playButton.layer.borderWidth = 4;
     self.playButton.layer.borderColor = [UIColor colorWithRed:0.55 green:0.32 blue:0.05 alpha:1].CGColor;
     [self.playButton setTitle:@"PLAY!" forState:UIControlStateNormal];
     [self.playButton setTitleColor:[UIColor colorWithRed:0.45 green:0.22 blue:0.02 alpha:1] forState:UIControlStateNormal];
-    self.playButton.titleLabel.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:34] ?: [UIFont boldSystemFontOfSize:30];
+    self.playButton.titleLabel.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:30] ?: [UIFont boldSystemFontOfSize:28];
     [self.playButton addTarget:self action:@selector(signIn) forControlEvents:UIControlEventTouchUpInside];
-    self.loginError = [[UILabel alloc] initWithFrame:CGRectMake(40, y0 + 190, b.size.width - 80, 30)];
+    self.loginError = [[UILabel alloc] initWithFrame:CGRectMake(40, y0 + 160, b.size.width - 80, 26)];
     self.loginError.textAlignment = NSTextAlignmentCenter;
-    self.loginError.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:20] ?: [UIFont boldSystemFontOfSize:18];
+    self.loginError.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:17] ?: [UIFont boldSystemFontOfSize:16];
     self.loginError.textColor = [UIColor colorWithRed:0.1 green:0.25 blue:0.55 alpha:1];
     self.loginError.text = @"New here? Pick a name and password and tap PLAY!";
+    self.loginView.userInteractionEnabled = YES;
+    self.userField.userInteractionEnabled = YES;
+    self.passField.userInteractionEnabled = YES;
     for (UIView *x in @[self.userField, self.passField, self.playButton, self.loginError]) [self.loginView addSubview:x];
+    for (UITextField *tf in @[self.userField, self.passField]) {
+        UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:tf action:@selector(becomeFirstResponder)];
+        tap.cancelsTouchesInView = NO;
+        [tf addGestureRecognizer:tap];
+    }
     [self.window.rootViewController.view addSubview:self.loginView];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardChange:) name:UIKeyboardWillShowNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardChange:) name:UIKeyboardWillHideNotification object:nil];
@@ -363,7 +373,7 @@ static NSString *const kService = @"com.ttr.mobile";
 - (void)keyboardChange:(NSNotification *)n {
     BOOL show = [n.name isEqualToString:UIKeyboardWillShowNotification];
     [UIView animateWithDuration:0.25 animations:^{
-        self.loginView.transform = show ? CGAffineTransformMakeTranslation(0, -self.window.bounds.size.height * 0.36) : CGAffineTransformIdentity;
+        self.loginView.transform = show ? CGAffineTransformMakeTranslation(0, -(self.userField.frame.origin.y - 12)) : CGAffineTransformIdentity;
         self.logoView.alpha = show ? 0.0 : 1.0;
     }];
 }
