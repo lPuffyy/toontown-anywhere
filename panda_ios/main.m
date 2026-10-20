@@ -35,6 +35,10 @@ static NSString *pyString(const char *code, const char *var) {
     return s;
 }
 
+static CGFloat UIScale(void) {
+    return UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad ? 1.45 : 1.0;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Touch controls
 
@@ -101,6 +105,42 @@ static NSString *pyString(const char *code, const char *var) {
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event { [self reset]; }
 @end
 
+@interface PadButton : UIView
+@property (copy, nonatomic) NSString *kind;     // "camera" or "action"
+@end
+@implementation PadButton
+- (instancetype)initWithFrame:(CGRect)frame kind:(NSString *)kind title:(NSString *)title {
+    if ((self = [super initWithFrame:frame])) {
+        self.kind = kind;
+        self.backgroundColor = [UIColor colorWithRed:0.95 green:0.55 blue:0.15 alpha:0.6];
+        self.layer.cornerRadius = frame.size.width / 2;
+        self.layer.borderWidth = 3;
+        self.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.6].CGColor;
+        UILabel *l = [[UILabel alloc] initWithFrame:self.bounds];
+        l.text = title;
+        l.textAlignment = NSTextAlignmentCenter;
+        l.textColor = [UIColor whiteColor];
+        l.adjustsFontSizeToFitWidth = YES;
+        l.minimumScaleFactor = 0.5;
+        l.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:frame.size.width * 0.26] ?: [UIFont boldSystemFontOfSize:frame.size.width * 0.26];
+        [self addSubview:l];
+    }
+    return self;
+}
+- (void)setDown:(BOOL)d {
+    self.alpha = d ? 0.7 : 1.0;
+    if ([self.kind isEqualToString:@"action"]) {
+        NSString *code = [NSString stringWithFormat:@"import ios_game\nios_game.ui_action(%d)\n", d ? 1 : 0];
+        pyRun(code.UTF8String);
+    } else if (d) {
+        pyRun("import ios_game\nios_game.ui_camera()\n");
+    }
+}
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event { [self setDown:YES]; }
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event { [self setDown:NO]; }
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event { [self setDown:NO]; }
+@end
+
 @interface JumpButton : UIView
 @end
 @implementation JumpButton
@@ -153,6 +193,11 @@ static NSString *pyString(const char *code, const char *var) {
 @property (strong, nonatomic) UITextField *passField;
 @property (strong, nonatomic) UILabel *loginError;
 @property (strong, nonatomic) UIButton *playButton;
+// in-game touch helpers
+@property (strong, nonatomic) PadButton *actionButton;
+@property (strong, nonatomic) UITextField *kbField;
+@property (assign, nonatomic) BOOL kbActive;
+@property (strong, nonatomic) NSTimer *uiPoll;
 // overlays
 @property (strong, nonatomic) PassThroughWindow *controls;
 @property (strong, nonatomic) UIWindow *logWindow;
@@ -276,7 +321,7 @@ static NSString *pyString(const char *code, const char *var) {
     self.bgView.contentMode = UIViewContentModeScaleAspectFill;
     self.bgView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [root insertSubview:self.bgView atIndex:0];
-    CGFloat lh = MIN(b.size.height * 0.40, 200), lw = lh * logo.size.width / logo.size.height;
+    CGFloat lh = MIN(b.size.height * 0.40, 200 * UIScale()), lw = lh * logo.size.width / logo.size.height;
     self.logoView = [[UIImageView alloc] initWithImage:logo];
     self.logoView.frame = CGRectMake((b.size.width - lw) / 2, MAX(b.size.height * 0.04, 10), lw, lh);
     self.logoView.userInteractionEnabled = NO;
@@ -310,12 +355,12 @@ static NSString *const kService = @"com.ttr.mobile";
 
 - (UITextField *)fieldWithPlaceholder:(NSString *)ph y:(CGFloat)y secure:(BOOL)secure width:(CGFloat)w {
     CGRect b = self.window.rootViewController.view.bounds;
-    UITextField *f = [[UITextField alloc] initWithFrame:CGRectMake((b.size.width - w) / 2, y, w, 44)];
+    UITextField *f = [[UITextField alloc] initWithFrame:CGRectMake((b.size.width - w) / 2, y, w, 44 * UIScale())];
     f.backgroundColor = [UIColor colorWithWhite:1 alpha:0.92];
     f.layer.cornerRadius = 14;
     f.layer.borderWidth = 3;
     f.layer.borderColor = [UIColor colorWithRed:0.12 green:0.30 blue:0.65 alpha:1].CGColor;
-    f.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:24] ?: [UIFont boldSystemFontOfSize:22];
+    f.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:24 * UIScale()] ?: [UIFont boldSystemFontOfSize:22 * UIScale()];
     f.textColor = [UIColor colorWithRed:0.1 green:0.2 blue:0.45 alpha:1];
     f.attributedPlaceholder = [[NSAttributedString alloc] initWithString:ph attributes:@{NSForegroundColorAttributeName: [UIColor colorWithWhite:0.5 alpha:1]}];
     f.textAlignment = NSTextAlignmentCenter;
@@ -334,27 +379,28 @@ static NSString *const kService = @"com.ttr.mobile";
     self.statusLabel.hidden = YES;
     self.detailLabel.hidden = YES;
     CGRect b = self.window.rootViewController.view.bounds;
-    CGFloat w = MIN(b.size.width * 0.5, 380);
+    CGFloat sc = UIScale();
+    CGFloat w = MIN(b.size.width * 0.5, 380 * sc);
     CGFloat y0 = b.size.height * (self.logoView ? 0.47 : 0.36);
     self.loginView = [[UIView alloc] initWithFrame:b];
     self.loginView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.userField = [self fieldWithPlaceholder:@"Toon name" y:y0 secure:NO width:w];
-    self.passField = [self fieldWithPlaceholder:@"Password" y:y0 + 52 secure:YES width:w];
+    self.passField = [self fieldWithPlaceholder:@"Password" y:y0 + 52 * sc secure:YES width:w];
     self.userField.text = [[NSUserDefaults standardUserDefaults] stringForKey:@"ttr_user"];
     self.passField.text = [self keychainPassword];
     self.playButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.playButton.frame = CGRectMake((b.size.width - 220) / 2, y0 + 106, 220, 48);
+    self.playButton.frame = CGRectMake((b.size.width - 220 * sc) / 2, y0 + 106 * sc, 220 * sc, 48 * sc);
     self.playButton.backgroundColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.15 alpha:1];
     self.playButton.layer.cornerRadius = 18;
     self.playButton.layer.borderWidth = 4;
     self.playButton.layer.borderColor = [UIColor colorWithRed:0.55 green:0.32 blue:0.05 alpha:1].CGColor;
     [self.playButton setTitle:@"PLAY!" forState:UIControlStateNormal];
     [self.playButton setTitleColor:[UIColor colorWithRed:0.45 green:0.22 blue:0.02 alpha:1] forState:UIControlStateNormal];
-    self.playButton.titleLabel.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:30] ?: [UIFont boldSystemFontOfSize:28];
+    self.playButton.titleLabel.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:30 * sc] ?: [UIFont boldSystemFontOfSize:28 * sc];
     [self.playButton addTarget:self action:@selector(signIn) forControlEvents:UIControlEventTouchUpInside];
-    self.loginError = [[UILabel alloc] initWithFrame:CGRectMake(40, y0 + 160, b.size.width - 80, 26)];
+    self.loginError = [[UILabel alloc] initWithFrame:CGRectMake(40, y0 + 160 * sc, b.size.width - 80, 26 * sc)];
     self.loginError.textAlignment = NSTextAlignmentCenter;
-    self.loginError.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:17] ?: [UIFont boldSystemFontOfSize:16];
+    self.loginError.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:17 * sc] ?: [UIFont boldSystemFontOfSize:16 * sc];
     self.loginError.textColor = [UIColor colorWithRed:0.1 green:0.25 blue:0.55 alpha:1];
     self.loginError.text = @"New here? Pick a name and password and tap PLAY!";
     self.loginView.userInteractionEnabled = YES;
@@ -389,6 +435,12 @@ static NSString *const kService = @"com.ttr.mobile";
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)f {
+    if (f == self.kbField) {
+        pyRun("import ios_game\nios_game.ui_text_submit()\n");
+        [f resignFirstResponder];
+        self.kbActive = NO;
+        return NO;
+    }
     if (f == self.userField) [self.passField becomeFirstResponder];
     else [self signIn];
     return NO;
@@ -532,19 +584,16 @@ static NSString *const kService = @"com.ttr.mobile";
         self.statusLabel.hidden = YES;
         self.detailLabel.hidden = YES;
         self.bar.hidden = YES;
-        self.window.hidden = YES;   // the game has its own window underneath: do not cover it
+        [UIApplication sharedApplication].idleTimerDisabled = YES;   // do not dim or lock mid-game
         [self showControls];
+        self.window.hidden = YES;   // the game has its own window underneath: do not cover it
     } else {
         [self showError:g];
     }
 }
 
 - (void)tick:(CADisplayLink *)link {
-    static int n = 0;
-    n++;
-    if (n <= 3 || n % 300 == 0) fprintf(stderr, "TICK %d\n", n);
     pyRun("import ios_game\nios_game.step()\n");
-    if (n <= 3) fprintf(stderr, "TICK %d done\n", n);
 }
 
 // ----- controls and log overlay -------------------------------------------------------------
@@ -559,12 +608,30 @@ static NSString *const kService = @"com.ttr.mobile";
     vc.view.backgroundColor = [UIColor clearColor];
     self.controls.rootViewController = vc;
 
-    CGFloat js = 150;
-    JoystickView *joy = [[JoystickView alloc] initWithFrame:CGRectMake(MAX(safe.left, 24) + 20, b.size.height - js - MAX(safe.bottom, 16) - 24, js, js)];
+    CGFloat sc = UIScale();
+    CGFloat js = 150 * sc;
+    JoystickView *joy = [[JoystickView alloc] initWithFrame:CGRectMake(MAX(safe.left, 24) + 20 * sc, b.size.height - js - MAX(safe.bottom, 16) - 24 * sc, js, js)];
     [vc.view addSubview:joy];
-    CGFloat jb = 92;
-    JumpButton *jump = [[JumpButton alloc] initWithFrame:CGRectMake(b.size.width - jb - MAX(safe.right, 24) - 30, b.size.height - jb - MAX(safe.bottom, 16) - 130, jb, jb)];
+    CGFloat jb = 92 * sc;
+    CGRect jf = CGRectMake(b.size.width - jb - MAX(safe.right, 24) - 30 * sc, b.size.height - jb - MAX(safe.bottom, 16) - 130 * sc, jb, jb);
+    JumpButton *jump = [[JumpButton alloc] initWithFrame:jf];
     [vc.view addSubview:jump];
+    CGFloat cb = 58 * sc;
+    PadButton *cam = [[PadButton alloc] initWithFrame:CGRectMake(jf.origin.x + (jb - cb) / 2, jf.origin.y - cb - 16 * sc, cb, cb) kind:@"camera" title:@"CAM"];
+    [vc.view addSubview:cam];
+    self.actionButton = [[PadButton alloc] initWithFrame:CGRectMake(jf.origin.x - jb - 20 * sc, jf.origin.y, jb, jb) kind:@"action" title:@"ACTION"];
+    self.actionButton.hidden = YES;
+    [vc.view addSubview:self.actionButton];
+    // invisible text field: the iOS keyboard types into the game's focused chat box through it
+    self.kbField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 2, 2)];
+    self.kbField.alpha = 0.02;
+    self.kbField.autocorrectionType = UITextAutocorrectionTypeNo;
+    self.kbField.autocapitalizationType = UITextAutocapitalizationTypeSentences;
+    self.kbField.returnKeyType = UIReturnKeySend;
+    self.kbField.delegate = (id<UITextFieldDelegate>)self;
+    [self.kbField addTarget:self action:@selector(kbChanged:) forControlEvents:UIControlEventEditingChanged];
+    [vc.view addSubview:self.kbField];
+    self.uiPoll = [NSTimer scheduledTimerWithTimeInterval:0.25 target:self selector:@selector(pollUI:) userInfo:nil repeats:YES];
 
     UIView *hot = [[UIView alloc] initWithFrame:CGRectMake(b.size.width / 2 - 50, 0, 100, 40)];   // top centre: nothing in the game lives here
     hot.backgroundColor = [UIColor clearColor];
@@ -573,6 +640,41 @@ static NSString *const kService = @"com.ttr.mobile";
     [hot addGestureRecognizer:five];
     [vc.view addSubview:hot];
     self.controls.hidden = NO;
+}
+
+- (void)kbChanged:(UITextField *)f {
+    NSString *t = [[f.text stringByReplacingOccurrencesOfString:@"\\" withString:@""] stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+    t = [t stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
+    NSString *code = [NSString stringWithFormat:@"import ios_game\nios_game.ui_text_set('%@')\n", t];
+    pyRun(code.UTF8String);
+}
+
+- (void)pollUI:(NSTimer *)timer {
+    NSString *r = pyString("import ios_game\n_ui = str(ios_game.ui_action_available()) + '|' + ios_game.ui_text_state()\n", "_ui");
+    NSArray *p = [r componentsSeparatedByString:@"|"];
+    if (p.count < 3) return;
+    self.actionButton.hidden = ![p[0] isEqualToString:@"1"];
+    BOOL focus = [p[1] isEqualToString:@"1"];
+    if (focus && !self.kbActive) {
+        NSString *text = [[p subarrayWithRange:NSMakeRange(2, p.count - 2)] componentsJoinedByString:@"|"];
+        self.kbField.text = text;
+        self.kbActive = YES;
+        [self.controls makeKeyWindow];
+        [self.kbField becomeFirstResponder];
+    } else if (!focus && self.kbActive) {
+        [self.kbField resignFirstResponder];
+        self.kbActive = NO;
+    }
+}
+
+- (void)applicationWillResignActive:(UIApplication *)application {
+    // no OpenGL work while the app is in the background (iOS would terminate it)
+    self.link.paused = YES;
+    pyRun("import ios_game\nios_game.ui_move(0,0,0,0)\n");
+}
+
+- (void)applicationDidBecomeActive:(UIApplication *)application {
+    self.link.paused = NO;
 }
 
 - (void)setupLog {

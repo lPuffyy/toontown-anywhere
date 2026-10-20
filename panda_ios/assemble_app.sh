@@ -54,15 +54,16 @@ cat > "$APP/Info.plist" <<'PLIST'
 <key>CFBundleVersion</key><string>1</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>MinimumOSVersion</key><string>15.0</string>
-<key>UIDeviceFamily</key><array><integer>1</integer></array>
+<key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>
 <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
-<key>UILaunchStoryboardName</key><string></string>
+<key>UILaunchScreen</key><dict/>
 <key>NSLocalNetworkUsageDescription</key><string>Connects to your Toontown server and downloads game files from it.</string>
 <key>UIFileSharingEnabled</key><true/>
 <key>LSSupportsOpeningDocumentsInPlace</key><true/>
 <key>UIStatusBarHidden</key><true/>
 <key>UIRequiresFullScreen</key><true/>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationLandscapeRight</string><string>UIInterfaceOrientationLandscapeLeft</string></array>
+<key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationLandscapeRight</string><string>UIInterfaceOrientationLandscapeLeft</string></array>
 </dict></plist>
 PLIST
 
