@@ -3,6 +3,7 @@
 //  - starts the game, then overlays touch controls (joystick, jump)
 //  - 5 taps in the top-left corner toggles the developer log overlay
 #import <UIKit/UIKit.h>
+#import <Security/Security.h>
 #import <QuartzCore/QuartzCore.h>
 #include <Python.h>
 
@@ -141,6 +142,16 @@ static NSString *pyString(const char *code, const char *var) {
 @property (strong, nonatomic) UIActivityIndicatorView *spinner;
 @property (strong, nonatomic) UITextView *errorView;
 @property (copy, nonatomic) NSString *report;
+// start-screen art and sign-in
+@property (strong, nonatomic) UIImageView *bgView;
+@property (strong, nonatomic) UIImageView *logoView;
+@property (strong, nonatomic) CAGradientLayer *gradient;
+@property (strong, nonatomic) NSArray<UIView *> *fallbackViews;
+@property (strong, nonatomic) UIView *loginView;
+@property (strong, nonatomic) UITextField *userField;
+@property (strong, nonatomic) UITextField *passField;
+@property (strong, nonatomic) UILabel *loginError;
+@property (strong, nonatomic) UIButton *playButton;
 // overlays
 @property (strong, nonatomic) PassThroughWindow *controls;
 @property (strong, nonatomic) UIWindow *logWindow;
@@ -167,6 +178,7 @@ static NSString *pyString(const char *code, const char *var) {
     [v.layer addSublayer:g];
     v.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
+    NSMutableArray *fb = [NSMutableArray array];
     // soft "splash" circles
     for (int i = 0; i < 7; i++) {
         CGFloat d = 80 + (i * 53) % 150;
@@ -174,6 +186,7 @@ static NSString *pyString(const char *code, const char *var) {
         c.backgroundColor = [UIColor colorWithWhite:1 alpha:0.07];
         c.layer.cornerRadius = d / 2;
         [v addSubview:c];
+        [fb addObject:c];
     }
 
     UIFont *title = [UIFont fontWithName:@"MarkerFelt-Wide" size:84] ?: [UIFont boldSystemFontOfSize:84];
@@ -189,6 +202,7 @@ static NSString *pyString(const char *code, const char *var) {
     t.frame = CGRectMake(0, bounds.size.height * 0.16, bounds.size.width, 100);
     t.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleBottomMargin;
     [v addSubview:t];
+    [fb addObject:t];
 
     UILabel *sub = [[UILabel alloc] init];
     sub.text = @"Toontown on your iPhone";
@@ -198,6 +212,9 @@ static NSString *pyString(const char *code, const char *var) {
     sub.frame = CGRectMake(0, bounds.size.height * 0.16 + 92, bounds.size.width, 36);
     sub.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleBottomMargin;
     [v addSubview:sub];
+    [fb addObject:sub];
+    self.fallbackViews = fb;
+    self.gradient = g;
 
     CGFloat bw = MIN(bounds.size.width * 0.6, 640);
     self.bar = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
@@ -241,6 +258,163 @@ static NSString *pyString(const char *code, const char *var) {
     self.errorView.hidden = YES;
     [v addSubview:self.errorView];
     return v;
+}
+
+// ----- start-screen art ----------------------------------------------------------------------
+
+- (void)applyArt {
+    if (self.bgView) return;
+    NSString *ui = [[self docsPath] stringByAppendingPathComponent:@"ui"];
+    UIImage *bg = [UIImage imageWithContentsOfFile:[ui stringByAppendingPathComponent:@"background.jpg"]];
+    UIImage *logo = [UIImage imageWithContentsOfFile:[ui stringByAppendingPathComponent:@"logo.png"]];
+    if (!bg || !logo) return;
+    UIView *root = self.window.rootViewController.view;
+    CGRect b = root.bounds;
+    self.bgView = [[UIImageView alloc] initWithImage:bg];
+    self.bgView.frame = b;
+    self.bgView.contentMode = UIViewContentModeScaleAspectFill;
+    self.bgView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [root insertSubview:self.bgView atIndex:0];
+    CGFloat lw = MIN(b.size.width * 0.5, 520), lh = lw * logo.size.height / logo.size.width;
+    self.logoView = [[UIImageView alloc] initWithImage:logo];
+    self.logoView.frame = CGRectMake((b.size.width - lw) / 2, MAX(b.size.height * 0.07, 24), lw, lh);
+    self.logoView.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
+    [root insertSubview:self.logoView aboveSubview:self.bgView];
+    for (UIView *f in self.fallbackViews) f.hidden = YES;
+    self.gradient.hidden = YES;
+}
+
+// ----- sign in -------------------------------------------------------------------------------
+
+static NSString *const kService = @"com.ttr.mobile";
+
+- (NSString *)keychainPassword {
+    NSDictionary *q = @{(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword, (__bridge id)kSecAttrService: kService,
+                        (__bridge id)kSecReturnData: @YES, (__bridge id)kSecMatchLimit: (__bridge id)kSecMatchLimitOne};
+    CFTypeRef out = NULL;
+    if (SecItemCopyMatching((__bridge CFDictionaryRef)q, &out) != errSecSuccess || !out) return nil;
+    return [[NSString alloc] initWithData:(__bridge_transfer NSData *)out encoding:NSUTF8StringEncoding];
+}
+
+- (void)saveKeychainPassword:(NSString *)pw {
+    NSDictionary *q = @{(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword, (__bridge id)kSecAttrService: kService};
+    SecItemDelete((__bridge CFDictionaryRef)q);
+    NSMutableDictionary *a = [q mutableCopy];
+    a[(__bridge id)kSecValueData] = [pw dataUsingEncoding:NSUTF8StringEncoding];
+    a[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleAfterFirstUnlock;
+    SecItemAdd((__bridge CFDictionaryRef)a, NULL);
+}
+
+- (UITextField *)fieldWithPlaceholder:(NSString *)ph y:(CGFloat)y secure:(BOOL)secure width:(CGFloat)w {
+    CGRect b = self.window.rootViewController.view.bounds;
+    UITextField *f = [[UITextField alloc] initWithFrame:CGRectMake((b.size.width - w) / 2, y, w, 48)];
+    f.backgroundColor = [UIColor colorWithWhite:1 alpha:0.92];
+    f.layer.cornerRadius = 14;
+    f.layer.borderWidth = 3;
+    f.layer.borderColor = [UIColor colorWithRed:0.12 green:0.30 blue:0.65 alpha:1].CGColor;
+    f.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:24] ?: [UIFont boldSystemFontOfSize:22];
+    f.textColor = [UIColor colorWithRed:0.1 green:0.2 blue:0.45 alpha:1];
+    f.attributedPlaceholder = [[NSAttributedString alloc] initWithString:ph attributes:@{NSForegroundColorAttributeName: [UIColor colorWithWhite:0.5 alpha:1]}];
+    f.textAlignment = NSTextAlignmentCenter;
+    f.secureTextEntry = secure;
+    f.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    f.autocorrectionType = UITextAutocorrectionTypeNo;
+    f.spellCheckingType = UITextSpellCheckingTypeNo;
+    f.returnKeyType = secure ? UIReturnKeyGo : UIReturnKeyNext;
+    f.delegate = (id<UITextFieldDelegate>)self;
+    return f;
+}
+
+- (void)showLogin {
+    [self.spinner stopAnimating];
+    self.bar.hidden = YES;
+    self.statusLabel.hidden = YES;
+    self.detailLabel.hidden = YES;
+    CGRect b = self.window.rootViewController.view.bounds;
+    CGFloat w = MIN(b.size.width * 0.5, 380);
+    CGFloat y0 = b.size.height * (self.logoView ? 0.52 : 0.40);
+    self.loginView = [[UIView alloc] initWithFrame:b];
+    self.loginView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    self.userField = [self fieldWithPlaceholder:@"Toon name" y:y0 secure:NO width:w];
+    self.passField = [self fieldWithPlaceholder:@"Password" y:y0 + 58 secure:YES width:w];
+    self.userField.text = [[NSUserDefaults standardUserDefaults] stringForKey:@"ttr_user"];
+    self.passField.text = [self keychainPassword];
+    self.playButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    self.playButton.frame = CGRectMake((b.size.width - 240) / 2, y0 + 126, 240, 56);
+    self.playButton.backgroundColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.15 alpha:1];
+    self.playButton.layer.cornerRadius = 18;
+    self.playButton.layer.borderWidth = 4;
+    self.playButton.layer.borderColor = [UIColor colorWithRed:0.55 green:0.32 blue:0.05 alpha:1].CGColor;
+    [self.playButton setTitle:@"PLAY!" forState:UIControlStateNormal];
+    [self.playButton setTitleColor:[UIColor colorWithRed:0.45 green:0.22 blue:0.02 alpha:1] forState:UIControlStateNormal];
+    self.playButton.titleLabel.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:34] ?: [UIFont boldSystemFontOfSize:30];
+    [self.playButton addTarget:self action:@selector(signIn) forControlEvents:UIControlEventTouchUpInside];
+    self.loginError = [[UILabel alloc] initWithFrame:CGRectMake(40, y0 + 190, b.size.width - 80, 30)];
+    self.loginError.textAlignment = NSTextAlignmentCenter;
+    self.loginError.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:20] ?: [UIFont boldSystemFontOfSize:18];
+    self.loginError.textColor = [UIColor colorWithRed:0.1 green:0.25 blue:0.55 alpha:1];
+    self.loginError.text = @"New here? Pick a name and password and tap PLAY!";
+    for (UIView *x in @[self.userField, self.passField, self.playButton, self.loginError]) [self.loginView addSubview:x];
+    [self.window.rootViewController.view addSubview:self.loginView];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardChange:) name:UIKeyboardWillShowNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardChange:) name:UIKeyboardWillHideNotification object:nil];
+}
+
+- (void)keyboardChange:(NSNotification *)n {
+    BOOL show = [n.name isEqualToString:UIKeyboardWillShowNotification];
+    [UIView animateWithDuration:0.25 animations:^{
+        self.loginView.transform = show ? CGAffineTransformMakeTranslation(0, -self.window.bounds.size.height * 0.36) : CGAffineTransformIdentity;
+        self.logoView.alpha = show ? 0.0 : 1.0;
+    }];
+}
+
+- (BOOL)textFieldShouldReturn:(UITextField *)f {
+    if (f == self.userField) [self.passField becomeFirstResponder];
+    else [self signIn];
+    return NO;
+}
+
+- (void)loginMessage:(NSString *)m bad:(BOOL)bad {
+    self.loginError.textColor = bad ? [UIColor colorWithRed:0.85 green:0.1 blue:0.1 alpha:1] : [UIColor colorWithRed:0.1 green:0.25 blue:0.55 alpha:1];
+    self.loginError.text = m;
+}
+
+- (void)signIn {
+    [self.window endEditing:YES];
+    NSString *user = [[self.userField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] lowercaseString];
+    NSString *pw = self.passField.text ?: @"";
+    if (user.length == 0 || pw.length == 0) {
+        [self loginMessage:@"Enter your toon name and password." bad:YES];
+        return;
+    }
+    if ([user containsString:@":"] || [user containsString:@"'"] || [pw containsString:@"'"] || [pw containsString:@"\\"]) {
+        [self loginMessage:@"Please don't use quotes, colons or backslashes." bad:YES];
+        return;
+    }
+    self.playButton.enabled = NO;
+    [self loginMessage:@"Signing in..." bad:NO];
+    NSString *cookie = [NSString stringWithFormat:@"%@:%@", user, pw];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSString *code = [NSString stringWithFormat:@"import ios_game\n_r = ios_game.check_login('%@', '%@')\n", RESOURCE_SERVER, cookie];
+        NSString *r = pyString(code.UTF8String, "_r");
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if ([r isEqualToString:@"ok"]) {
+                [[NSUserDefaults standardUserDefaults] setObject:user forKey:@"ttr_user"];
+                [self saveKeychainPassword:pw];
+                [self.loginView removeFromSuperview];
+                [[NSNotificationCenter defaultCenter] removeObserver:self];
+                self.statusLabel.hidden = NO;
+                self.statusLabel.text = @"Starting Toontown...";
+                [self.spinner startAnimating];
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [self launchGameWithCookie:cookie];
+                });
+            } else {
+                self.playButton.enabled = YES;
+                [self loginMessage:(r ?: @"Sign-in failed.") bad:YES];
+            }
+        });
+    });
 }
 
 - (void)setStatus:(NSString *)s detail:(NSString *)d progress:(float)p {
@@ -291,6 +465,7 @@ static NSString *pyString(const char *code, const char *var) {
 - (void)pollDownload:(NSTimer *)timer {
     NSString *s = pyString("import ios_game\n_s = ios_game.ui_status()\n", "_s");
     NSArray *p = [s componentsSeparatedByString:@"|"];
+    [self applyArt];
     if (p.count < 5) return;
     float frac = [p[0] floatValue];
     NSString *msg = p[1], *detail = p[2];
@@ -304,18 +479,12 @@ static NSString *pyString(const char *code, const char *var) {
     [self setStatus:msg detail:detail progress:frac];
     if (done) {
         [timer invalidate];
-        [self setStatus:@"Starting Toontown..." detail:@"" progress:1.0];
-        [self.spinner startAnimating];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            [self launchGame];
-        });
+        [self showLogin];
     }
 }
 
-- (void)launchGame {
+- (void)launchGameWithCookie:(NSString *)cookie {
     [self setupLog];
-    NSString *vendor = [[[UIDevice currentDevice] identifierForVendor] UUIDString] ?: @"iphone";
-    NSString *cookie = [@"iphone-" stringByAppendingString:[vendor substringToIndex:8]];
     NSString *code = [NSString stringWithFormat:
         @"try:\n"
          "    import ios_game\n"
