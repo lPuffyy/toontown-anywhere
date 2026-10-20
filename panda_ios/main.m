@@ -4,6 +4,8 @@
 //  - 5 taps in the top-left corner toggles the developer log overlay
 #import <UIKit/UIKit.h>
 #import <Security/Security.h>
+#import <AVFoundation/AVFoundation.h>
+#import <OpenAL/alc.h>
 #import <QuartzCore/QuartzCore.h>
 #include <Python.h>
 
@@ -132,6 +134,9 @@ static CGFloat UIScale(void) {
     if ([self.kind isEqualToString:@"action"]) {
         NSString *code = [NSString stringWithFormat:@"import ios_game\nios_game.ui_action(%d)\n", d ? 1 : 0];
         pyRun(code.UTF8String);
+    } else if ([self.kind isEqualToString:@"padleft"] || [self.kind isEqualToString:@"padright"]) {
+        NSString *code = [NSString stringWithFormat:@"import ios_game\nios_game.ui_pad(%d, %d)\n", [self.kind isEqualToString:@"padright"] ? 1 : 0, d ? 1 : 0];
+        pyRun(code.UTF8String);
     } else if (d) {
         pyRun("import ios_game\nios_game.ui_camera()\n");
     }
@@ -195,6 +200,9 @@ static CGFloat UIScale(void) {
 @property (strong, nonatomic) UIButton *playButton;
 // in-game touch helpers
 @property (strong, nonatomic) PadButton *actionButton;
+@property (strong, nonatomic) PadButton *padLeft;
+@property (strong, nonatomic) PadButton *padRight;
+@property (assign, nonatomic) ALCcontext *alContext;
 @property (strong, nonatomic) UITextField *kbField;
 @property (assign, nonatomic) BOOL kbActive;
 @property (strong, nonatomic) NSTimer *uiPoll;
@@ -476,7 +484,8 @@ static NSString *const kService = @"com.ttr.mobile";
                 [self.loginView removeFromSuperview];
                 self.loginWindow.hidden = YES;
                 self.loginWindow = nil;
-                [[NSNotificationCenter defaultCenter] removeObserver:self];
+                [[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillShowNotification object:nil];
+                [[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillHideNotification object:nil];
                 self.statusLabel.hidden = NO;
                 self.statusLabel.text = @"Starting Toontown...";
                 [self.spinner startAnimating];
@@ -622,6 +631,15 @@ static NSString *const kService = @"com.ttr.mobile";
     self.actionButton = [[PadButton alloc] initWithFrame:CGRectMake(jf.origin.x - jb - 20 * sc, jf.origin.y, jb, jb) kind:@"action" title:@"ACTION"];
     self.actionButton.hidden = YES;
     [vc.view addSubview:self.actionButton];
+    // tug-of-war: two big tap buttons (the game needs fast alternating left/right presses)
+    CGFloat pb = 112 * sc;
+    CGFloat py = b.size.height - pb - MAX(safe.bottom, 16) - 20 * sc;
+    self.padLeft = [[PadButton alloc] initWithFrame:CGRectMake(b.size.width / 2 - pb - 14 * sc, py, pb, pb) kind:@"padleft" title:@"\u25C0"];
+    self.padRight = [[PadButton alloc] initWithFrame:CGRectMake(b.size.width / 2 + 14 * sc, py, pb, pb) kind:@"padright" title:@"\u25B6"];
+    self.padLeft.hidden = YES;
+    self.padRight.hidden = YES;
+    [vc.view addSubview:self.padLeft];
+    [vc.view addSubview:self.padRight];
     // invisible text field: the iOS keyboard types into the game's focused chat box through it
     self.kbField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 2, 2)];
     self.kbField.alpha = 0.02;
@@ -650,13 +668,16 @@ static NSString *const kService = @"com.ttr.mobile";
 }
 
 - (void)pollUI:(NSTimer *)timer {
-    NSString *r = pyString("import ios_game\n_ui = str(ios_game.ui_action_available()) + '|' + ios_game.ui_text_state()\n", "_ui");
+    NSString *r = pyString("import ios_game\n_ui = str(ios_game.ui_action_available()) + '|' + str(ios_game.ui_tug_active()) + '|' + ios_game.ui_text_state()\n", "_ui");
     NSArray *p = [r componentsSeparatedByString:@"|"];
-    if (p.count < 3) return;
+    if (p.count < 4) return;
     self.actionButton.hidden = ![p[0] isEqualToString:@"1"];
-    BOOL focus = [p[1] isEqualToString:@"1"];
+    BOOL tug = [p[1] isEqualToString:@"1"];
+    self.padLeft.hidden = !tug;
+    self.padRight.hidden = !tug;
+    BOOL focus = [p[2] isEqualToString:@"1"];
     if (focus && !self.kbActive) {
-        NSString *text = [[p subarrayWithRange:NSMakeRange(2, p.count - 2)] componentsJoinedByString:@"|"];
+        NSString *text = [[p subarrayWithRange:NSMakeRange(3, p.count - 3)] componentsJoinedByString:@"|"];
         self.kbField.text = text;
         self.kbActive = YES;
         [self.controls makeKeyWindow];
@@ -664,6 +685,26 @@ static NSString *const kService = @"com.ttr.mobile";
     } else if (!focus && self.kbActive) {
         [self.kbField resignFirstResponder];
         self.kbActive = NO;
+    }
+}
+
+- (void)audioInterrupted:(NSNotification *)n {
+    NSUInteger type = [n.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
+    if (type == AVAudioSessionInterruptionTypeBegan) {
+        ALCcontext *c = alcGetCurrentContext();
+        if (c) self.alContext = c;
+        alcMakeContextCurrent(NULL);
+        if (self.alContext) alcSuspendContext(self.alContext);
+    } else {
+        [self resumeAudio];
+    }
+}
+
+- (void)resumeAudio {
+    [[AVAudioSession sharedInstance] setActive:YES error:nil];
+    if (self.alContext) {
+        alcMakeContextCurrent(self.alContext);
+        alcProcessContext(self.alContext);
     }
 }
 
@@ -675,6 +716,7 @@ static NSString *const kService = @"com.ttr.mobile";
 
 - (void)applicationDidBecomeActive:(UIApplication *)application {
     self.link.paused = NO;
+    [self resumeAudio];
 }
 
 - (void)setupLog {
@@ -715,6 +757,7 @@ static NSString *const kService = @"com.ttr.mobile";
 // ----- app lifecycle ------------------------------------------------------------------------
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(audioInterrupted:) name:AVAudioSessionInterruptionNotification object:nil];
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
     UIViewController *vc = [UIViewController new];
     vc.view = [self buildSplash:[UIScreen mainScreen].bounds];

@@ -566,31 +566,67 @@ def ui_camera():
         print("ui_camera error", traceback.format_exc(), flush=True)
 
 
-def ui_action_available():
-    """1 when something other than the plain jump input is listening for the Control key (cranes, banquet
-    tables, minigames, racing...)."""
-    try:
-        import builtins
-        m = getattr(builtins, "messenger", None)
-        who = m.whoAccepts("control") if m is not None else None
+_ACTION_NAMES = ("control", "delete", "insert", "alt")
+_action_down = [None]
+
+
+def _action_key():
+    """The key some game object (crane, banquet table, minigame...) is listening for, ignoring the plain
+    movement/jump input that always listens to Control."""
+    import builtins
+    m = getattr(builtins, "messenger", None)
+    if m is None:
+        return None
+    for name in _ACTION_NAMES:
+        who = m.whoAccepts(name)
         if not who:
-            return 0
+            continue
         for entry in list(who.values()):
-            cb = entry[0]
-            owner = getattr(cb, "__self__", None)
+            owner = getattr(entry[0], "__self__", None)
             if owner is None or type(owner).__name__.startswith("InputState"):
                 continue
-            return 1
-        return 0
+            return name
+    return None
+
+
+def ui_action_available():
+    try:
+        return 1 if _action_key() else 0
     except BaseException:
         return 0
 
 
 def ui_action(down):
+    """ACTION button: press the key the current game is waiting for (Control, Delete, Insert or Alt)."""
     try:
-        import builtins
-        m = getattr(builtins, "messenger", None)
-        if m is not None:
-            m.send("control" if down else "control-up")
+        if down:
+            _action_down[0] = _action_key() or "control"
+            _send_keys((_action_down[0],), True)
+        else:
+            _send_keys((_action_down[0] or "control",), False)
+            _action_down[0] = None
     except BaseException:
         print("ui_action error", traceback.format_exc(), flush=True)
+
+
+def ui_tug_active():
+    """1 while the tug-of-war minigame is being played (it needs fast alternating left/right presses)."""
+    try:
+        import builtins
+        cr = getattr(getattr(builtins, "base", None), "cr", None)
+        if cr is None:
+            return 0
+        for do in list(cr.doId2do.values()):
+            if type(do).__name__ == "DistributedTugOfWarGame" and getattr(do, "arrowKeys", None):
+                return 1
+    except BaseException:
+        pass
+    return 0
+
+
+def ui_pad(side, down):
+    """Tug-of-war buttons: side 0 = left (A), 1 = right (D)."""
+    try:
+        _send_keys(("a", "arrow_left") if side == 0 else ("d", "arrow_right"), bool(down))
+    except BaseException:
+        print("ui_pad error", traceback.format_exc(), flush=True)
