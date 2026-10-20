@@ -451,12 +451,31 @@ def _input_state():
     return inputState
 
 
+_dirs = {"forward": False, "reverse": False, "turnLeft": False, "turnRight": False}
+_dir_keys = {"forward": ("arrow_up", "w"), "reverse": ("arrow_down", "s"),
+             "turnLeft": ("arrow_left", "a"), "turnRight": ("arrow_right", "d")}
+
+
+def _send_keys(names, down):
+    import builtins
+    m = getattr(builtins, "messenger", None)
+    if m is None:
+        return
+    for n in names:
+        m.send(n if down else n + "-up")
+
+
 def ui_move(fwd, back, left, right):
-    """Joystick: drive the same input states the arrow keys drive."""
+    """Joystick: drive the same input states the arrow keys drive, and send the key events too
+    (minigames read W/A/S/D and the arrow keys directly)."""
     try:
         st = _input_state()
         for name, on in (("forward", fwd), ("reverse", back), ("turnLeft", left), ("turnRight", right)):
-            st.set(name, bool(on), "touch")
+            on = bool(on)
+            st.set(name, on, "touch")
+            if _dirs[name] != on:
+                _dirs[name] = on
+                _send_keys(_dir_keys[name], on)
     except BaseException:
         print("ui_move error", traceback.format_exc(), flush=True)
 
@@ -464,6 +483,7 @@ def ui_move(fwd, back, left, right):
 def ui_jump(down):
     try:
         _input_state().set("jump", bool(down), "touch")
+        _send_keys(("space",), bool(down))
     except BaseException:
         print("ui_jump error", traceback.format_exc(), flush=True)
 
