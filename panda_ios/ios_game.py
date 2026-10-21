@@ -648,6 +648,12 @@ def ui_camera():
 
 
 _ACTION_NAMES = ("control", "delete", "insert", "alt")
+_ACTION_OWNERS = {
+    "DistributedCashbotBossCrane", "DistCogdoCrane", "DistributedBanquetTable", "DistributedGolfSpot",
+    "DistributedVehicle", "DistributedCannonGame", "DistributedCogThiefGame", "DistributedPairingGame",
+    "CogdoMazeLocalPlayer", "CogdoFlyingLocalPlayer", "DistributedPartyTrampolineActivity",
+    "DistributedToonfestTrampolineActivity", "DistributedIceGame",
+}
 _action_down = [None]
 
 
@@ -666,9 +672,8 @@ def _action_key():
             owner = getattr(entry[0], "__self__", None)
             if owner is None:
                 continue
-            cname = type(owner).__name__
-            # cranes, banquet tables, minigames, racing...; ignore plain input helpers and menus
-            if cname.startswith(("Distributed", "DistCogdo", "Cogdo")):
+            # only the specific cranes, tables and minigames that really use an action key
+            if any(c.__name__ in _ACTION_OWNERS for c in type(owner).__mro__):
                 return name
     return None
 
