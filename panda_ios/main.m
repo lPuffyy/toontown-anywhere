@@ -200,6 +200,7 @@ static CGFloat UIScale(void) {
 @property (strong, nonatomic) UIButton *playButton;
 // in-game touch helpers
 @property (strong, nonatomic) PadButton *actionButton;
+@property (strong, nonatomic) NSArray<UIView *> *hudViews;
 @property (strong, nonatomic) PadButton *padLeft;
 @property (strong, nonatomic) PadButton *padRight;
 @property (assign, nonatomic) ALCcontext *alContext;
@@ -628,6 +629,8 @@ static NSString *const kService = @"com.ttr.mobile";
     CGFloat cb = 58 * sc;
     PadButton *cam = [[PadButton alloc] initWithFrame:CGRectMake(jf.origin.x + (jb - cb) / 2, jf.origin.y - cb - 16 * sc, cb, cb) kind:@"camera" title:@"CAM"];
     [vc.view addSubview:cam];
+    self.hudViews = @[joy, jump, cam];
+    for (UIView *hv in self.hudViews) hv.hidden = YES;   // shown by pollUI once the player is in the world
     self.actionButton = [[PadButton alloc] initWithFrame:CGRectMake(jf.origin.x - jb - 20 * sc, jf.origin.y, jb, jb) kind:@"action" title:@"ACTION"];
     self.actionButton.hidden = YES;
     [vc.view addSubview:self.actionButton];
@@ -668,16 +671,18 @@ static NSString *const kService = @"com.ttr.mobile";
 }
 
 - (void)pollUI:(NSTimer *)timer {
-    NSString *r = pyString("import ios_game\n_ui = str(ios_game.ui_action_available()) + '|' + str(ios_game.ui_tug_active()) + '|' + ios_game.ui_text_state()\n", "_ui");
+    NSString *r = pyString("import ios_game\n_ui = str(ios_game.ui_controls_visible()) + '|' + str(ios_game.ui_action_available()) + '|' + str(ios_game.ui_tug_active()) + '|' + ios_game.ui_text_state()\n", "_ui");
     NSArray *p = [r componentsSeparatedByString:@"|"];
-    if (p.count < 4) return;
-    self.actionButton.hidden = ![p[0] isEqualToString:@"1"];
-    BOOL tug = [p[1] isEqualToString:@"1"];
+    if (p.count < 5) return;
+    BOOL vis = [p[0] isEqualToString:@"1"];
+    for (UIView *hv in self.hudViews) hv.hidden = !vis;
+    self.actionButton.hidden = !vis || ![p[1] isEqualToString:@"1"];
+    BOOL tug = vis && [p[2] isEqualToString:@"1"];
     self.padLeft.hidden = !tug;
     self.padRight.hidden = !tug;
-    BOOL focus = [p[2] isEqualToString:@"1"];
+    BOOL focus = [p[3] isEqualToString:@"1"];
     if (focus && !self.kbActive) {
-        NSString *text = [[p subarrayWithRange:NSMakeRange(3, p.count - 3)] componentsJoinedByString:@"|"];
+        NSString *text = [[p subarrayWithRange:NSMakeRange(4, p.count - 4)] componentsJoinedByString:@"|"];
         self.kbField.text = text;
         self.kbActive = YES;
         [self.controls makeKeyWindow];
