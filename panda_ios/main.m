@@ -411,6 +411,14 @@ static NSString *const kService = @"com.ttr.mobile";
     [self.playButton setTitleColor:[UIColor colorWithRed:0.45 green:0.22 blue:0.02 alpha:1] forState:UIControlStateNormal];
     self.playButton.titleLabel.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:30 * sc] ?: [UIFont boldSystemFontOfSize:28 * sc];
     [self.playButton addTarget:self action:@selector(signIn) forControlEvents:UIControlEventTouchUpInside];
+    UIButton *forgot = [UIButton buttonWithType:UIButtonTypeCustom];
+    forgot.frame = CGRectMake(CGRectGetMaxX(self.playButton.frame) + 10 * sc, y0 + 106 * sc, 150 * sc, 48 * sc);
+    [forgot setTitle:@"Forgot password?" forState:UIControlStateNormal];
+    [forgot setTitleColor:[UIColor colorWithRed:0.08 green:0.2 blue:0.55 alpha:1] forState:UIControlStateNormal];
+    forgot.titleLabel.font = [UIFont systemFontOfSize:14 * sc weight:UIFontWeightBold];
+    forgot.titleLabel.adjustsFontSizeToFitWidth = YES;
+    forgot.titleLabel.minimumScaleFactor = 0.7;
+    [forgot addTarget:self action:@selector(forgotPassword) forControlEvents:UIControlEventTouchUpInside];
     self.loginError = [[UILabel alloc] initWithFrame:CGRectMake(40, y0 + 160 * sc, b.size.width - 80, 26 * sc)];
     self.loginError.textAlignment = NSTextAlignmentCenter;
     self.loginError.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:17 * sc] ?: [UIFont boldSystemFontOfSize:16 * sc];
@@ -429,7 +437,7 @@ static NSString *const kService = @"com.ttr.mobile";
     self.loginView.userInteractionEnabled = YES;
     self.userField.userInteractionEnabled = YES;
     self.passField.userInteractionEnabled = YES;
-    for (UIView *x in @[self.userField, self.passField, self.playButton, self.loginError]) [self.loginView addSubview:x];
+    for (UIView *x in @[self.userField, self.passField, self.playButton, forgot, self.loginError]) [self.loginView addSubview:x];
     for (UITextField *tf in @[self.userField, self.passField]) {
         UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:tf action:@selector(becomeFirstResponder)];
         tap.cancelsTouchesInView = NO;
@@ -493,7 +501,8 @@ static NSString *const kService = @"com.ttr.mobile";
         NSString *code = [NSString stringWithFormat:@"import ios_game\n_r = ios_game.check_login('%@', '%@')\n", RESOURCE_SERVER, cookie];
         NSString *r = pyString(code.UTF8String, "_r");
         dispatch_async(dispatch_get_main_queue(), ^{
-            if ([r isEqualToString:@"ok"]) {
+            if ([r isEqualToString:@"ok"] || [r isEqualToString:@"setup"]) {
+                void (^proceed)(void) = ^{
                 [[NSUserDefaults standardUserDefaults] setObject:user forKey:@"ttr_user"];
                 [self saveKeychainPassword:pw];
                 [self.loginView removeFromSuperview];
@@ -507,12 +516,84 @@ static NSString *const kService = @"com.ttr.mobile";
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     [self launchGameWithCookie:cookie];
                 });
+                };
+                if ([r isEqualToString:@"setup"]) [self askRecoverySetupFor:cookie done:proceed];
+                else proceed();
             } else {
                 self.playButton.enabled = YES;
                 [self loginMessage:(r ?: @"Sign-in failed.") bad:YES];
             }
         });
     });
+}
+
+// ----- password recovery ---------------------------------------------------------------------
+
+static NSString *HexOf(NSString *s) {
+    NSData *d = [s dataUsingEncoding:NSUTF8StringEncoding];
+    const unsigned char *b = d.bytes;
+    NSMutableString *h = [NSMutableString string];
+    for (NSUInteger i = 0; i < d.length; i++) [h appendFormat:@"%02x", b[i]];
+    return h;
+}
+
+- (void)recoveryPost:(NSString *)path text:(NSString *)text done:(void (^)(NSString *))done {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSString *code = [NSString stringWithFormat:@"import ios_game\n_r = ios_game.recovery_call_hex('%@', '%@', '%@')\n", RESOURCE_SERVER, path, HexOf(text)];
+        NSString *r = pyString(code.UTF8String, "_r");
+        dispatch_async(dispatch_get_main_queue(), ^{ done(r ?: @"That didn't work."); });
+    });
+}
+
+- (void)askRecoverySetupFor:(NSString *)cookie done:(void (^)(void))done {
+    UIAlertController *a = [UIAlertController alertControllerWithTitle:@"Forgot-password help"
+        message:@"Pick two answers only you will remember. If you ever forget your password, they let you set a new one."
+        preferredStyle:UIAlertControllerStyleAlert];
+    [a addTextFieldWithConfigurationHandler:^(UITextField *t) { t.placeholder = @"Your nickname"; t.autocorrectionType = UITextAutocorrectionTypeNo; }];
+    [a addTextFieldWithConfigurationHandler:^(UITextField *t) { t.placeholder = @"A toon name you made"; t.autocorrectionType = UITextAutocorrectionTypeNo; }];
+    [a addAction:[UIAlertAction actionWithTitle:@"Skip for now" style:UIAlertActionStyleCancel handler:^(UIAlertAction *x) { done(); }]];
+    [a addAction:[UIAlertAction actionWithTitle:@"Save" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) {
+        NSString *nick = a.textFields[0].text ?: @"", *toon = a.textFields[1].text ?: @"";
+        [self recoveryPost:@"/setrecovery" text:[NSString stringWithFormat:@"%@\n%@\n%@", cookie, nick, toon] done:^(NSString *r) {
+            if (![r isEqualToString:@"ok"]) {
+                UIAlertController *e = [UIAlertController alertControllerWithTitle:@"Not saved" message:r preferredStyle:UIAlertControllerStyleAlert];
+                [e addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction *y) { done(); }]];
+                [self.loginWindow.rootViewController presentViewController:e animated:YES completion:nil];
+            } else done();
+        }];
+    }]];
+    [self.loginWindow.rootViewController presentViewController:a animated:YES completion:nil];
+}
+
+- (void)forgotPassword {
+    [self.loginWindow endEditing:YES];
+    NSString *user = [[self.userField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] lowercaseString];
+    if (user.length == 0) {
+        [self loginMessage:@"Type your toon name above first, then tap Forgot password." bad:YES];
+        return;
+    }
+    UIAlertController *a = [UIAlertController alertControllerWithTitle:@"Reset password"
+        message:[NSString stringWithFormat:@"Answer the two questions you saved for %@, then pick a new password.", user]
+        preferredStyle:UIAlertControllerStyleAlert];
+    [a addTextFieldWithConfigurationHandler:^(UITextField *t) { t.placeholder = @"Your nickname"; t.autocorrectionType = UITextAutocorrectionTypeNo; }];
+    [a addTextFieldWithConfigurationHandler:^(UITextField *t) { t.placeholder = @"A toon name you made"; t.autocorrectionType = UITextAutocorrectionTypeNo; }];
+    [a addTextFieldWithConfigurationHandler:^(UITextField *t) { t.placeholder = @"New password"; t.secureTextEntry = YES; }];
+    [a addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [a addAction:[UIAlertAction actionWithTitle:@"Reset" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) {
+        NSString *nick = a.textFields[0].text ?: @"", *toon = a.textFields[1].text ?: @"", *pw = a.textFields[2].text ?: @"";
+        if ([pw containsString:@"'"] || [pw containsString:@"\\"] || [pw containsString:@":"]) {
+            [self loginMessage:@"Please don't use quotes, colons or backslashes." bad:YES];
+            return;
+        }
+        [self loginMessage:@"Checking..." bad:NO];
+        [self recoveryPost:@"/recover" text:[NSString stringWithFormat:@"%@\n%@\n%@\n%@", user, nick, toon, pw] done:^(NSString *r) {
+            if ([r isEqualToString:@"ok"]) {
+                self.passField.text = pw;
+                [self loginMessage:@"Password changed! Tap PLAY." bad:NO];
+            } else [self loginMessage:r bad:YES];
+        }];
+    }]];
+    [self.loginWindow.rootViewController presentViewController:a animated:YES completion:nil];
 }
 
 - (void)setStatus:(NSString *)s detail:(NSString *)d progress:(float)p {
