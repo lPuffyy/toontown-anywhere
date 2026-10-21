@@ -53,6 +53,79 @@ def _set(**kw):
         _st.update(kw)
 
 
+def _download_packs(docs, server):
+    """Download the server's pack files (one big uncompressed zip per game folder) in a few streams, resuming
+    interrupted ones, and unpack them. Thousands of tiny requests are what made the first download crawl."""
+    import zipfile
+    try:
+        with urllib.request.urlopen(server + "/packs.json", timeout=30) as r:
+            packs = json.loads(r.read().decode())
+    except Exception:
+        return False
+    pdir = os.path.join(docs, "packs")
+    os.makedirs(pdir, exist_ok=True)
+    total = sum(p[1] for p in packs)
+    _set(total=total, nfiles=len(packs), bytes=0, files=0, msg="Downloading game files",
+         detail="First launch only: about %.0f MB. Keep the app open." % (total / 1e6))
+
+    def unpack(zp):
+        with zipfile.ZipFile(zp) as z:
+            for info in z.infolist():
+                n = info.filename
+                if n.endswith("/") or ".." in n.split("/"):
+                    continue
+                dest = os.path.join(docs, "code", n[6:]) if n.startswith("_code/") else os.path.join(docs, "resources", n)
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with z.open(info) as src, open(dest, "wb") as dst:
+                    shutil.copyfileobj(src, dst, 1 << 16)
+
+    def fetch(pack):
+        name, size = pack[0], pack[1]
+        zp = os.path.join(pdir, name + ".zip")
+        part = zp + ".part"
+        try:
+            for attempt in range(6):
+                try:
+                    have = os.path.getsize(part) if os.path.exists(part) else 0
+                    if have > size:
+                        os.remove(part)
+                        have = 0
+                    if have < size:
+                        rq = urllib.request.Request("%s/_packs/%s.zip" % (server, name))
+                        if have:
+                            rq.add_header("Range", "bytes=%d-" % have)
+                        with urllib.request.urlopen(rq, timeout=60) as r:
+                            if have and getattr(r, "status", 200) != 206:
+                                have = 0
+                            with open(part, "ab" if have else "wb") as f:
+                                while True:
+                                    chunk = r.read(1 << 16)
+                                    if not chunk:
+                                        break
+                                    f.write(chunk)
+                                    with _lock:
+                                        _st["bytes"] += len(chunk)
+                        if os.path.getsize(part) != size:
+                            raise IOError("short pack")
+                    os.replace(part, zp)
+                    break
+                except Exception:
+                    if attempt == 5:
+                        raise
+                    time.sleep(2)
+            unpack(zp)
+            os.remove(zp)
+            with _lock:
+                _st["files"] += 1
+                _st["detail"] = "%.0f of %.0f MB   (%d of %d packs)" % (_st["bytes"] / 1e6, _st["total"] / 1e6, _st["files"], _st["nfiles"])
+        except Exception:
+            print("pack failed", name, traceback.format_exc().splitlines()[-1], flush=True)
+
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        list(ex.map(fetch, packs))
+    return True
+
+
 def _download_all(docs, server):
     try:
         res = os.path.join(docs, "resources")
@@ -64,22 +137,30 @@ def _download_all(docs, server):
         code = manifest.get("code", [])
         code_dir = os.path.join(docs, "code")
         import hashlib
-        todo = []          # (local path, url path, size)
-        total = 0
-        for rel, size in files:
-            p = os.path.join(res, rel)
-            total += size
-            if not (os.path.exists(p) and os.path.getsize(p) == size):
-                todo.append((p, rel, size))
-        # game code: compare size and md5 so an updated file with the same size is replaced too
-        for rel, size, md5 in code:
-            p = os.path.join(code_dir, rel)
-            ok = os.path.exists(p) and os.path.getsize(p) == size
-            if ok:
-                with open(p, "rb") as f:
-                    ok = hashlib.md5(f.read()).hexdigest() == md5
-            if not ok:
-                todo.append((p, "_code/" + rel, size))
+
+        def scan():
+            found = []          # (local path, url path, size)
+            for rel, size in files:
+                p = os.path.join(res, rel)
+                if not (os.path.exists(p) and os.path.getsize(p) == size):
+                    found.append((p, rel, size))
+            # game code: compare size and md5 so an updated file with the same size is replaced too
+            for rel, size, md5 in code:
+                p = os.path.join(code_dir, rel)
+                ok = os.path.exists(p) and os.path.getsize(p) == size
+                if ok:
+                    with open(p, "rb") as f:
+                        ok = hashlib.md5(f.read()).hexdigest() == md5
+                if not ok:
+                    found.append((p, "_code/" + rel, size))
+            return found
+
+        todo = scan()
+        if len(todo) > 400:
+            # first install (thousands of small files): fetch the big packs instead, then fill in any gaps
+            if _download_packs(docs, server):
+                _set(msg="Checking game files...", detail="")
+                todo = scan()
         need = sum(s for _, _, s in todo)
         _set(total=need, nfiles=len(todo), bytes=0, files=0)
         if not todo:
@@ -112,7 +193,7 @@ def _download_all(docs, server):
                 _st["msg"] = "Downloading game files"
                 _st["detail"] = "%.0f of %.0f MB   (%d of %d files)" % (done_mb, _st["total"] / 1e6, _st["files"], _st["nfiles"])
 
-        with ThreadPoolExecutor(max_workers=8) as ex:
+        with ThreadPoolExecutor(max_workers=12) as ex:
             list(ex.map(get, todo))
         _set(msg="Ready", detail="", done=True)
     except BaseException:
@@ -441,7 +522,7 @@ def ui_status():
     """'fraction|message|detail|done|error' for the native loading screen."""
     with _lock:
         total = _st["total"]
-        frac = (_st["bytes"] / total) if total else (1.0 if _st["done"] else 0.0)
+        frac = min(1.0, _st["bytes"] / total) if total else (1.0 if _st["done"] else 0.0)
         return "%.4f|%s|%s|%d|%s" % (frac, _st["msg"].replace("|", "/"), _st["detail"].replace("|", "/"),
                                       1 if _st["done"] else 0, (_st["err"] or "").replace(chr(10), " | "))
 
