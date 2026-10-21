@@ -585,9 +585,10 @@ def _cancel_chat_if_open():
         st = cm.fsm.getCurrentState().getName()
         if st in _CHAT_OPEN_STATES:
             cm.fsm.request("mainMenu")
-        ctl = getattr(la, "controlManager", None)
-        if ctl is not None and not getattr(ctl, "isEnabled", 1):
-            la.enableAvatarControls()
+            ctl = getattr(la, "controlManager", None)
+            # only give walking back if typed chat had taken it (never in the middle of a door, mailbox, etc.)
+            if ctl is not None and not getattr(ctl, "isEnabled", 1):
+                la.enableAvatarControls()
     except BaseException:
         print("chat cancel error", traceback.format_exc(), flush=True)
 
@@ -801,7 +802,31 @@ def _place_state():
     return st.getName() if st is not None else None
 
 
+_vis_prev = [True]
+
+
+def _release_inputs():
+    """The touch controls just disappeared (door, mailbox, menu...). A thumb still on the joystick will never send
+    'released' to a hidden view, so let go of everything here or the toon keeps running when the controls return."""
+    try:
+        ui_move(0, 0, 0, 0)
+        ui_jump(0)
+        ui_action(0)
+        ui_pad(0, 0)
+        ui_pad(1, 0)
+    except BaseException:
+        print("release inputs error", traceback.format_exc(), flush=True)
+
+
 def ui_controls_visible():
+    v = _controls_visible()
+    if _vis_prev[0] and not v:
+        _release_inputs()
+    _vis_prev[0] = bool(v)
+    return v
+
+
+def _controls_visible():
     """1 only while the player can actually move or act: hidden on the start screen, avatar chooser, Make-A-Toon
     and in menus/conversations (so the buttons never cover them)."""
     try:
@@ -816,6 +841,15 @@ def ui_controls_visible():
             from toontown.friends import FriendsListPanel
             if FriendsListPanel.isFriendsListShown():
                 return 0   # the friends panel is on the right side, where JUMP and CAM would cover it
+        except BaseException:
+            pass
+        try:
+            from otp.avatar import AvatarPanel
+            if AvatarPanel.AvatarPanel.currentAvatarPanel is not None:
+                return 0   # a friend / toon info panel is open
+            from toontown.toon import ToonAvatarDetailPanel
+            if ToonAvatarDetailPanel.globalAvatarDetail is not None:
+                return 0   # the detailed toon info page is open
         except BaseException:
             pass
         cm = getattr(la, "chatMgr", None)
