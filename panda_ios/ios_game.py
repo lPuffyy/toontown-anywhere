@@ -810,6 +810,12 @@ def ui_controls_visible():
         la = getattr(builtins, "localAvatar", None)
         if la is None:
             return 0
+        try:
+            from toontown.friends import FriendsListPanel
+            if FriendsListPanel.isFriendsListShown():
+                return 0   # the friends panel is on the right side, where JUMP and CAM would cover it
+        except BaseException:
+            pass
         cm = getattr(la, "chatMgr", None)
         if cm is not None:
             cst = cm.fsm.getCurrentState()
