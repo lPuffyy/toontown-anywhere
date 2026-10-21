@@ -546,10 +546,35 @@ def _send_keys(names, down):
         m.send(n if down else n + "-up")
 
 
+_CHAT_OPEN_STATES = ("normalChat", "whiteListOpenChat", "whiteListAvatarChat", "whiteListPlayerChat",
+                     "whisperChat", "whisperChatPlayer")
+
+
+def _cancel_chat_if_open():
+    """Typed chat switches walking off until a message is sent or cancelled, and a phone has no Escape key.
+    Touching the joystick or JUMP while it is open closes it and gives walking back."""
+    try:
+        import builtins
+        la = getattr(builtins, "localAvatar", None)
+        cm = getattr(la, "chatMgr", None)
+        if cm is None:
+            return
+        st = cm.fsm.getCurrentState().getName()
+        if st in _CHAT_OPEN_STATES:
+            cm.fsm.request("mainMenu")
+        ctl = getattr(la, "controlManager", None)
+        if ctl is not None and not getattr(ctl, "isEnabled", 1):
+            la.enableAvatarControls()
+    except BaseException:
+        print("chat cancel error", traceback.format_exc(), flush=True)
+
+
 def ui_move(fwd, back, left, right):
     """Joystick: drive the same input states the arrow keys drive, and send the key events too
     (minigames read W/A/S/D and the arrow keys directly)."""
     try:
+        if fwd or back or left or right:
+            _cancel_chat_if_open()
         st = _input_state()
         for name, on in (("forward", fwd), ("reverse", back), ("turnLeft", left), ("turnRight", right)):
             on = bool(on)
@@ -563,6 +588,8 @@ def ui_move(fwd, back, left, right):
 
 def ui_jump(down):
     try:
+        if down:
+            _cancel_chat_if_open()
         _input_state().set("jump", bool(down), "touch")
         _send_keys(("space",), bool(down))
     except BaseException:
