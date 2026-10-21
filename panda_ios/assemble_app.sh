@@ -31,6 +31,8 @@ cp "$W/panda_ios/m2_test.py" "$APP/app/m2_test.py"
 cp "$W/panda_ios/m3_test.py" "$APP/app/m3_test.py"
 cp "$W/panda_ios/ios_game.py" "$APP/app/ios_game.py"
 cp "$W/panda_ios/cacert.pem" "$APP/app/cacert.pem"
+cp "$W/LICENSE" "$APP/LICENSE.txt" 2>/dev/null || cp "$W/panda_ios/LICENSE.txt" "$APP/LICENSE.txt"
+cp "$W/panda_ios/THIRD_PARTY_NOTICES.md" "$APP/THIRD_PARTY_NOTICES.md"
 
 # The game's Python code and resources are NOT bundled: the app downloads them from the server on first launch.
 # Server addresses come from the build (env TTR_RESOURCE_SERVER / TTR_GAME_SERVER) into a header the app compiles in.
@@ -47,8 +49,8 @@ cat > "$APP/Info.plist" <<'PLIST'
 <plist version="1.0"><dict>
 <key>CFBundleExecutable</key><string>TTRPanda</string>
 <key>CFBundleIdentifier</key><string>com.ttr.pandatest</string>
-<key>CFBundleName</key><string>TTR: Mobile</string>
-<key>CFBundleDisplayName</key><string>TTR: Mobile</string>
+<key>CFBundleName</key><string>TTR-Offline Mobile</string>
+<key>CFBundleDisplayName</key><string>TTR Offline</string>
 <key>CFBundleIcons</key><dict><key>CFBundlePrimaryIcon</key><dict><key>CFBundleIconFiles</key><array><string>AppIcon60x60</string></array><key>CFBundleIconName</key><string>AppIcon</string></dict></dict>
 <key>CFBundleShortVersionString</key><string>0.1</string>
 <key>CFBundleVersion</key><string>1</string>

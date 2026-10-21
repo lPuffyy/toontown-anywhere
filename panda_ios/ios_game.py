@@ -254,6 +254,8 @@ def check_login(server, cookie):
         with urllib.request.urlopen(rq, timeout=10) as r:
             return "ok"
     except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return "ok"   # this server has no /auth check (a plain TTR-Offline server accepts any name)
         return e.read().decode("utf-8", "replace") or "Sign-in failed."
     except Exception as e:
         return "Can't reach the Toontown server. Check your Wi-Fi."

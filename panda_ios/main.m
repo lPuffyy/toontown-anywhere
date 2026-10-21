@@ -246,7 +246,7 @@ static CGFloat UIScale(void) {
 
     UIFont *title = [UIFont fontWithName:@"MarkerFelt-Wide" size:84] ?: [UIFont boldSystemFontOfSize:84];
     UILabel *t = [[UILabel alloc] init];
-    t.text = @"TTR: MOBILE";
+    t.text = @"TTR-OFFLINE";
     t.font = title;
     t.textColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.15 alpha:1];
     t.layer.shadowColor = [UIColor blackColor].CGColor;
@@ -260,7 +260,7 @@ static CGFloat UIScale(void) {
     [fb addObject:t];
 
     UILabel *sub = [[UILabel alloc] init];
-    sub.text = @"Toontown on your iPhone";
+    sub.text = @"Unofficial mobile client";
     sub.font = [UIFont fontWithName:@"MarkerFelt-Thin" size:28] ?: [UIFont systemFontOfSize:28];
     sub.textColor = [UIColor colorWithWhite:1 alpha:0.9];
     sub.textAlignment = NSTextAlignmentCenter;
@@ -412,6 +412,16 @@ static NSString *const kService = @"com.ttr.mobile";
     self.loginError.font = [UIFont fontWithName:@"MarkerFelt-Wide" size:17 * sc] ?: [UIFont boldSystemFontOfSize:16 * sc];
     self.loginError.textColor = [UIColor colorWithRed:0.1 green:0.25 blue:0.55 alpha:1];
     self.loginError.text = @"New here? Pick a name and password and tap PLAY!";
+    // credit (the app is an unofficial client for TTR-Offline; see THIRD_PARTY_NOTICES in the app bundle)
+    UILabel *credit = [[UILabel alloc] initWithFrame:CGRectMake(20, b.size.height - 22 * sc - MAX(self.window.safeAreaInsets.bottom, 4), b.size.width - 40, 18 * sc)];
+    credit.text = @"Unofficial client for TTR-Offline • Based on TTR-Offline by RegDogg (Apache 2.0)";
+    credit.textAlignment = NSTextAlignmentCenter;
+    credit.font = [UIFont systemFontOfSize:11 * sc weight:UIFontWeightSemibold];
+    credit.textColor = [UIColor colorWithRed:0.08 green:0.2 blue:0.45 alpha:0.9];
+    credit.adjustsFontSizeToFitWidth = YES;
+    credit.minimumScaleFactor = 0.6;
+    credit.userInteractionEnabled = NO;
+    [self.loginView addSubview:credit];
     self.loginView.userInteractionEnabled = YES;
     self.userField.userInteractionEnabled = YES;
     self.passField.userInteractionEnabled = YES;
