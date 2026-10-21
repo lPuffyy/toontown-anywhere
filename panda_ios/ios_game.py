@@ -810,6 +810,11 @@ def ui_controls_visible():
         la = getattr(builtins, "localAvatar", None)
         if la is None:
             return 0
+        cm = getattr(la, "chatMgr", None)
+        if cm is not None:
+            cst = cm.fsm.getCurrentState()
+            if cst is not None and cst.getName() in ("speedChat", "whisperSpeedChat", "whisperSpeedChatPlayer"):
+                return 0   # the quick chat menu covers the controls' area: keep it tappable
         state = _place_state()
         if state != _last_ui_state[0]:
             _last_ui_state[0] = state
