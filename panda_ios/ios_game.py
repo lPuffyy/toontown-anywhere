@@ -630,3 +630,14 @@ def ui_pad(side, down):
         _send_keys(("a", "arrow_left") if side == 0 else ("d", "arrow_right"), bool(down))
     except BaseException:
         print("ui_pad error", traceback.format_exc(), flush=True)
+
+def ui_controls_visible():
+    """1 only while playing in the world: hidden on the start screen, avatar chooser and Make-A-Toon."""
+    try:
+        import builtins
+        cr = getattr(getattr(builtins, "base", None), "cr", None)
+        if cr is not None and getattr(cr, "avCreate", None):
+            return 0
+        return 1 if getattr(builtins, "localAvatar", None) is not None else 0
+    except BaseException:
+        return 1
