@@ -664,9 +664,12 @@ def _action_key():
             continue
         for entry in list(who.values()):
             owner = getattr(entry[0], "__self__", None)
-            if owner is None or type(owner).__name__.startswith("InputState"):
+            if owner is None:
                 continue
-            return name
+            cname = type(owner).__name__
+            # cranes, banquet tables, minigames, racing...; ignore plain input helpers and menus
+            if cname.startswith(("Distributed", "DistCogdo", "Cogdo")):
+                return name
     return None
 
 
@@ -729,9 +732,23 @@ def _arrowkeys_active():
     return False
 
 
+_last_ui_state = [None]
+
+
+def _place_state():
+    """Name of the current place state ('walk', 'stopped', 'stickerBook', ...), or None."""
+    import builtins
+    cr = getattr(getattr(builtins, "base", None), "cr", None)
+    pg = getattr(cr, "playGame", None)
+    place = getattr(pg, "place", None)
+    fsm = getattr(place, "fsm", None)
+    st = fsm.getCurrentState() if fsm is not None else None
+    return st.getName() if st is not None else None
+
+
 def ui_controls_visible():
-    """1 only while the player can actually move or act: hidden on the start screen, avatar chooser, Make-A-Toon,
-    and while a menu or conversation has switched the walking controls off (so the buttons never cover it)."""
+    """1 only while the player can actually move or act: hidden on the start screen, avatar chooser, Make-A-Toon
+    and in menus/conversations (so the buttons never cover them)."""
     try:
         import builtins
         cr = getattr(getattr(builtins, "base", None), "cr", None)
@@ -740,11 +757,17 @@ def ui_controls_visible():
         la = getattr(builtins, "localAvatar", None)
         if la is None:
             return 0
-        cm = getattr(la, "controlManager", None)
-        if cm is not None and getattr(cm, "isEnabled", 0):
+        state = _place_state()
+        if state != _last_ui_state[0]:
+            _last_ui_state[0] = state
+            print("UI place state:", state, flush=True)
+        if state in ("walk", "swim"):
             return 1
         if _action_key() or ui_tug_active() or _arrowkeys_active():
             return 1
+        if state is None:
+            cm = getattr(la, "controlManager", None)
+            return 1 if (cm is not None and getattr(cm, "isEnabled", 0)) else 0
         return 0
     except BaseException:
         return 1
