@@ -1,4 +1,4 @@
-# TTR-Offline Mobile (unofficial iOS client)
+# Toontown: Anywhere (unofficial iOS client for TTR-Offline)
 
 An **unofficial** iPhone and iPad client for **self-hosted TTR-Offline servers**. It is not affiliated with,
 endorsed by, or connected to Toontown Rewritten, its team, or Disney, and it **cannot connect to the official

@@ -201,6 +201,8 @@ static CGFloat UIScale(void) {
 // in-game touch helpers
 @property (strong, nonatomic) PadButton *actionButton;
 @property (strong, nonatomic) NSArray<UIView *> *hudViews;
+@property (strong, nonatomic) JoystickView *joyView;
+@property (assign, nonatomic) BOOL hudWasVisible;
 @property (strong, nonatomic) PadButton *padLeft;
 @property (strong, nonatomic) PadButton *padRight;
 @property (assign, nonatomic) ALCcontext *alContext;
@@ -246,7 +248,9 @@ static CGFloat UIScale(void) {
 
     UIFont *title = [UIFont fontWithName:@"MarkerFelt-Wide" size:84] ?: [UIFont boldSystemFontOfSize:84];
     UILabel *t = [[UILabel alloc] init];
-    t.text = @"TTR-OFFLINE";
+    t.text = @"TOONTOWN: ANYWHERE";
+    t.adjustsFontSizeToFitWidth = YES;
+    t.minimumScaleFactor = 0.5;
     t.font = title;
     t.textColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.15 alpha:1];
     t.layer.shadowColor = [UIColor blackColor].CGColor;
@@ -639,6 +643,7 @@ static NSString *const kService = @"com.ttr.mobile";
     CGFloat cb = 58 * sc;
     PadButton *cam = [[PadButton alloc] initWithFrame:CGRectMake(jf.origin.x + (jb - cb) / 2, jf.origin.y - cb - 16 * sc, cb, cb) kind:@"camera" title:@"CAM"];
     [vc.view addSubview:cam];
+    self.joyView = joy;
     self.hudViews = @[joy, jump, cam];
     for (UIView *hv in self.hudViews) hv.hidden = YES;   // shown by pollUI once the player is in the world
     self.actionButton = [[PadButton alloc] initWithFrame:CGRectMake(jf.origin.x - jb - 20 * sc, jf.origin.y, jb, jb) kind:@"action" title:@"ACTION"];
@@ -685,6 +690,13 @@ static NSString *const kService = @"com.ttr.mobile";
     NSArray *p = [r componentsSeparatedByString:@"|"];
     if (p.count < 5) return;
     BOOL vis = [p[0] isEqualToString:@"1"];
+    if (self.hudWasVisible && !vis) {
+        [self.joyView reset];      // a finger still on the joystick must not keep the toon running
+        [self.actionButton setDown:NO];
+        [self.padLeft setDown:NO];
+        [self.padRight setDown:NO];
+    }
+    self.hudWasVisible = vis;
     for (UIView *hv in self.hudViews) hv.hidden = !vis;
     self.actionButton.hidden = !vis || ![p[1] isEqualToString:@"1"];
     BOOL tug = vis && [p[2] isEqualToString:@"1"];
