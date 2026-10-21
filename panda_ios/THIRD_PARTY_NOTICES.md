@@ -1,6 +1,6 @@
 # Credits and third-party notices
 
-**TTR-Offline Mobile is an unofficial client for self-hosted TTR-Offline servers.** It is not affiliated with,
+**Toontown: Anywhere is an unofficial client for self-hosted TTR-Offline servers.** It is not affiliated with,
 endorsed by, or connected to Toontown Rewritten, its team, or Disney, and it cannot connect to the official
 Toontown Rewritten servers.
 
