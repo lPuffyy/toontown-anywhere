@@ -712,13 +712,39 @@ def ui_pad(side, down):
     except BaseException:
         print("ui_pad error", traceback.format_exc(), flush=True)
 
+def _arrowkeys_active():
+    """True while a minigame's ArrowKeys helper (W/A/S/D + Space) is listening."""
+    import builtins
+    m = getattr(builtins, "messenger", None)
+    if m is None:
+        return False
+    for name in ("a", "d", "w", "s"):
+        who = m.whoAccepts(name)
+        if not who:
+            continue
+        for entry in list(who.values()):
+            owner = getattr(entry[0], "__self__", None)
+            if owner is not None and type(owner).__name__ == "ArrowKeys":
+                return True
+    return False
+
+
 def ui_controls_visible():
-    """1 only while playing in the world: hidden on the start screen, avatar chooser and Make-A-Toon."""
+    """1 only while the player can actually move or act: hidden on the start screen, avatar chooser, Make-A-Toon,
+    and while a menu or conversation has switched the walking controls off (so the buttons never cover it)."""
     try:
         import builtins
         cr = getattr(getattr(builtins, "base", None), "cr", None)
         if cr is not None and getattr(cr, "avCreate", None):
             return 0
-        return 1 if getattr(builtins, "localAvatar", None) is not None else 0
+        la = getattr(builtins, "localAvatar", None)
+        if la is None:
+            return 0
+        cm = getattr(la, "controlManager", None)
+        if cm is not None and getattr(cm, "isEnabled", 0):
+            return 1
+        if _action_key() or ui_tug_active() or _arrowkeys_active():
+            return 1
+        return 0
     except BaseException:
         return 1
