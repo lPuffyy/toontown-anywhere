@@ -50,7 +50,7 @@ cat > "$APP/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>TTRPanda</string>
 <key>CFBundleIdentifier</key><string>com.ttr.pandatest</string>
 <key>CFBundleName</key><string>Toontown: Anywhere</string>
-<key>CFBundleDisplayName</key><string>Anywhere</string>
+<key>CFBundleDisplayName</key><string>TT: Anywhere</string>
 <key>CFBundleIcons</key><dict><key>CFBundlePrimaryIcon</key><dict><key>CFBundleIconFiles</key><array><string>AppIcon60x60</string></array><key>CFBundleIconName</key><string>AppIcon</string></dict></dict>
 <key>CFBundleShortVersionString</key><string>0.1</string>
 <key>CFBundleVersion</key><string>1</string>
