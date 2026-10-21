@@ -410,16 +410,37 @@ _step_err = [0]
 _tex_seen = [0]
 
 
+_converted_tex = set()
+
+
 def _fix_two_channel_textures():
-    """Mipmapped 1/2-channel (alpha, luminance, luminance+alpha) textures render black on iOS GLES1: the driver
-    can't build their mipmaps. That blanked the bitmap-font text and the toons' eyes. Use plain linear filtering."""
-    from panda3d.core import TexturePool, SamplerState
+    """Mipmapped 1/2-channel textures render black on iOS GLES1, and luminance+alpha textures (quick chat panels,
+    some GUI frames) came out faint. Use plain linear filtering for all of them, and convert luminance+alpha
+    textures to ordinary RGBA so the phone never has to use that format."""
+    from panda3d.core import TexturePool, SamplerState, Texture, PNMImage
     tc = TexturePool.find_all_textures()
     n = tc.get_num_textures()
     for i in range(n):
         t = tc.get_texture(i)
-        if t.get_num_components() in (1, 2) and t.uses_mipmaps():
+        comps = t.get_num_components()
+        if comps in (1, 2) and t.uses_mipmaps():
             t.set_minfilter(SamplerState.FT_linear)
+        if comps == 2 and t.get_format() == Texture.F_luminance_alpha and t.has_ram_image():
+            key = (t.get_name(), t.get_x_size(), t.get_y_size())
+            if key in _converted_tex:
+                continue
+            _converted_tex.add(key)
+            try:
+                img = PNMImage()
+                if t.store(img):
+                    rgba = PNMImage(img.get_x_size(), img.get_y_size(), 4)
+                    rgba.copy_from(img)
+                    if rgba.get_num_channels() == 4 and t.load(rgba):
+                        print("converted LA texture to RGBA:", key, flush=True)
+            except BaseException:
+                print("LA convert failed", key, traceback.format_exc().splitlines()[-1], flush=True)
+
+
 _debug_state = {"url": None, "last": None}
 
 
