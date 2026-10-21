@@ -252,13 +252,31 @@ def check_login(server, cookie):
     try:
         rq = urllib.request.Request(server.rstrip("/") + "/auth", data=cookie.encode(), method="POST")
         with urllib.request.urlopen(rq, timeout=10) as r:
-            return "ok"
+            return "setup" if r.read(16).strip() == b"setup" else "ok"
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return "ok"   # this server has no /auth check (a plain TTR-Offline server accepts any name)
         return e.read().decode("utf-8", "replace") or "Sign-in failed."
     except Exception as e:
         return "Can't reach the Toontown server. Check your Wi-Fi."
+
+
+def recovery_call(server, path, text):
+    """POST to /setrecovery or /recover. Returns 'ok' or the message to show the player."""
+    try:
+        rq = urllib.request.Request(server.rstrip("/") + path, data=text.encode("utf-8"), method="POST")
+        with urllib.request.urlopen(rq, timeout=10):
+            return "ok"
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return "This server doesn't support password recovery."
+        return e.read().decode("utf-8", "replace") or "That didn't work."
+    except Exception:
+        return "Can't reach the Toontown server. Check your Wi-Fi."
+
+
+def recovery_call_hex(server, path, hextext):
+    return recovery_call(server, path, bytes.fromhex(hextext).decode("utf-8"))
 
 
 def start_download(docs, server):
@@ -593,12 +611,40 @@ def _cancel_chat_if_open():
         print("chat cancel error", traceback.format_exc(), flush=True)
 
 
+_unstick_last = [0.0]
+
+
+def _unstick_walking():
+    """The joystick is only shown while the player may walk. If the game still has walking switched off (seen after
+    typed chat and after animated quick chats, until the Shticker Book was opened and closed), switch it back on."""
+    try:
+        import builtins
+        import time
+        la = getattr(builtins, "localAvatar", None)
+        ctl = getattr(la, "controlManager", None)
+        if ctl is None or getattr(ctl, "isEnabled", 1):
+            return
+        if _place_state() not in ("walk", "swim") or not _controls_visible():
+            return
+        now = time.time()
+        if now - _unstick_last[0] < 1.0:
+            return
+        _unstick_last[0] = now
+        cm = getattr(la, "chatMgr", None)
+        cst = cm.fsm.getCurrentState().getName() if cm is not None and cm.fsm.getCurrentState() is not None else None
+        print("walking was off with the joystick showing: re-enabling (chat=%s, emote=%s)" % (cst, getattr(la, "emoteTrack", None) is not None), flush=True)
+        la.enableAvatarControls()
+    except BaseException:
+        print("unstick error", traceback.format_exc(), flush=True)
+
+
 def ui_move(fwd, back, left, right):
     """Joystick: drive the same input states the arrow keys drive, and send the key events too
     (minigames read W/A/S/D and the arrow keys directly)."""
     try:
         if fwd or back or left or right:
             _cancel_chat_if_open()
+            _unstick_walking()
         st = _input_state()
         for name, on in (("forward", fwd), ("reverse", back), ("turnLeft", left), ("turnRight", right)):
             on = bool(on)
@@ -803,6 +849,7 @@ def _place_state():
 
 
 _vis_prev = [True]
+_chat_prev = [None]
 
 
 def _release_inputs():
@@ -855,7 +902,16 @@ def _controls_visible():
         cm = getattr(la, "chatMgr", None)
         if cm is not None:
             cst = cm.fsm.getCurrentState()
-            if cst is not None and cst.getName() in ("speedChat", "whisperSpeedChat", "whisperSpeedChatPlayer"):
+            cname = cst.getName() if cst is not None else None
+            # typed chat switches walking off; leaving it for quick chat (instead of sending/cancelling) never
+            # switches it back on, so the toon would not move until the Shticker Book is opened and closed
+            if _chat_prev[0] in _CHAT_OPEN_STATES and cname not in _CHAT_OPEN_STATES:
+                ctl = getattr(la, "controlManager", None)
+                if ctl is not None and not getattr(ctl, "isEnabled", 1) and _place_state() in ("walk", "swim"):
+                    la.enableAvatarControls()
+                    print("re-enabled walking after typed chat", flush=True)
+            _chat_prev[0] = cname
+            if cname in ("speedChat", "whisperSpeedChat", "whisperSpeedChatPlayer"):
                 return 0   # the quick chat menu covers the controls' area: keep it tappable
         state = _place_state()
         if state != _last_ui_state[0]:
