@@ -24,6 +24,20 @@ This project exists because of other people's work. Thank you to:
 code and resources at first launch from the **file server it was built for**, and connects to the **game server it
 was built for**. This project's own code is only the iOS app shell, the touch controls and the build scripts.
 
+## Screenshots
+
+Running on an iPhone, with the touch controls (joystick, jump and camera) on screen:
+
+![Walking around the playground with the on-screen touch controls](docs/screenshots/gameplay-controls.jpg)
+
+| Streets | Battles |
+|---|---|
+| ![A street with Cogs nearby](docs/screenshots/street.jpg) | ![The gag menu during a battle](docs/screenshots/battle.jpg) |
+
+The app in SideStore:
+
+<img src="docs/screenshots/sidestore.jpg" alt="Toontown: Anywhere listed in SideStore" width="320">
+
 ## Install with SideStore
 
 The easiest way to install the app is through a **SideStore source**, which also delivers updates.
