@@ -26,15 +26,7 @@ was built for**. This project's own code is only the iOS app shell, the touch co
 
 ## Screenshots
 
-Running on an iPhone, with the touch controls (joystick, jump and camera) on screen:
-
-![Walking around the playground with the on-screen touch controls](docs/screenshots/gameplay-controls.jpg)
-
-| Streets | Battles |
-|---|---|
-| ![A street with Cogs nearby](docs/screenshots/street.jpg) | ![The gag menu during a battle](docs/screenshots/battle.jpg) |
-
-The app in SideStore:
+Screenshots of the game are in the app's listing in SideStore. This is how the listing looks:
 
 <img src="docs/screenshots/sidestore.jpg" alt="Toontown: Anywhere listed in SideStore" width="320">
 
