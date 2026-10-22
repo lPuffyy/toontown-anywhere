@@ -21,8 +21,9 @@ This project exists because of other people's work. Thank you to:
   [THIRD_PARTY_NOTICES.md](panda_ios/THIRD_PARTY_NOTICES.md), which is also bundled inside the app.
 
 **This repository contains no game files.** No game code, models, textures, or audio. The app downloads the client
-code and resources at first launch from the **file server it was built for**, and connects to the **game server it
-was built for**. This project's own code is only the iOS app shell, the touch controls and the build scripts.
+code and resources from the **file server you choose**, and connects to the **game server you choose**. It can
+connect to **any TTR-Offline server**: the one it comes set up for, or one you type in (see "Choosing a server"
+below). This project's own code is only the iOS app shell, the touch controls and the build scripts.
 
 ## Screenshots
 
@@ -52,14 +53,15 @@ Notes:
 - If the source's name or icon looks out of date, remove the source and add it again.
 - Other sideloading tools like [AltStore](https://altstore.io) work too, using the `.ipa` from your own build.
 
-The app provided in the SideStore source and this repo connects to my own server. To
-run your own server, build your own app instead (next section).
+The app provided in the SideStore source and this repo comes set up with my own server as the default choice. It
+can connect to any other TTR-Offline server too, see "Choosing a server" below. To make your own server the
+default, build your own app (the section after that).
 
 ## Choosing a server
 
 The first time you open the app it asks which server to play on:
 
-- **Connect to Toontown: Anywhere** uses the server the app was built for (the default).
+- **Connect to Toontown: Anywhere** uses the server the app was built for (the default; in the SideStore app, that is my server).
 - **A different server:** type in the server's file address (for example `https://files.example.com`) and its game
   address (`host:port`, for example `play.example.com:7298`), then tap **Connect**. The app checks that both are
   reachable before saving them.
@@ -126,6 +128,7 @@ the resources repository before you share anything.
 - Touch controls (joystick, jump, camera, action) that hide whenever a menu or panel is open.
 - A keyboard bridge for typed chat, iPad scaling, and sound that plays even when the phone is on silent.
 - Sign-in with a username and password, with optional password recovery (see above).
+- Connects to any TTR-Offline server: pick one on first launch and switch later with the Change server button.
 
 ## Status
 Experimental. Developed and tested on iPhone and iPad with dev-signed builds. The OpenGL ES 1 API it uses is
