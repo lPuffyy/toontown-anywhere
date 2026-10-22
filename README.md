@@ -55,9 +55,26 @@ Notes:
 The app provided in the SideStore source and this repo connects to my own server. To
 run your own server, build your own app instead (next section).
 
+## Choosing a server
+
+The first time you open the app it asks which server to play on:
+
+- **Connect to Toontown: Anywhere** uses the server the app was built for (the default).
+- **A different server:** type in the server's file address (for example `https://files.example.com`) and its game
+  address (`host:port`, for example `play.example.com:7298`), then tap **Connect**. The app checks that both are
+  reachable before saving them.
+
+The app remembers your choice. The **Change server** button on the sign-in screen switches to another server later.
+Each server keeps its own downloaded game files, saved username and password, so switching back is quick. Game
+files are only downloaded after you have picked a server.
+
+**Only connect to servers you trust.** A server supplies the game's code, and that code runs inside this app.
+
 ## Build your own app for your own server
 
-The server addresses are baked in at build time, so each person builds an app for their own server.
+The server addresses are baked in at build time as the app's **default server**. (Players can also type in a
+different server inside the app, see "Choosing a server" above, so building your own is only needed if you want
+your own server to be the default.)
 
 1. **Fork this repository** on GitHub and enable Actions on the fork.
 2. Run the **panda-ios** workflow (Actions, Run workflow). Inputs:
