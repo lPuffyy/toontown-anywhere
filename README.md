@@ -46,7 +46,7 @@ Notes:
 - If the source's name or icon looks out of date, remove the source and add it again.
 - Other sideloading tools like [AltStore](https://altstore.io) work too, using the `.ipa` from your own build.
 
-The app I publish connects to my own server, which I run for family and friends, so you'd need an account on it. To
+The app provided in the SideStore source and this repo connects to my own server. To
 run your own server, build your own app instead (next section).
 
 ## Build your own app for your own server
