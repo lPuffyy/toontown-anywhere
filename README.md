@@ -43,11 +43,11 @@ Notes:
 - The source lists the newest build only. Each entry includes the file size and a SHA-256 checksum.
 - The app is **not** from the App Store. Sideloaded apps expire and need refreshing (SideStore does that for you
   while it is running, as long as it is set up).
-- If you changed the source name or icon and still see the old one, remove the source and add it again.
-- You can also use [AltStore](https://altstore.io) or any other sideloading tool with the `.ipa` from your own build.
+- If the source's name or icon looks out of date, remove the source and add it again.
+- Other sideloading tools like [AltStore](https://altstore.io) work too, using the `.ipa` from your own build.
 
-The default build connects to the maintainer's server, which is a small server for friends and family, so you will
-need an account there. If you would rather run your own, build your own app (next section).
+The app I publish connects to my own server, which I run for family and friends, so you'd need an account on it. To
+run your own server, build your own app instead (next section).
 
 ## Build your own app for your own server
 
@@ -66,8 +66,8 @@ It takes the saved run's id as an input.
 ### Publishing your own SideStore source
 
 A source is one JSON file (`source.json`) that lists your app and where to download the `.ipa`. Host it and the
-`.ipa` on any static web server. The format is documented by SideStore. The maintainer's version of this has an
-`apps[0].versions` list (version, date, download URL, size, SHA-256) and an icon address.
+`.ipa` on any static web server. SideStore documents the format. Mine lists each version with its date, download
+URL, size and SHA-256, plus an icon address.
 
 ## What your servers need to provide
 
