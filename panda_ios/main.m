@@ -211,6 +211,19 @@ static CGFloat UIScale(void) {
 @property (strong, nonatomic) UIButton *connectBtn;
 @property (strong, nonatomic) UIButton *defaultBtn;
 @property (strong, nonatomic) UIButton *changeServerBtn;
+// password-recovery card
+@property (strong, nonatomic) UIWindow *recWindow;
+@property (strong, nonatomic) UIScrollView *recScroll;
+@property (strong, nonatomic) UITextField *recNick;
+@property (strong, nonatomic) UITextField *recToon;
+@property (strong, nonatomic) UITextField *recPw;
+@property (strong, nonatomic) UILabel *recMsg;
+@property (strong, nonatomic) UIButton *recPrimary;
+@property (strong, nonatomic) UIButton *recSecondary;
+@property (assign, nonatomic) BOOL recReset;
+@property (copy, nonatomic) NSString *recCookie;
+@property (copy, nonatomic) NSString *recUser;
+@property (copy, nonatomic) void (^recDone)(void);
 // in-game touch helpers
 @property (strong, nonatomic) PadButton *actionButton;
 @property (strong, nonatomic) NSArray<UIView *> *hudViews;
@@ -538,6 +551,9 @@ static NSString *ServerId(NSString *res, NSString *game) {
         self.kbActive = NO;
         return NO;
     }
+    if (f == self.recNick) { [self.recToon becomeFirstResponder]; return NO; }
+    if (f == self.recToon) { if (self.recPw) [self.recPw becomeFirstResponder]; else [self submitRecoveryPrimary]; return NO; }
+    if (f == self.recPw) { [self submitRecoveryPrimary]; return NO; }
     if (f == self.resField) { [self.gameField becomeFirstResponder]; return NO; }
     if (f == self.gameField) { [self connectCustom]; return NO; }
     if (f == self.userField) [self.passField becomeFirstResponder];
@@ -613,26 +629,97 @@ static NSString *HexOf(NSString *s) {
     });
 }
 
-- (void)askRecoverySetupFor:(NSString *)cookie done:(void (^)(void))done {
-    UIAlertController *a = [UIAlertController alertControllerWithTitle:@"Forgot-password help"
-        message:@"Pick two answers only you will remember. If you ever forget your password, they let you set a new one."
-        preferredStyle:UIAlertControllerStyleAlert];
-    [a addTextFieldWithConfigurationHandler:^(UITextField *t) { t.placeholder = @"Your nickname"; t.autocorrectionType = UITextAutocorrectionTypeNo; }];
-    [a addTextFieldWithConfigurationHandler:^(UITextField *t) { t.placeholder = @"A toon name you made"; t.autocorrectionType = UITextAutocorrectionTypeNo; }];
-    [a addAction:[UIAlertAction actionWithTitle:@"Skip for now" style:UIAlertActionStyleCancel handler:^(UIAlertAction *x) { done(); }]];
-    [a addAction:[UIAlertAction actionWithTitle:@"Save" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) {
-        NSString *nick = a.textFields[0].text ?: @"", *toon = a.textFields[1].text ?: @"";
-        [self recoveryPost:@"/setrecovery" text:[NSString stringWithFormat:@"%@\n%@\n%@", cookie, nick, toon] done:^(NSString *r) {
-            if (![r isEqualToString:@"ok"]) {
-                UIAlertController *e = [UIAlertController alertControllerWithTitle:@"Not saved" message:r preferredStyle:UIAlertControllerStyleAlert];
-                [e addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction *y) { done(); }]];
-                [self.loginWindow.rootViewController presentViewController:e animated:YES completion:nil];
-            } else done();
-        }];
-    }]];
-    [self.loginWindow.rootViewController presentViewController:a animated:YES completion:nil];
+// On-screen card (same look as the server card) used by both recovery steps.
+- (void)showRecoveryCard:(NSString *)title blurb:(NSString *)blurb withPassword:(BOOL)withPw primary:(NSString *)primary secondary:(NSString *)secondary {
+    self.loginWindow.hidden = YES;
+    CGRect b = self.window.rootViewController.view.bounds;
+    CGFloat sc = UIScale();
+    CGFloat cw = MIN(b.size.width - 40, 520 * sc);
+    CGFloat pad = 20 * sc, w = cw - 2 * pad;
+    CGFloat ch = (withPw ? 392 : 344) * sc;
+    CGFloat top = MAX(16, (b.size.height - ch) / 2);
+    self.recScroll = [[UIScrollView alloc] initWithFrame:b];
+    self.recScroll.contentSize = CGSizeMake(b.size.width, MAX(b.size.height, ch + 32));
+    self.recScroll.alwaysBounceVertical = YES;
+    self.recScroll.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
+    UIView *card = [[UIView alloc] initWithFrame:CGRectMake((b.size.width - cw) / 2, top, cw, ch)];
+    card.backgroundColor = [UIColor colorWithWhite:1 alpha:0.95];
+    card.layer.cornerRadius = 22;
+    card.layer.borderWidth = 4;
+    card.layer.borderColor = [UIColor colorWithRed:0.12 green:0.30 blue:0.65 alpha:1].CGColor;
+    [self.recScroll addSubview:card];
+    [card addSubview:[self cardLabel:title frame:CGRectMake(pad, 12 * sc, w, 34 * sc) size:26 * sc bold:YES]];
+    [card addSubview:[self cardLabel:blurb frame:CGRectMake(pad, 50 * sc, w, 44 * sc) size:14 * sc bold:NO]];
+
+    self.recNick = [self fieldWithPlaceholder:@"Your nickname" y:0 secure:NO width:w];
+    self.recToon = [self fieldWithPlaceholder:@"A toon name you made" y:0 secure:NO width:w];
+    NSMutableArray *fields = [NSMutableArray arrayWithObjects:self.recNick, self.recToon, nil];
+    self.recPw = nil;
+    if (withPw) {
+        self.recPw = [self fieldWithPlaceholder:@"New password" y:0 secure:YES width:w];
+        [fields addObject:self.recPw];
+    }
+    CGFloat y = 100 * sc;
+    for (UITextField *f in fields) {
+        f.frame = CGRectMake(pad, y, w, 42 * sc);
+        f.font = [UIFont systemFontOfSize:18 * sc weight:UIFontWeightSemibold];
+        f.returnKeyType = (f == fields.lastObject) ? UIReturnKeyGo : UIReturnKeyNext;
+        [card addSubview:f];
+        y += 48 * sc;
+    }
+    self.recMsg = [self cardLabel:@"" frame:CGRectMake(pad, y + 2 * sc, w, 34 * sc) size:14 * sc bold:NO];
+    [card addSubview:self.recMsg];
+    y += 40 * sc;
+    self.recPrimary = [self pillButton:primary frame:CGRectMake((cw - 220 * sc) / 2, y, 220 * sc, 44 * sc)
+                                  fill:[UIColor colorWithRed:0.35 green:0.65 blue:1.0 alpha:1] text:[UIColor whiteColor] size:22 * sc];
+    [self.recPrimary addTarget:self action:@selector(submitRecoveryPrimary) forControlEvents:UIControlEventTouchUpInside];
+    [card addSubview:self.recPrimary];
+    self.recSecondary = [self pillButton:secondary frame:CGRectMake((cw - 160 * sc) / 2, y + 52 * sc, 160 * sc, 32 * sc)
+                                    fill:[UIColor colorWithWhite:0.92 alpha:1] text:[UIColor colorWithRed:0.1 green:0.2 blue:0.5 alpha:1] size:16 * sc];
+    self.recSecondary.layer.borderWidth = 2;
+    [self.recSecondary addTarget:self action:@selector(recoverySecondary) forControlEvents:UIControlEventTouchUpInside];
+    [card addSubview:self.recSecondary];
+
+    self.recWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.recWindow.windowLevel = UIWindowLevelAlert;
+    self.recWindow.backgroundColor = [UIColor clearColor];
+    UIViewController *rvc = [UIViewController new];
+    rvc.view.backgroundColor = [UIColor clearColor];
+    self.recWindow.rootViewController = rvc;
+    self.recScroll.frame = rvc.view.bounds;
+    self.recScroll.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [rvc.view addSubview:self.recScroll];
+    [self.recWindow makeKeyAndVisible];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(serverKeyboard:) name:UIKeyboardWillChangeFrameNotification object:nil];
 }
 
+- (void)closeRecoveryCard {
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillChangeFrameNotification object:nil];
+    [self.recWindow endEditing:YES];
+    self.recWindow.hidden = YES;
+    self.recWindow = nil;
+    self.recScroll = nil;
+    self.recNick = nil;
+    self.recToon = nil;
+    self.recPw = nil;
+}
+
+- (void)recoveryMessage:(NSString *)t bad:(BOOL)bad {
+    self.recMsg.textColor = bad ? [UIColor colorWithRed:0.85 green:0.1 blue:0.1 alpha:1] : [UIColor colorWithRed:0.1 green:0.25 blue:0.55 alpha:1];
+    self.recMsg.text = t;
+}
+
+// After sign-in on an account with no recovery answers yet.
+- (void)askRecoverySetupFor:(NSString *)cookie done:(void (^)(void))done {
+    self.recReset = NO;
+    self.recCookie = cookie;
+    self.recDone = done;
+    [self showRecoveryCard:@"Forgot-password help"
+                     blurb:@"Pick two answers only you will remember. If you ever forget your password, they let you set a new one."
+              withPassword:NO primary:@"Save" secondary:@"Skip for now"];
+}
+
+// "Forgot password?" on the sign-in screen.
 - (void)forgotPassword {
     [self.loginWindow endEditing:YES];
     NSString *user = [[self.userField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] lowercaseString];
@@ -640,28 +727,65 @@ static NSString *HexOf(NSString *s) {
         [self loginMessage:@"Type your toon name above first, then tap Forgot password." bad:YES];
         return;
     }
-    UIAlertController *a = [UIAlertController alertControllerWithTitle:@"Reset password"
-        message:[NSString stringWithFormat:@"Answer the two questions you saved for %@, then pick a new password.", user]
-        preferredStyle:UIAlertControllerStyleAlert];
-    [a addTextFieldWithConfigurationHandler:^(UITextField *t) { t.placeholder = @"Your nickname"; t.autocorrectionType = UITextAutocorrectionTypeNo; }];
-    [a addTextFieldWithConfigurationHandler:^(UITextField *t) { t.placeholder = @"A toon name you made"; t.autocorrectionType = UITextAutocorrectionTypeNo; }];
-    [a addTextFieldWithConfigurationHandler:^(UITextField *t) { t.placeholder = @"New password"; t.secureTextEntry = YES; }];
-    [a addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [a addAction:[UIAlertAction actionWithTitle:@"Reset" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) {
-        NSString *nick = a.textFields[0].text ?: @"", *toon = a.textFields[1].text ?: @"", *pw = a.textFields[2].text ?: @"";
+    self.recReset = YES;
+    self.recUser = user;
+    self.recDone = nil;
+    [self showRecoveryCard:@"Reset password"
+                     blurb:[NSString stringWithFormat:@"Answer the two questions you saved for %@, then pick a new password.", user]
+              withPassword:YES primary:@"Reset password" secondary:@"Cancel"];
+}
+
+- (void)recoverySecondary {
+    void (^d)(void) = self.recDone;
+    BOOL reset = self.recReset;
+    [self closeRecoveryCard];
+    if (reset) self.loginWindow.hidden = NO;
+    else if (d) d();
+}
+
+- (void)submitRecoveryPrimary {
+    [self.recWindow endEditing:YES];
+    NSCharacterSet *ws = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+    NSString *nick = [(self.recNick.text ?: @"") stringByTrimmingCharactersInSet:ws];
+    NSString *toon = [(self.recToon.text ?: @"") stringByTrimmingCharactersInSet:ws];
+    NSString *pw = self.recPw.text ?: @"";
+    if (nick.length == 0 || toon.length == 0 || (self.recReset && pw.length == 0)) {
+        [self recoveryMessage:@"Fill in every box." bad:YES];
+        return;
+    }
+    NSString *path, *text;
+    if (self.recReset) {
         if ([pw containsString:@"'"] || [pw containsString:@"\\"] || [pw containsString:@":"]) {
-            [self loginMessage:@"Please don't use quotes, colons or backslashes." bad:YES];
+            [self recoveryMessage:@"Please don't use quotes, colons or backslashes." bad:YES];
             return;
         }
-        [self loginMessage:@"Checking..." bad:NO];
-        [self recoveryPost:@"/recover" text:[NSString stringWithFormat:@"%@\n%@\n%@\n%@", user, nick, toon, pw] done:^(NSString *r) {
-            if ([r isEqualToString:@"ok"]) {
-                self.passField.text = pw;
-                [self loginMessage:@"Password changed! Tap PLAY." bad:NO];
-            } else [self loginMessage:r bad:YES];
-        }];
-    }]];
-    [self.loginWindow.rootViewController presentViewController:a animated:YES completion:nil];
+        path = @"/recover";
+        text = [NSString stringWithFormat:@"%@\n%@\n%@\n%@", self.recUser, nick, toon, pw];
+    } else {
+        path = @"/setrecovery";
+        text = [NSString stringWithFormat:@"%@\n%@\n%@", self.recCookie, nick, toon];
+    }
+    self.recPrimary.enabled = NO;
+    self.recSecondary.enabled = NO;
+    [self recoveryMessage:(self.recReset ? @"Checking..." : @"Saving...") bad:NO];
+    [self recoveryPost:path text:text done:^(NSString *r) {
+        self.recPrimary.enabled = YES;
+        self.recSecondary.enabled = YES;
+        if (![r isEqualToString:@"ok"]) {
+            [self recoveryMessage:r bad:YES];
+            return;
+        }
+        void (^d)(void) = self.recDone;
+        BOOL reset = self.recReset;
+        [self closeRecoveryCard];
+        if (reset) {
+            self.passField.text = pw;
+            self.loginWindow.hidden = NO;
+            [self loginMessage:@"Password changed! Tap PLAY." bad:NO];
+        } else if (d) {
+            d();
+        }
+    }];
 }
 
 // ----- server choice -------------------------------------------------------------------------
@@ -778,14 +902,18 @@ static NSString *HexOf(NSString *s) {
 }
 
 - (void)serverKeyboard:(NSNotification *)n {
-    if (!self.serverScroll) return;
+    UIScrollView *sv = self.serverScroll ?: self.recScroll;
+    if (!sv) return;
     CGRect kb = [n.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
-    CGRect inView = [self.serverScroll convertRect:kb fromView:nil];
-    CGFloat h = MAX(0, CGRectGetMaxY(self.serverScroll.bounds) - inView.origin.y);
-    self.serverScroll.contentInset = UIEdgeInsetsMake(0, 0, h, 0);
-    self.serverScroll.scrollIndicatorInsets = self.serverScroll.contentInset;
-    UITextField *ff = self.resField.isFirstResponder ? self.resField : (self.gameField.isFirstResponder ? self.gameField : nil);
-    if (ff && h > 0) [self.serverScroll scrollRectToVisible:[self.serverScroll convertRect:CGRectInset(ff.bounds, 0, -16) fromView:ff] animated:YES];
+    CGRect inView = [sv convertRect:kb fromView:nil];
+    CGFloat h = MAX(0, CGRectGetMaxY(sv.bounds) - inView.origin.y);
+    sv.contentInset = UIEdgeInsetsMake(0, 0, h, 0);
+    sv.scrollIndicatorInsets = sv.contentInset;
+    UITextField *ff = nil;
+    for (UITextField *t in @[(id)self.resField ?: [NSNull null], (id)self.gameField ?: [NSNull null], (id)self.recNick ?: [NSNull null], (id)self.recToon ?: [NSNull null], (id)self.recPw ?: [NSNull null]]) {
+        if ([t isKindOfClass:[UITextField class]] && t.isFirstResponder) ff = t;
+    }
+    if (ff && h > 0) [sv scrollRectToVisible:[sv convertRect:CGRectInset(ff.bounds, 0, -16) fromView:ff] animated:YES];
 }
 
 - (void)closeServerWindow {
