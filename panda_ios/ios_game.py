@@ -279,8 +279,50 @@ def recovery_call_hex(server, path, hextext):
     return recovery_call(server, path, bytes.fromhex(hextext).decode("utf-8"))
 
 
+def test_server(res, game):
+    """Check a server the player typed in. Returns 'ok|<file server url>|<game server>' or a message to show."""
+    import re
+    import socket
+    res = res.strip().rstrip("/")
+    game = game.strip()
+    m = re.match(r"^([A-Za-z0-9.\-]+|\[[0-9A-Fa-f:]+\]):(\d{1,5})$", game)
+    if not m or not (1 <= int(m.group(2)) <= 65535):
+        return "The game server should look like play.example.com:7298"
+    if "://" in res:
+        if not res.lower().startswith(("http://", "https://")):
+            return "The file server address should start with http:// or https://"
+        cands = [res]
+    else:
+        cands = ["https://" + res, "http://" + res]
+    ok_url, last = None, "Can't reach the file server."
+    for u in cands:
+        try:
+            with urllib.request.urlopen(u + "/manifest.json", timeout=12) as r:
+                head = r.read(64).lstrip()
+            if head[:1] == b"{":
+                ok_url = u
+                break
+            last = "That address doesn't look like a Toontown file server (no game file list found)."
+        except urllib.error.HTTPError as e:
+            last = "The file server answered with an error (%d). Check the address." % e.code
+        except Exception:
+            last = "Can't reach the file server. Check the address and your connection."
+    if not ok_url:
+        return last
+    try:
+        socket.create_connection((m.group(1).strip("[]"), int(m.group(2))), timeout=8).close()
+    except Exception:
+        return "Can't reach the game server at %s. Check the address and port." % game
+    return "ok|%s|%s" % (ok_url, game)
+
+
+def test_server_hex(res_hex, game_hex):
+    return test_server(bytes.fromhex(res_hex).decode("utf-8"), bytes.fromhex(game_hex).decode("utf-8"))
+
+
 def start_download(docs, server):
     RESOURCE_SERVER_HINT[0] = server
+    _set(msg="starting", detail="", done=False, err=None, bytes=0, total=0, files=0, nfiles=0)
     threading.Thread(target=_fetch_art, args=(docs, server), daemon=True).start()
     threading.Thread(target=_download_all, args=(docs, server), daemon=True).start()
 
