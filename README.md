@@ -57,6 +57,13 @@ The app provided in the SideStore source and this repo comes set up with my own 
 can connect to any other TTR-Offline server too, see "Choosing a server" below. To make your own server the
 default, build your own app (the section after that).
 
+## Community
+
+- **Discord:** <https://discord.gg/NxdkuR2aCp>, for help, bug reports and chat.
+- **Reddit:** <https://www.reddit.com/r/ToontownAnywhere/s/p7FFnl9jGJ>, r/ToontownAnywhere.
+
+Both links are also on the app's sign-in screen.
+
 ## Choosing a server
 
 The first time you open the app it asks which server to play on:
