@@ -242,6 +242,23 @@ static CGFloat UIScale(void) {
 @property (strong, nonatomic) NSTimer *logTimer;
 @end
 
+// ---------------------------------------------------------------------------------------------
+// Community links on the sign-in screen (small white-on-transparent logos, embedded so no files are needed)
+static NSString *const kDiscordURL = @"https://discord.gg/NxdkuR2aCp";
+static NSString *const kRedditURL = @"https://www.reddit.com/r/ToontownAnywhere/s/p7FFnl9jGJ";
+static NSString *const kDiscordIcon = @"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";
+static NSString *const kRedditIcon = @"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";
+
+static UIImage *LinkIcon(NSString *b64, CGFloat height) {
+    NSData *d = [[NSData alloc] initWithBase64EncodedString:b64 options:0];
+    UIImage *i = d ? [UIImage imageWithData:d] : nil;
+    if (!i) return nil;
+    CGSize s = CGSizeMake(height * i.size.width / i.size.height, height);
+    return [[[UIGraphicsImageRenderer alloc] initWithSize:s] imageWithActions:^(UIGraphicsImageRendererContext *c) {
+        [i drawInRect:CGRectMake(0, 0, s.width, s.height)];
+    }];
+}
+
 @implementation AppDelegate
 
 - (NSString *)resPath { return [[NSBundle mainBundle] resourcePath]; }
@@ -513,6 +530,14 @@ static NSString *ServerId(NSString *res, NSString *game) {
     chg.layer.cornerRadius = 12;
     [chg addTarget:self action:@selector(changeServer) forControlEvents:UIControlEventTouchUpInside];
     [self.loginView addSubview:chg];
+    CGFloat lby = b.size.height - MAX(self.window.safeAreaInsets.bottom, 4) - 22 * sc - 8 - 30 * sc;
+    CGFloat lbx = 14 + self.window.safeAreaInsets.left;
+    UIButton *dis = [self linkButton:@"Discord" icon:kDiscordIcon fill:[UIColor colorWithRed:0.345 green:0.396 blue:0.949 alpha:1]
+                               frame:CGRectMake(lbx, lby, 112 * sc, 30 * sc) tag:0 size:13 * sc];
+    UIButton *red = [self linkButton:@"Reddit" icon:kRedditIcon fill:[UIColor colorWithRed:1.0 green:0.27 blue:0.0 alpha:1]
+                               frame:CGRectMake(lbx + 120 * sc, lby, 104 * sc, 30 * sc) tag:1 size:13 * sc];
+    [self.loginView addSubview:dis];
+    [self.loginView addSubview:red];
     self.loginView.userInteractionEnabled = YES;
     self.userField.userInteractionEnabled = YES;
     self.passField.userInteractionEnabled = YES;
@@ -789,6 +814,25 @@ static NSString *HexOf(NSString *s) {
 }
 
 // ----- server choice -------------------------------------------------------------------------
+
+- (UIButton *)linkButton:(NSString *)title icon:(NSString *)b64 fill:(UIColor *)fill frame:(CGRect)f tag:(NSInteger)tag size:(CGFloat)size {
+    UIButton *b = [self pillButton:title frame:f fill:fill text:[UIColor whiteColor] size:size];
+    b.layer.cornerRadius = 12;
+    b.layer.borderWidth = 2;
+    b.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.9].CGColor;
+    [b setImage:LinkIcon(b64, f.size.height * 0.62) forState:UIControlStateNormal];
+    b.imageView.contentMode = UIViewContentModeScaleAspectFit;
+    b.imageEdgeInsets = UIEdgeInsetsMake(0, -4, 0, 4);
+    b.titleEdgeInsets = UIEdgeInsetsMake(0, 4, 0, -4);
+    b.tag = tag;
+    [b addTarget:self action:@selector(openCommunityLink:) forControlEvents:UIControlEventTouchUpInside];
+    return b;
+}
+
+- (void)openCommunityLink:(UIButton *)b {
+    NSURL *u = [NSURL URLWithString:(b.tag == 0 ? kDiscordURL : kRedditURL)];
+    if (u) [[UIApplication sharedApplication] openURL:u options:@{} completionHandler:nil];
+}
 
 - (UIButton *)pillButton:(NSString *)title frame:(CGRect)f fill:(UIColor *)fill text:(UIColor *)tc size:(CGFloat)size {
     UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
