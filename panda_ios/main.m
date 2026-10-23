@@ -533,9 +533,9 @@ static NSString *ServerId(NSString *res, NSString *game) {
     CGFloat lby = b.size.height - MAX(self.window.safeAreaInsets.bottom, 4) - 22 * sc - 8 - 30 * sc;
     CGFloat lbx = 14 + self.window.safeAreaInsets.left;
     UIButton *dis = [self linkButton:@"Discord" icon:kDiscordIcon fill:[UIColor colorWithRed:0.345 green:0.396 blue:0.949 alpha:1]
-                               frame:CGRectMake(lbx, lby, 112 * sc, 30 * sc) tag:0 size:13 * sc];
+                               frame:CGRectMake(lbx, lby - 38 * sc, 112 * sc, 30 * sc) tag:0 size:13 * sc];
     UIButton *red = [self linkButton:@"Reddit" icon:kRedditIcon fill:[UIColor colorWithRed:1.0 green:0.27 blue:0.0 alpha:1]
-                               frame:CGRectMake(lbx + 120 * sc, lby, 104 * sc, 30 * sc) tag:1 size:13 * sc];
+                               frame:CGRectMake(lbx, lby, 112 * sc, 30 * sc) tag:1 size:13 * sc];
     [self.loginView addSubview:dis];
     [self.loginView addSubview:red];
     self.loginView.userInteractionEnabled = YES;
