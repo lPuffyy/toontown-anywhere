@@ -16,7 +16,7 @@ permissions:
   actions: read
 jobs:
   app:
-    runs-on: macos-26
+    runs-on: xcode-27      # built with the iOS 27 SDK so the app fills the iPhone Duo's inner screen (older SDKs get a small centred window)
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -38,6 +38,10 @@ jobs:
           path: panda3d
           run-id: ${{ inputs.run_id }}
           github-token: ${{ github.token }}
+      - name: Show the Xcode and SDK in use
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
       - name: Assemble
         env:
           TTR_RESOURCE_SERVER: ${{ inputs.resource_server }}
