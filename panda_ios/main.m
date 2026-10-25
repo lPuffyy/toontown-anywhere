@@ -179,6 +179,8 @@ static CGFloat UIScale(void) {
 
 @interface AppDelegate : UIResponder <UIApplicationDelegate>
 @property (strong, nonatomic) UIWindow *window;
+@property (strong, nonatomic) UIWindowScene *scene;   // the app's one scene (windows are created inside it)
+- (void)startUIInScene:(UIWindowScene *)scene;
 @property (strong, nonatomic) CADisplayLink *link;
 @property (strong, nonatomic) NSTimer *poll;
 // loading screen
@@ -548,7 +550,7 @@ static NSString *ServerId(NSString *res, NSString *game) {
         [tf addGestureRecognizer:tap];
     }
     // its own window (like the game controls): touches reach it reliably
-    self.loginWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.loginWindow = [self newWindow:[UIWindow class] frame:[UIScreen mainScreen].bounds];
     self.loginWindow.windowLevel = UIWindowLevelAlert;
     self.loginWindow.backgroundColor = [UIColor clearColor];
     UIViewController *lvc = [UIViewController new];
@@ -705,7 +707,7 @@ static NSString *HexOf(NSString *s) {
     [self.recSecondary addTarget:self action:@selector(recoverySecondary) forControlEvents:UIControlEventTouchUpInside];
     [card addSubview:self.recSecondary];
 
-    self.recWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.recWindow = [self newWindow:[UIWindow class] frame:[UIScreen mainScreen].bounds];
     self.recWindow.windowLevel = UIWindowLevelAlert;
     self.recWindow.backgroundColor = [UIColor clearColor];
     UIViewController *rvc = [UIViewController new];
@@ -932,7 +934,7 @@ static NSString *HexOf(NSString *s) {
         [card addSubview:bk];
     }
 
-    self.serverWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.serverWindow = [self newWindow:[UIWindow class] frame:[UIScreen mainScreen].bounds];
     self.serverWindow.windowLevel = UIWindowLevelAlert;
     self.serverWindow.backgroundColor = [UIColor clearColor];
     UIViewController *svc = [UIViewController new];
@@ -1186,7 +1188,7 @@ static NSString *HexOf(NSString *s) {
 - (void)showControls {
     CGRect b = [UIScreen mainScreen].bounds;
     UIEdgeInsets safe = self.window.safeAreaInsets;
-    self.controls = [[PassThroughWindow alloc] initWithFrame:b];
+    self.controls = (PassThroughWindow *)[self newWindow:[PassThroughWindow class] frame:b];
     self.controls.windowLevel = UIWindowLevelAlert;
     self.controls.backgroundColor = [UIColor clearColor];
     UIViewController *vc = [UIViewController new];
@@ -1321,7 +1323,7 @@ static NSString *HexOf(NSString *s) {
         return;
     }
     NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"ttr_log.txt"];
-    self.logWindow = [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, [UIScreen mainScreen].bounds.size.width, 330)];
+    self.logWindow = [self newWindow:[UIWindow class] frame:CGRectMake(0, 0, [UIScreen mainScreen].bounds.size.width, 330)];
     self.logWindow.windowLevel = UIWindowLevelAlert + 10;
     self.logWindow.userInteractionEnabled = NO;
     self.logWindow.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
@@ -1350,7 +1352,20 @@ static NSString *HexOf(NSString *s) {
     [[AVAudioSession sharedInstance] setActive:YES error:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(audioInterrupted:) name:AVAudioSessionInterruptionNotification object:nil];
     [self loadServerChoice];   // before the art, so the cached start screen belongs to the right server
-    self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    return YES;   // the window itself is made when the scene connects (startUIInScene:)
+}
+
+// Windows must belong to the app's scene (iOS 27 requires the scene life cycle).
+- (UIWindow *)newWindow:(Class)cls frame:(CGRect)frame {
+    UIWindow *w = self.scene ? [[cls alloc] initWithWindowScene:self.scene] : [[cls alloc] initWithFrame:frame];
+    w.frame = frame;
+    return w;
+}
+
+- (void)startUIInScene:(UIWindowScene *)scene {
+    if (self.window) return;
+    self.scene = scene;
+    self.window = [self newWindow:[UIWindow class] frame:[UIScreen mainScreen].bounds];
     UIViewController *vc = [UIViewController new];
     vc.view = [self buildSplash:[UIScreen mainScreen].bounds];
     self.window.rootViewController = vc;
@@ -1367,13 +1382,23 @@ static NSString *HexOf(NSString *s) {
         if (self.serverRes) [self beginDownload];
         else [self showServerChoiceCanGoBack:NO];
     });
-    return YES;
 }
 
 - (UIInterfaceOrientationMask)application:(UIApplication *)application supportedInterfaceOrientationsForWindow:(UIWindow *)window {
     return UIInterfaceOrientationMaskLandscape;
 }
 
+@end
+
+@interface SceneDelegate : UIResponder <UIWindowSceneDelegate>
+@property (strong, nonatomic) UIWindow *window;
+@end
+
+@implementation SceneDelegate
+- (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
+    if (![scene isKindOfClass:[UIWindowScene class]]) return;
+    [(AppDelegate *)[UIApplication sharedApplication].delegate startUIInScene:(UIWindowScene *)scene];
+}
 @end
 
 int main(int argc, char *argv[]) {

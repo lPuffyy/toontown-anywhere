@@ -165,3 +165,24 @@ def safe_area(s):
 
 
 edit("panda/src/iphonedisplay/iPhoneGraphicsWindow.mm", safe_area)
+
+
+# ---- iOS 27 needs the scene life cycle: the game's window has to be created inside the app's scene ----
+def scene_window(s):
+    old = "  _window = [ [ UIWindow alloc ] initWithFrame: screenBounds ];"
+    new = ("  UIWindowScene *ttr_scene = nil;" + NL +
+           "  for (UIScene *sc in [[UIApplication sharedApplication] connectedScenes]) {" + NL +
+           "    if ([sc isKindOfClass:[UIWindowScene class]]) { ttr_scene = (UIWindowScene *)sc; break; }" + NL +
+           "  }" + NL +
+           "  if (ttr_scene) {" + NL +
+           "    _window = [ [ UIWindow alloc ] initWithWindowScene: ttr_scene ];" + NL +
+           "    _window.frame = screenBounds;" + NL +
+           "  } else {" + NL +
+           "    _window = [ [ UIWindow alloc ] initWithFrame: screenBounds ];" + NL +
+           "  }")
+    assert old in s, "UIWindow creation not found in iPhoneGraphicsPipe.mm"
+    return s.replace(old, new, 1)
+
+
+edit("panda/src/iphonedisplay/iPhoneGraphicsPipe.mm", scene_window)
+
