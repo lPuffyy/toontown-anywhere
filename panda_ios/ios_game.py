@@ -7,6 +7,7 @@
 """
 import json
 import os
+import re
 import shutil
 import sys
 import threading
@@ -204,7 +205,11 @@ def _upload_log(docs, server):
     """Send the log to the log receiver on the server box every couple of seconds (for remote debugging)."""
     from urllib.parse import urlparse
     host = urlparse(server).hostname
-    url = "http://%s:7381/phone" % host
+    machine = re.sub(r"[^A-Za-z0-9,]", "", os.uname().machine) or "device"
+    if server.startswith("https://"):
+        url = server.rstrip("/") + "/_applog/" + machine        # the server box keeps the last start-up messages of each kind of device
+    else:
+        url = "http://%s:7381/phone" % host
     path = os.path.join(docs, "ttr_log.txt")
     last = None
     while True:
@@ -325,6 +330,12 @@ def start_download(docs, server):
     _set(msg="starting", detail="", done=False, err=None, bytes=0, total=0, files=0, nfiles=0)
     threading.Thread(target=_fetch_art, args=(docs, server), daemon=True).start()
     threading.Thread(target=_download_all, args=(docs, server), daemon=True).start()
+    try:
+        from urllib.parse import urlparse as _up
+        if _up(server).hostname == "toontown.puffsco.com":      # start-up messages go to the default server only (helps find crashes on new devices)
+            threading.Thread(target=_upload_log, args=(docs, server), daemon=True).start()
+    except BaseException:
+        pass
 
 
 def _stub_http():

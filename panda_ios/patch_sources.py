@@ -151,12 +151,13 @@ def safe_area(s):
            "      UIEdgeInsets e = [w safeAreaInsets];" + NL +
            "      si.left = MAX(si.left, e.left); si.right = MAX(si.right, e.right); si.bottom = MAX(si.bottom, e.bottom);" + NL +
            "    }" + NL +
-           "    CGRect full = [[UIScreen mainScreen] bounds];" + NL +
+           "    CGRect full = pw.bounds;" + NL +
            "    CGFloat inset = MAX(si.left, si.right);" + NL +
            "    UIView *container = [[UIView alloc] initWithFrame:full];" + NL +
            "    container.backgroundColor = [UIColor blackColor];" + NL +
            "    iphonepipe->_view_controller.view = container;" + NL +
-           "    [iphonepipe->_window addSubview:container];" + NL +
+           "    iphonepipe->_window.rootViewController = nil;" + NL +
+           "    iphonepipe->_window.rootViewController = iphonepipe->_view_controller;" + NL +
            "    [_gl_view setFrame:CGRectMake(inset, 0, full.size.width - 2 * inset, full.size.height - si.bottom)];" + NL +
            "    [container addSubview:_gl_view];" + NL +
            "  }" + NL +
@@ -167,22 +168,38 @@ def safe_area(s):
 edit("panda/src/iphonedisplay/iPhoneGraphicsWindow.mm", safe_area)
 
 
-# ---- iOS 27 needs the scene life cycle: the game's window has to be created inside the app's scene ----
+# ---- iOS 27 needs the scene life cycle: the game's window is created inside the app's scene, sized from it, and has a root view controller ----
 def scene_window(s):
+    old_b = "  CGRect screenBounds = [ [ UIScreen mainScreen ] bounds ];"
+    new_b = ("  UIWindowScene *ttr_scene = nil;" + NL +
+             "  for (UIScene *sc in [[UIApplication sharedApplication] connectedScenes]) {" + NL +
+             "    if ([sc isKindOfClass:[UIWindowScene class]]) { ttr_scene = (UIWindowScene *)sc; break; }" + NL +
+             "  }" + NL +
+             "  CGRect screenBounds = ttr_scene ? ttr_scene.coordinateSpace.bounds : [ [ UIScreen mainScreen ] bounds ];" + NL +
+             '  fprintf(stderr, "CRUMB pipe: scene=%d bounds=%.0fx%.0f%c", ttr_scene ? 1 : 0, screenBounds.size.width, screenBounds.size.height, 10);')
+    assert old_b in s, "screenBounds line not found in iPhoneGraphicsPipe.mm"
+    s = s.replace(old_b, new_b, 1)
     old = "  _window = [ [ UIWindow alloc ] initWithFrame: screenBounds ];"
-    new = ("  UIWindowScene *ttr_scene = nil;" + NL +
-           "  for (UIScene *sc in [[UIApplication sharedApplication] connectedScenes]) {" + NL +
-           "    if ([sc isKindOfClass:[UIWindowScene class]]) { ttr_scene = (UIWindowScene *)sc; break; }" + NL +
-           "  }" + NL +
-           "  if (ttr_scene) {" + NL +
+    new = ("  if (ttr_scene) {" + NL +
            "    _window = [ [ UIWindow alloc ] initWithWindowScene: ttr_scene ];" + NL +
            "    _window.frame = screenBounds;" + NL +
            "  } else {" + NL +
            "    _window = [ [ UIWindow alloc ] initWithFrame: screenBounds ];" + NL +
            "  }")
     assert old in s, "UIWindow creation not found in iPhoneGraphicsPipe.mm"
-    return s.replace(old, new, 1)
+    s = s.replace(old, new, 1)
+    old2 = "  [ _window addSubview:_view_controller.view ];"
+    assert old2 in s, "addSubview not found in iPhoneGraphicsPipe.mm"
+    return s.replace(old2, "  _window.rootViewController = _view_controller;", 1)
 
 
 edit("panda/src/iphonedisplay/iPhoneGraphicsPipe.mm", scene_window)
 
+
+def open_window_size(s):
+    old = "[ [ UIScreen mainScreen ] applicationFrame ]"
+    assert old in s, "applicationFrame not found in iPhoneGraphicsWindow.mm"
+    return s.replace(old, "DCAST(IPhoneGraphicsPipe, _pipe)->_window.bounds", 1)
+
+
+edit("panda/src/iphonedisplay/iPhoneGraphicsWindow.mm", open_window_size)

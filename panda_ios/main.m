@@ -550,7 +550,7 @@ static NSString *ServerId(NSString *res, NSString *game) {
         [tf addGestureRecognizer:tap];
     }
     // its own window (like the game controls): touches reach it reliably
-    self.loginWindow = [self newWindow:[UIWindow class] frame:[UIScreen mainScreen].bounds];
+    self.loginWindow = [self newWindow:[UIWindow class] frame:[self sceneBounds]];
     self.loginWindow.windowLevel = UIWindowLevelAlert;
     self.loginWindow.backgroundColor = [UIColor clearColor];
     UIViewController *lvc = [UIViewController new];
@@ -707,7 +707,7 @@ static NSString *HexOf(NSString *s) {
     [self.recSecondary addTarget:self action:@selector(recoverySecondary) forControlEvents:UIControlEventTouchUpInside];
     [card addSubview:self.recSecondary];
 
-    self.recWindow = [self newWindow:[UIWindow class] frame:[UIScreen mainScreen].bounds];
+    self.recWindow = [self newWindow:[UIWindow class] frame:[self sceneBounds]];
     self.recWindow.windowLevel = UIWindowLevelAlert;
     self.recWindow.backgroundColor = [UIColor clearColor];
     UIViewController *rvc = [UIViewController new];
@@ -934,7 +934,7 @@ static NSString *HexOf(NSString *s) {
         [card addSubview:bk];
     }
 
-    self.serverWindow = [self newWindow:[UIWindow class] frame:[UIScreen mainScreen].bounds];
+    self.serverWindow = [self newWindow:[UIWindow class] frame:[self sceneBounds]];
     self.serverWindow.windowLevel = UIWindowLevelAlert;
     self.serverWindow.backgroundColor = [UIColor clearColor];
     UIViewController *svc = [UIViewController new];
@@ -1146,6 +1146,7 @@ static NSString *HexOf(NSString *s) {
 
 - (void)launchGameWithCookie:(NSString *)cookie {
     [self setupLog];
+    fprintf(stderr, "CRUMB launching the game%c", 10);
     NSString *code = [NSString stringWithFormat:
         @"try:\n"
          "    import ios_game\n"
@@ -1155,6 +1156,7 @@ static NSString *HexOf(NSString *s) {
          "    import traceback\n"
          "    _g = 'LAUNCH FAIL ' + chr(10).join(traceback.format_exc().strip().splitlines()[-8:])\n",
         [self dataPath], [self fwPath], self.serverGame, cookie, [[self resPath] stringByAppendingPathComponent:@"."]];
+    fprintf(stderr, "CRUMB python launch returned%c", 10);
     NSString *g = pyString(code.UTF8String, "_g");
     fprintf(stderr, "LAUNCH RESULT: %s%c", g.UTF8String, 10);
     if ([g hasPrefix:@"LAUNCH OK"]) {
@@ -1186,7 +1188,7 @@ static NSString *HexOf(NSString *s) {
 // ----- controls and log overlay -------------------------------------------------------------
 
 - (void)showControls {
-    CGRect b = [UIScreen mainScreen].bounds;
+    CGRect b = [self sceneBounds];
     UIEdgeInsets safe = self.window.safeAreaInsets;
     self.controls = (PassThroughWindow *)[self newWindow:[PassThroughWindow class] frame:b];
     self.controls.windowLevel = UIWindowLevelAlert;
@@ -1323,7 +1325,7 @@ static NSString *HexOf(NSString *s) {
         return;
     }
     NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"ttr_log.txt"];
-    self.logWindow = [self newWindow:[UIWindow class] frame:CGRectMake(0, 0, [UIScreen mainScreen].bounds.size.width, 330)];
+    self.logWindow = [self newWindow:[UIWindow class] frame:CGRectMake(0, 0, [self sceneBounds].size.width, 330)];
     self.logWindow.windowLevel = UIWindowLevelAlert + 10;
     self.logWindow.userInteractionEnabled = NO;
     self.logWindow.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
@@ -1355,6 +1357,11 @@ static NSString *HexOf(NSString *s) {
     return YES;   // the window itself is made when the scene connects (startUIInScene:)
 }
 
+// The area this app's window gets (on a foldable it is not the same as the screen).
+- (CGRect)sceneBounds {
+    return self.scene ? self.scene.coordinateSpace.bounds : [UIScreen mainScreen].bounds;
+}
+
 // Windows must belong to the app's scene (iOS 27 requires the scene life cycle).
 - (UIWindow *)newWindow:(Class)cls frame:(CGRect)frame {
     UIWindow *w = self.scene ? [[cls alloc] initWithWindowScene:self.scene] : [[cls alloc] initWithFrame:frame];
@@ -1364,10 +1371,12 @@ static NSString *HexOf(NSString *s) {
 
 - (void)startUIInScene:(UIWindowScene *)scene {
     if (self.window) return;
+    [self setupLog];
     self.scene = scene;
-    self.window = [self newWindow:[UIWindow class] frame:[UIScreen mainScreen].bounds];
+    fprintf(stderr, "CRUMB scene connected, bounds %.0fx%.0f%c", scene.coordinateSpace.bounds.size.width, scene.coordinateSpace.bounds.size.height, 10);
+    self.window = [self newWindow:[UIWindow class] frame:[self sceneBounds]];
     UIViewController *vc = [UIViewController new];
-    vc.view = [self buildSplash:[UIScreen mainScreen].bounds];
+    vc.view = [self buildSplash:[self sceneBounds]];
     self.window.rootViewController = vc;
     [self.window makeKeyAndVisible];
     [self applyArt];   // cached art from an earlier launch, so the placeholder never flashes
@@ -1398,6 +1407,12 @@ static NSString *HexOf(NSString *s) {
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
     if (![scene isKindOfClass:[UIWindowScene class]]) return;
     [(AppDelegate *)[UIApplication sharedApplication].delegate startUIInScene:(UIWindowScene *)scene];
+}
+- (void)sceneWillResignActive:(UIScene *)scene {
+    [(AppDelegate *)[UIApplication sharedApplication].delegate applicationWillResignActive:[UIApplication sharedApplication]];
+}
+- (void)sceneDidBecomeActive:(UIScene *)scene {
+    [(AppDelegate *)[UIApplication sharedApplication].delegate applicationDidBecomeActive:[UIApplication sharedApplication]];
 }
 @end
 
