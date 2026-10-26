@@ -24,8 +24,6 @@ Good to know:
 - The first start downloads the game files, **about 600 MB**, so use Wi-Fi. They are kept on the device after that. Keep it
   installed to the Home Screen: Safari can clear the saved files of a normal browser tab after about a week without use.
 - Phones drop the connection when you switch to another app. Coming back, the game tries to reconnect by itself.
-- The browser version has the touch controls, typed chat, sound, password recovery and the Discord and Reddit buttons.
-  It connects to the main server. To play on your own or someone else's server, use the native app (below).
 - It is built with [pygbag](https://github.com/pygame-web/pygbag) (Python in the browser). The page's source is not in this
   repository yet.
 
