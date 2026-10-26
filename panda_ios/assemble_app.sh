@@ -64,7 +64,7 @@ cat > "$APP/Info.plist" <<'PLIST'
 <key>UIFileSharingEnabled</key><true/>
 <key>LSSupportsOpeningDocumentsInPlace</key><true/>
 <key>UIStatusBarHidden</key><true/>
-<key>UIRequiresFullScreen</key><true/>
+<key>UIRequiresFullScreen~ipad</key><true/>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationLandscapeRight</string><string>UIInterfaceOrientationLandscapeLeft</string></array>
 <key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationLandscapeRight</string><string>UIInterfaceOrientationLandscapeLeft</string></array>
 </dict></plist>

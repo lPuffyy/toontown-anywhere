@@ -1190,6 +1190,7 @@ static NSString *HexOf(NSString *s) {
 - (void)showControls {
     CGRect b = [self sceneBounds];
     UIEdgeInsets safe = self.window.safeAreaInsets;
+    fprintf(stderr, "CRUMB controls: scene %.0fx%.0f insets L%.0f R%.0f T%.0f B%.0f%c", b.size.width, b.size.height, safe.left, safe.right, safe.top, safe.bottom, 10);
     self.controls = (PassThroughWindow *)[self newWindow:[PassThroughWindow class] frame:b];
     self.controls.windowLevel = UIWindowLevelAlert;
     self.controls.backgroundColor = [UIColor clearColor];
