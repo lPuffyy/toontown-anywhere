@@ -1,5 +1,5 @@
 /* Toontown: Anywhere (web) - loading screen, game-file downloader, sign-in, server choice, recovery cards and the in-game
-   touch controls. The game itself runs in Python (main.py). */
+   touch controls. The layout numbers are copied from the iOS app (main.m). The game itself runs in Python (main.py). */
 (function () {
   'use strict';
   const ICONS = window.TTR_ICONS || {};

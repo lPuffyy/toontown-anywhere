@@ -1,7 +1,7 @@
 # What differs from stock Open Toontown
 
 Everything we changed in the game, grouped by what it is for, followed by the known problems. The changes are in
-`open-toontown/patches/open-toontown-anywhere.patch` (266 files; `CHANGED_FILES.txt` lists them) and are made against
+`open-toontown/patches/open-toontown-anywhere.patch` (268 files; `CHANGED_FILES.txt` lists them) and are made against
 upstream Open Toontown commit `2b366a2`. How to apply them is in [open-toontown/README.md](../open-toontown/README.md).
 
 ## Server
@@ -39,6 +39,19 @@ upstream Open Toontown commit `2b366a2`. How to apply them is in [open-toontown/
 - When a toon with no tasks talks to a Toon HQ officer, the server first checks whether the toon has finished every
   required reward of its tier and, if so, moves it to the next tier (`QuestManagerAI.py`). Before this, a toon could be
   left on a finished tier and be offered only "Just For Fun" tasks.
+
+### Friends
+
+- **Toon-to-toon friend invitations work** (`otp/friends/FriendManagerAI.py`, written by us). Stock Open Toontown has only an
+  empty stub for it, and the client was sending its friend requests to a global object (number 4501) that no server
+  process ever created. Astron answers a message to a missing object by disconnecting the sender, with error code 117,
+  so tapping "Add friend" dropped the player with "An unexpected problem has occurred (error code 117)".
+- Now every district's AI generates its own friend manager (like its time manager), and the client uses the one it is sent
+  (`ToontownStart.py` no longer creates the missing global object). The manager runs the invitation: it checks the
+  invitee is in the district, is not the inviter and is not already a friend, passes the invitation on, relays the
+  invitee's answer, adds both toons to each other's friends lists when it is yes (limit 50), and tells the inviter.
+- Secret friends are not offered (both secret requests answer "not available").
+- Only toons in the same district can invite each other, which is also how the invitation works in the game.
 
 ### Access
 
@@ -104,8 +117,8 @@ Honest list, most important first.
 1. **The game connection does not check the password.** Only the page does (see ARCHITECTURE.md, section 3). Anyone who
    connects straight to the WebSocket with another player's name is let in as them. Planned fix: the sign-in service
    issues a short-lived signed token and the login manager verifies it.
-2. **Adding a friend crashes the game** (reported on Android: a grey screen). Not reproduced yet. Use a `?log=1` session
-   and read `client.log`. Suspects are the friend invitation window reading fields from the other toon's object.
+2. **Friends are only seen when both toons are in the same district.** Friend invitations work (see above), but the
+   friends list's online status for toons in other districts needs the UberDOG friends manager, which is not connected.
 3. **The phone ringing is reported missing** (the sound file is in the pack; why it is not heard is not found). Some phones
    are also silent because of the ring/silent switch.
 4. **The server runs on `otpy`**, our pure-Python replacement for the game's compiled libraries, not the compiled ones. It

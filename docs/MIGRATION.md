@@ -82,5 +82,6 @@ See "Going back to the old server" in [OPERATIONS.md](OPERATIONS.md). The old da
 - **A toon stuck on a finished quest tier** (Toon HQ offered only "just for fun" tasks): the old server left some toons at
   the end of a tier without moving them on. The server now checks this when a toon with no tasks talks to an HQ officer.
 - **The colour table** (above) was found by a player noticing a toon's head had turned black.
-- **Friends lists** were reset on purpose, but a player reported that adding a friend crashes the game. That one is not
-  solved yet; see [CHANGES.md](CHANGES.md#known-problems).
+- **Adding a friend crashed the game** (error code 117) because the server never created the friend manager the client
+  was talking to. It does now; see "Friends" in [CHANGES.md](CHANGES.md#friends). Friends lists were reset on purpose, so
+  players re-add their friends this way.
