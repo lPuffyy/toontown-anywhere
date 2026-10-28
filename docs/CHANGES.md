@@ -147,7 +147,7 @@ Honest list, most important first.
    has been checked, but less than the compiled code has been used. Watch Cog movement and building behaviour.
 5. **Logs are lost on every restart.**
 6. **Houses, pets, friends and catalog items were not migrated** (see MIGRATION.md).
-7. **Fish Bingo is disabled** until it has been tested properly.
+7. **Fish Bingo is disabled** because it causes crashes; see [TODO.md](TODO.md).
 8. **iPhone strip:** a thin strip can show under the toolbar on some iPhones in landscape. The overlays are sized to the
    large viewport as a fix; not confirmed on every phone.
 9. Some Open Toontown screens may still look stretched on very wide phones; they are fixed as they are found.
