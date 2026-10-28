@@ -8,6 +8,7 @@ M	otp/chat/ChatInputTyped.py
 M	otp/chat/ChatManager.py
 M	otp/chat/TalkAssistant.py
 M	otp/distributed/OTPClientRepository.py
+M	otp/friends/FriendManagerAI.py
 M	otp/otpbase/OTPGlobals.py
 M	otp/otpbase/OTPLocalizerEnglish.py
 M	toontown/ai/ToontownAIRepository.py
@@ -261,6 +262,7 @@ M	toontown/toonbase/ToontownAccess.py
 M	toontown/toonbase/ToontownAccessAI.py
 M	toontown/toonbase/ToontownBattleGlobals.py
 M	toontown/toonbase/ToontownGlobals.py
+M	toontown/toonbase/ToontownStart.py
 M	toontown/toontowngui/TTDialog.py
 M	toontown/toontowngui/ToontownLoadingScreen.py
 M	toontown/town/Street.py
