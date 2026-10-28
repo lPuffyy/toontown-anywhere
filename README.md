@@ -49,6 +49,7 @@ Start with **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. The other documents
 - [docs/OPERATIONS.md](docs/OPERATIONS.md): running, updating, backing up and debugging the live server.
 - [docs/MIGRATION.md](docs/MIGRATION.md): how the old server's players were moved over, and what changed for them.
 - [docs/CHANGES.md](docs/CHANGES.md): everything that differs from stock Open Toontown, and the known problems.
+- [docs/TODO.md](docs/TODO.md): open work, with Fish Bingo (switched off because it causes crashes) at the top.
 
 ## Status
 
