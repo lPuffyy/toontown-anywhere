@@ -3,14 +3,17 @@ M	etc/Configrc.prc
 M	etc/toon.dc
 M	otp/ai/TimeManager.py
 M	otp/avatar/Avatar.py
+M	otp/avatar/DistributedPlayer.py
 M	otp/chat/ChatInputNormal.py
 M	otp/chat/ChatInputTyped.py
 M	otp/chat/ChatManager.py
 M	otp/chat/TalkAssistant.py
 M	otp/distributed/OTPClientRepository.py
+M	otp/distributed/OtpDoGlobals.py
 M	otp/friends/FriendManagerAI.py
 M	otp/otpbase/OTPGlobals.py
 M	otp/otpbase/OTPLocalizerEnglish.py
+M	otp/settings/Settings.py
 M	toontown/ai/ToontownAIRepository.py
 M	toontown/ai/WelcomeValleyManagerAI.py
 M	toontown/battle/BattleCalculatorAI.py
@@ -132,6 +135,10 @@ M	toontown/fishing/FishGlobals.py
 A	toontown/fishing/FishManagerAI.py
 M	toontown/fishing/FishTank.py
 M	toontown/fishing/FishingTargetGlobals.py
+M	toontown/friends/FriendHandle.py
+A	toontown/friends/ToonPresence.py
+A	toontown/friends/ToonPresenceAI.py
+A	toontown/friends/ToonPresenceUD.py
 M	toontown/golf/GolfScoreBoard.py
 M	toontown/hood/BRHoodDataAI.py
 M	toontown/hood/BossbotHQ.py
@@ -266,3 +273,4 @@ M	toontown/toonbase/ToontownStart.py
 M	toontown/toontowngui/TTDialog.py
 M	toontown/toontowngui/ToontownLoadingScreen.py
 M	toontown/town/Street.py
+M	toontown/uberdog/ToontownUDRepository.py

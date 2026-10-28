@@ -1,8 +1,18 @@
 diff --git a/astron/config/astrond.yml b/astron/config/astrond.yml
-index 822a092..24f05f5 100644
+index 822a092..d16602d 100644
 --- a/astron/config/astrond.yml
 +++ b/astron/config/astrond.yml
-@@ -41,7 +41,7 @@ uberdogs:
+@@ -35,13 +35,17 @@ uberdogs:
+       id: 4695
+       anonymous: false
+ 
++    - class: ToonPresence
++      id: 4730
++      anonymous: false
++
+     - class: AstronLoginManager
+       id: 4670
+       anonymous: true
  
  roles:
      - type: clientagent
@@ -23,7 +33,7 @@ index 522e1ba..2b33346 100644
 +# fish bingo needs a server-side manager that this snapshot lacks
 +want-fish-bingo 1
 diff --git a/etc/toon.dc b/etc/toon.dc
-index 5c4ed03..cff3ede 100755
+index 5c4ed03..d53515e 100755
 --- a/etc/toon.dc
 +++ b/etc/toon.dc
 @@ -2,25 +2,6 @@ from direct.distributed import DistributedObjectGlobal
@@ -52,7 +62,15 @@ index 5c4ed03..cff3ede 100755
  from toontown.safezone import DistributedTrolley/AI
  from toontown.safezone import DistributedPartyGate/AI
  from toontown.suit import DistributedSuitPlanner/AI
-@@ -419,6 +400,7 @@ dclass ToontownDistrictStats : DistributedObject {
+@@ -256,6 +237,7 @@ from toontown.parties import DistributedPartyJukebox40Activity/AI
+ from toontown.parties import DistributedPartyValentineJukeboxActivity/AI
+ from toontown.parties import DistributedPartyValentineJukebox40Activity/AI
+ from toontown.friends import TTPlayerFriendsManager/UD
++from toontown.friends import ToonPresence/AI/UD
+ from toontown.uberdog import TTSpeedchatRelay/UD
+ from toontown.safezone import DistributedGolfKart/AI
+ from toontown.safezone import DistributedPicnicBasket/AI
+@@ -419,6 +401,7 @@ dclass ToontownDistrictStats : DistributedObject {
    settoontownDistrictId(uint32) broadcast required ram;
    setAvatarCount(uint32) broadcast required ram;
    setNewAvatarCount(uint32) broadcast required ram;
@@ -60,7 +78,7 @@ index 5c4ed03..cff3ede 100755
    setStats : setAvatarCount, setNewAvatarCount;
  };
  
-@@ -440,6 +422,14 @@ dclass DistributedAnimatedProp : DistributedObject {
+@@ -440,6 +423,14 @@ dclass DistributedAnimatedProp : DistributedObject {
  
  typedef int16 pair16[2];
  
@@ -75,7 +93,7 @@ index 5c4ed03..cff3ede 100755
  dclass DistributedToon : DistributedPlayer {
    setDNAString(blob) required broadcast ownrecv db;
    setGM(uint8 = 0) required broadcast ownrecv db;
-@@ -560,9 +550,10 @@ dclass DistributedToon : DistributedPlayer {
+@@ -560,9 +551,10 @@ dclass DistributedToon : DistributedPlayer {
    catalogGenAccessories(uint32) broadcast ownrecv;
    setPetId(uint32 = 0) required broadcast ownrecv db;
    setPetMovie(uint32, uint8) ownsend airecv;
@@ -89,7 +107,7 @@ index 5c4ed03..cff3ede 100755
    setKartBodyType(int8 = -1) required broadcast ownrecv db;
    setKartBodyColor(int8 = -1) required broadcast ownrecv db;
    setKartAccessoryColor(int8 = -1) required broadcast ownrecv db;
-@@ -619,74 +610,8 @@ dclass DistributedToon : DistributedPlayer {
+@@ -619,74 +611,8 @@ dclass DistributedToon : DistributedPlayer {
    setDISLname(string) ram;
    setDISLid(uint32) ram db airecv;
    toggleSleep() ownrecv;
@@ -166,6 +184,26 @@ index 5c4ed03..cff3ede 100755
  };
  
  dclass DistributedPartyGate : DistributedObject {
+@@ -2847,6 +2773,19 @@ dclass DistributedVineGame : DistributedMinigame {
+   setVineSections(uint8[]) required broadcast ram;
+ };
+ 
++dclass ToonPresence : DistributedObject {
++  avatarOnline(uint32, uint32[]) airecv;
++  avatarOffline(uint32) airecv;
++  friendshipMade(uint32, uint32) airecv;
++  relayTeleportQuery(uint32) airecv clsend;
++  relayTeleportResponse(uint32, int8, uint32, uint32, uint32) airecv clsend;
++  relayTeleportGiveup(uint32) airecv clsend;
++  friendOnline(uint32, uint8);
++  teleportQueryFrom(uint32);
++  teleportResponseFrom(uint32, int8, uint32, uint32, uint32);
++  teleportGiveupFrom(uint32);
++};
++
+ dclass TTAvatarFriendsManager : AvatarFriendsManager {
+ };
+ 
 diff --git a/otp/ai/TimeManager.py b/otp/ai/TimeManager.py
 index dd90517..e9f215e 100644
 --- a/otp/ai/TimeManager.py
@@ -204,6 +242,40 @@ index f80e89b..ec6fd18 100644
      def delete(self):
          try:
              self.Avatar_deleted
+diff --git a/otp/avatar/DistributedPlayer.py b/otp/avatar/DistributedPlayer.py
+index b7f6a5c..1783923 100644
+--- a/otp/avatar/DistributedPlayer.py
++++ b/otp/avatar/DistributedPlayer.py
+@@ -322,6 +322,9 @@ class DistributedPlayer(DistributedAvatar.DistributedAvatar, PlayerBase.PlayerBa
+ 
+     def d_teleportQuery(self, requesterId, sendToId = None):
+         teleportNotify.debug('sending teleportQuery%s' % ((requesterId, sendToId),))
++        if sendToId is not None and sendToId != self.doId:
++            base.cr.toonPresence.up_teleportQuery(sendToId)      # the server carries it: this client cannot reach that toon directly
++            return
+         self.sendUpdate('teleportQuery', [requesterId], sendToId)
+ 
+     def teleportQuery(self, requesterId):
+@@ -376,6 +379,9 @@ class DistributedPlayer(DistributedAvatar.DistributedAvatar, PlayerBase.PlayerBa
+           hoodId,
+           zoneId,
+           sendToId),))
++        if sendToId is not None and sendToId != self.doId:
++            base.cr.toonPresence.up_teleportResponse(sendToId, available, shardId, hoodId, zoneId)
++            return
+         self.sendUpdate('teleportResponse', [avId,
+          available,
+          shardId,
+@@ -396,6 +402,9 @@ class DistributedPlayer(DistributedAvatar.DistributedAvatar, PlayerBase.PlayerBa
+ 
+     def d_teleportGiveup(self, requesterId, sendToId = None):
+         teleportNotify.debug('sending teleportGiveup(%s) to %s' % (requesterId, sendToId))
++        if sendToId is not None and sendToId != self.doId:
++            base.cr.toonPresence.up_teleportGiveup(sendToId)
++            return
+         self.sendUpdate('teleportGiveup', [requesterId], sendToId)
+ 
+     def teleportGiveup(self, requesterId):
 diff --git a/otp/chat/ChatInputNormal.py b/otp/chat/ChatInputNormal.py
 index c6248bb..15fc782 100644
 --- a/otp/chat/ChatInputNormal.py
@@ -260,11 +332,23 @@ index f169ed1..1e81242 100644
  import time
  import random
  import gc
+diff --git a/otp/distributed/OtpDoGlobals.py b/otp/distributed/OtpDoGlobals.py
+index c456edf..4ca2927 100644
+--- a/otp/distributed/OtpDoGlobals.py
++++ b/otp/distributed/OtpDoGlobals.py
+@@ -1,6 +1,7 @@
+ from direct.distributed.MsgTypes import *
+ OTP_DO_ID_SERVER_ROOT = 4007
+ OTP_DO_ID_FRIEND_MANAGER = 4501
++OTP_DO_ID_TOON_PRESENCE = 4730
+ OTP_DO_ID_LEADERBOARD_MANAGER = 4502
+ OTP_DO_ID_SERVER = 4600
+ OTP_DO_ID_UBER_DOG = 4601
 diff --git a/otp/friends/FriendManagerAI.py b/otp/friends/FriendManagerAI.py
-index 616cfbc..3d3320c 100644
+index 616cfbc..926d677 100644
 --- a/otp/friends/FriendManagerAI.py
 +++ b/otp/friends/FriendManagerAI.py
-@@ -1,5 +1,148 @@
+@@ -1,5 +1,152 @@
  from direct.directnotify import DirectNotifyGlobal
  from direct.distributed.DistributedObjectAI import DistributedObjectAI
 +from otp.otpbase import OTPGlobals
@@ -326,6 +410,10 @@ index 616cfbc..3d3320c 100644
 +            toon.d_setFriendsList(toon.getFriendsList())
 +            if hasattr(toon, 'sendFriendDetails'):
 +                toon.sendFriendDetails()
++        try:
++            self.air.toonPresence.sendUpdate('friendshipMade', [a.getDoId(), b.getDoId()])
++        except Exception:
++            self.notify.warning('could not tell the presence service about the new friends')
 +        questManager = getattr(self.air, 'questManager', None)
 +        if questManager:
 +            for toon, other in ((a, b), (b, a)):
@@ -572,8 +660,73 @@ index ef06cdd..3a01937 100644
  SpeedChatStaticTextPirates = {50001: 'Aye',
   50002: 'Nay',
   50003: 'Yes',
+diff --git a/otp/settings/Settings.py b/otp/settings/Settings.py
+index 9918750..b6cb8e3 100644
+--- a/otp/settings/Settings.py
++++ b/otp/settings/Settings.py
+@@ -1,14 +1,36 @@
+ import json
+ import os
++import sys
+ 
+ 
+ class Settings:
++    """The player's options (music, sound effects, and so on). On a computer they are a file next to the game. In the browser
++    the game's files vanish when the page is closed, so they are kept in the browser's own storage instead, one set for each
++    sign-in name, and come back the next time the same name plays on that phone."""
+ 
+     def __init__(self):
+         self.__settings = {}
+         self.__filename = 'useropt.json'
++        self.__storage = None
++        self.__storageKey = None
++        if sys.platform == 'emscripten':
++            try:
++                import platform
++                self.__storage = platform.window.localStorage
++                self.__storageKey = 'ttr_options_' + os.environ.get('LOGIN_TOKEN', 'player')
++            except Exception:
++                self.__storage = None
++
++    def __stored(self):
++        try:
++            value = self.__storage.getItem(self.__storageKey)
++            return str(value) if value is not None else None
++        except Exception:
++            return None
+ 
+     def doSavedSettingsExist(self):
++        if self.__storage is not None:
++            return self.__stored() is not None
+         return os.path.exists(self.__filename)
+ 
+     def readSettings(self):
+@@ -17,12 +39,21 @@ class Settings:
+             return
+ 
+         try:
+-            with open(self.__filename, 'r') as f:
+-                self.__settings = json.load(f)
++            if self.__storage is not None:
++                self.__settings = json.loads(self.__stored())
++            else:
++                with open(self.__filename, 'r') as f:
++                    self.__settings = json.load(f)
+         except:
+             self.__settings = {}
+ 
+     def writeSettings(self):
++        if self.__storage is not None:
++            try:
++                self.__storage.setItem(self.__storageKey, json.dumps(self.__settings))
++            except Exception:
++                pass
++            return
+         with open(self.__filename, 'w+') as f:
+             json.dump(self.__settings, f, indent=4)
+ 
 diff --git a/toontown/ai/ToontownAIRepository.py b/toontown/ai/ToontownAIRepository.py
-index 19e549c..5a2bc2e 100644
+index 19e549c..74f5922 100644
 --- a/toontown/ai/ToontownAIRepository.py
 +++ b/toontown/ai/ToontownAIRepository.py
 @@ -4,6 +4,7 @@ from panda3d.toontown import *
@@ -629,7 +782,15 @@ index 19e549c..5a2bc2e 100644
  
          # Create our promotion manager...
          self.promotionMgr = PromotionManagerAI(self)
-@@ -189,16 +200,20 @@ class ToontownAIRepository(ToontownInternalRepository):
+@@ -182,6 +193,7 @@ class ToontownAIRepository(ToontownInternalRepository):
+         self.cogSuitMgr = CogSuitManagerAI(self)
+ 
+     def createGlobals(self):
++        self.toonPresence = self.generateGlobalObject(OTP_DO_ID_TOON_PRESENCE, 'ToonPresence')
+         """
+         Creates "global" (distributed) objects.
+         """
+@@ -189,16 +201,20 @@ class ToontownAIRepository(ToontownInternalRepository):
          # Generate our district stats...
          self.districtStats = ToontownDistrictStatsAI(self)
          self.districtStats.settoontownDistrictId(self.districtId)
@@ -651,7 +812,7 @@ index 19e549c..5a2bc2e 100644
  
          # Generate our Welcome Valley manager...
          self.welcomeValleyManager = WelcomeValleyManagerAI(self)
-@@ -228,6 +243,10 @@ class ToontownAIRepository(ToontownInternalRepository):
+@@ -228,6 +244,10 @@ class ToontownAIRepository(ToontownInternalRepository):
          self.tutorialManager = TutorialManagerAI(self)
          self.tutorialManager.generateWithRequired(OTP_ZONE_ID_MANAGEMENT)
  
@@ -662,7 +823,7 @@ index 19e549c..5a2bc2e 100644
          # Generate our party manager...
          self.partyManager = DistributedPartyManagerAI(self)
          self.partyManager.generateWithRequired(OTP_ZONE_ID_MANAGEMENT)
-@@ -250,12 +269,12 @@ class ToontownAIRepository(ToontownInternalRepository):
+@@ -250,12 +270,12 @@ class ToontownAIRepository(ToontownInternalRepository):
          # First, generate our zone2NpcDict...
          NPCToons.generateZone2NpcDict()
  
@@ -679,7 +840,7 @@ index 19e549c..5a2bc2e 100644
  
          # Toontown Central
          self.zoneTable[ToontownGlobals.ToontownCentral] = (
-@@ -271,38 +290,38 @@ class ToontownAIRepository(ToontownInternalRepository):
+@@ -271,38 +291,38 @@ class ToontownAIRepository(ToontownInternalRepository):
          )
          self.generateHood(BRHoodDataAI, ToontownGlobals.TheBrrrgh)
  
@@ -735,7 +896,7 @@ index 19e549c..5a2bc2e 100644
  
          # Bossbot HQ
          self.zoneTable[ToontownGlobals.BossbotHQ] = (
-@@ -328,7 +347,7 @@ class ToontownAIRepository(ToontownInternalRepository):
+@@ -328,7 +348,7 @@ class ToontownAIRepository(ToontownInternalRepository):
          )
          self.generateHood(LawbotHQDataAI, ToontownGlobals.LawbotHQ)
  
@@ -744,7 +905,7 @@ index 19e549c..5a2bc2e 100644
          self.zoneTable[ToontownGlobals.GolfZone] = (
              (ToontownGlobals.GolfZone, 1, 0),
          )
-@@ -388,6 +407,7 @@ class ToontownAIRepository(ToontownInternalRepository):
+@@ -388,6 +408,7 @@ class ToontownAIRepository(ToontownInternalRepository):
              pond = DistributedFishingPondAI(self)
              pond.setArea(area)
              pond.generateWithRequired(zoneId)
@@ -752,7 +913,7 @@ index 19e549c..5a2bc2e 100644
              fishingPonds.append(pond)
          else:
              if isinstance(dnaData, DNAVisGroup):
-@@ -403,7 +423,22 @@ class ToontownAIRepository(ToontownInternalRepository):
+@@ -403,7 +424,22 @@ class ToontownAIRepository(ToontownInternalRepository):
          return fishingPonds, fishingPondGroups
  
      def findFishingSpots(self, dnaData, pond):
@@ -7108,7 +7269,7 @@ index af33272..72065c8 100644
                   'hood': hoodName}, count, 1, TTLocalizer.TIP_KARTING)
              else:
 diff --git a/toontown/distributed/ToontownClientRepository.py b/toontown/distributed/ToontownClientRepository.py
-index dbadca9..9bf3b41 100644
+index dbadca9..d0787b3 100644
 --- a/toontown/distributed/ToontownClientRepository.py
 +++ b/toontown/distributed/ToontownClientRepository.py
 @@ -1,4 +1,5 @@
@@ -7117,7 +7278,15 @@ index dbadca9..9bf3b41 100644
  from direct.distributed.ClockDelta import *
  from direct.gui.DirectGui import *
  from direct.interval.IntervalGlobal import ivalMgr
-@@ -143,7 +144,7 @@ class ToontownClientRepository(OTPClientRepository.OTPClientRepository):
+@@ -83,6 +84,7 @@ class ToontownClientRepository(OTPClientRepository.OTPClientRepository):
+         self.avatarFriendsManager = self.generateGlobalObject(OtpDoGlobals.OTP_DO_ID_AVATAR_FRIENDS_MANAGER, 'AvatarFriendsManager')
+         self.playerFriendsManager = self.generateGlobalObject(OtpDoGlobals.OTP_DO_ID_PLAYER_FRIENDS_MANAGER, 'TTPlayerFriendsManager')
+         self.speedchatRelay = self.generateGlobalObject(OtpDoGlobals.OTP_DO_ID_TOONTOWN_SPEEDCHAT_RELAY, 'TTSpeedchatRelay')
++        self.toonPresence = self.generateGlobalObject(OtpDoGlobals.OTP_DO_ID_TOON_PRESENCE, 'ToonPresence')
+         self.deliveryManager = self.generateGlobalObject(OtpDoGlobals.OTP_DO_ID_TOONTOWN_DELIVERY_MANAGER, 'DistributedDeliveryManager')
+         if ConfigVariableBool('want-code-redemption', 1).value:
+             self.codeRedemptionManager = self.generateGlobalObject(OtpDoGlobals.OTP_DO_ID_TOONTOWN_CODE_REDEMPTION_MANAGER, 'TTCodeRedemptionMgr')
+@@ -143,7 +145,7 @@ class ToontownClientRepository(OTPClientRepository.OTPClientRepository):
          self.acceptedScreen.setScale(0.667)
          self.acceptedScreen.reparentTo(aspect2d)
          buttons = loader.loadModel('phase_3/models/gui/dialog_box_buttons_gui')
@@ -7126,7 +7295,7 @@ index dbadca9..9bf3b41 100644
          newName = avatarChoice.approvedName
          self.acceptedText = DirectLabel(parent=self.acceptedScreen, relief=None, text=OTPLocalizer.CRNameAccepted % newName, text_scale=0.125, text_fg=Vec4(0, 0, 0, 1), text_pos=(0, -0.15))
          self.okButton = DirectButton(parent=self.acceptedScreen, image=(buttons.find('**/ChtBx_OKBtn_UP'), buttons.find('**/ChtBx_OKBtn_DN'), buttons.find('**/ChtBx_OKBtn_Rllvr')), relief=None, text='Ok', scale=1.5, text_scale=0.05, text_pos=(0.0, -0.1), pos=(0, 0, -1), command=self.__handleCongrats, extraArgs=[avatarChoice])
-@@ -880,6 +881,11 @@ class ToontownClientRepository(OTPClientRepository.OTPClientRepository):
+@@ -880,6 +882,11 @@ class ToontownClientRepository(OTPClientRepository.OTPClientRepository):
              if callback:
                  callback()
              return
@@ -10287,6 +10456,155 @@ index 01c8a70..2c0792e 100644
                                      159,
                                      0.2,
                                      -17.1,
+diff --git a/toontown/friends/FriendHandle.py b/toontown/friends/FriendHandle.py
+index 960306f..8b2cddd 100644
+--- a/toontown/friends/FriendHandle.py
++++ b/toontown/friends/FriendHandle.py
+@@ -44,7 +44,7 @@ class FriendHandle:
+ 
+     def d_teleportQuery(self, requesterId):
+         teleportNotify.debug('sending d_teleportQuery(%s)' % (requesterId,))
+-        base.localAvatar.sendUpdate('teleportQuery', [requesterId], sendToId=self.doId)
++        base.localAvatar.d_teleportQuery(requesterId, sendToId=self.doId)
+ 
+     def d_teleportResponse(self, avId, available, shardId, hoodId, zoneId):
+         teleportNotify.debug('sending teleportResponse%s' % ((avId,
+@@ -52,15 +52,11 @@ class FriendHandle:
+           shardId,
+           hoodId,
+           zoneId),))
+-        base.localAvatar.sendUpdate('teleportResponse', [avId,
+-         available,
+-         shardId,
+-         hoodId,
+-         zoneId], sendToId=self.doId)
++        base.localAvatar.d_teleportResponse(avId, available, shardId, hoodId, zoneId, sendToId=self.doId)
+ 
+     def d_teleportGiveup(self, requesterId):
+         teleportNotify.debug('sending d_teleportGiveup(%s)' % (requesterId,))
+-        base.localAvatar.sendUpdate('teleportGiveup', [requesterId], sendToId=self.doId)
++        base.localAvatar.d_teleportGiveup(requesterId, sendToId=self.doId)
+ 
+     def isUnderstandable(self):
+         if self.commonChatFlags & base.localAvatar.commonChatFlags & ToontownGlobals.CommonChat:
+diff --git a/toontown/friends/ToonPresence.py b/toontown/friends/ToonPresence.py
+new file mode 100644
+index 0000000..f039586
+--- /dev/null
++++ b/toontown/friends/ToonPresence.py
+@@ -0,0 +1,35 @@
++from direct.directnotify import DirectNotifyGlobal
++from direct.distributed.DistributedObjectGlobal import DistributedObjectGlobal
++
++
++class ToonPresence(DistributedObjectGlobal):
++    """The client's line to the UberDOG's ToonPresence. The server cannot let one client send a message straight to a toon the
++    client cannot see, so Go To questions and answers go through here, and friends coming and going arrive from here."""
++    notify = DirectNotifyGlobal.directNotify.newCategory('ToonPresence')
++
++    # ---- to the server
++    def up_teleportQuery(self, toAvId):
++        self.sendUpdate('relayTeleportQuery', [toAvId])
++
++    def up_teleportResponse(self, toAvId, available, shardId, hoodId, zoneId):
++        self.sendUpdate('relayTeleportResponse', [toAvId, available, shardId, hoodId, zoneId])
++
++    def up_teleportGiveup(self, toAvId):
++        self.sendUpdate('relayTeleportGiveup', [toAvId])
++
++    # ---- from the server
++    def friendOnline(self, friendId, online):
++        if hasattr(base, 'localAvatar'):
++            base.localAvatar.setFriendOnline(friendId, online)
++
++    def teleportQueryFrom(self, requesterId):
++        if hasattr(base, 'localAvatar'):
++            base.localAvatar.teleportQuery(requesterId)
++
++    def teleportResponseFrom(self, avId, available, shardId, hoodId, zoneId):
++        if hasattr(base, 'localAvatar'):
++            base.localAvatar.teleportResponse(avId, available, shardId, hoodId, zoneId)
++
++    def teleportGiveupFrom(self, requesterId):
++        if hasattr(base, 'localAvatar'):
++            base.localAvatar.teleportGiveup(requesterId)
+diff --git a/toontown/friends/ToonPresenceAI.py b/toontown/friends/ToonPresenceAI.py
+new file mode 100644
+index 0000000..00d30fb
+--- /dev/null
++++ b/toontown/friends/ToonPresenceAI.py
+@@ -0,0 +1,7 @@
++from direct.directnotify import DirectNotifyGlobal
++from direct.distributed.DistributedObjectGlobalAI import DistributedObjectGlobalAI
++
++
++class ToonPresenceAI(DistributedObjectGlobalAI):
++    """A district's line to the UberDOG's ToonPresence: tell it when toons arrive, leave or make friends."""
++    notify = DirectNotifyGlobal.directNotify.newCategory('ToonPresenceAI')
+diff --git a/toontown/friends/ToonPresenceUD.py b/toontown/friends/ToonPresenceUD.py
+new file mode 100644
+index 0000000..5f2ab24
+--- /dev/null
++++ b/toontown/friends/ToonPresenceUD.py
+@@ -0,0 +1,58 @@
++from direct.directnotify import DirectNotifyGlobal
++from direct.distributed.DistributedObjectGlobalUD import DistributedObjectGlobalUD
++
++
++class ToonPresenceUD(DistributedObjectGlobalUD):
++    """Knows which toons are playing, in any district, and carries the messages that must reach a toon in another district:
++    a friend coming or going, and the Go To (teleport to a friend) questions and answers. Each district's AI tells it when a
++    toon arrives or leaves; a client can only ask it to pass a Go To message on to a friend."""
++    notify = DirectNotifyGlobal.directNotify.newCategory('ToonPresenceUD')
++
++    def __init__(self, air):
++        DistributedObjectGlobalUD.__init__(self, air)
++        self.online = {}                    # avId -> set of that toon's friends' avIds
++
++    # ---- from the districts
++    def avatarOnline(self, avId, friends):
++        self.online[avId] = set(friends)
++        for friendId in friends:
++            if friendId in self.online:
++                self.sendUpdateToAvatarId(friendId, 'friendOnline', [avId, 1])
++                self.sendUpdateToAvatarId(avId, 'friendOnline', [friendId, 1])
++
++    def avatarOffline(self, avId):
++        friends = self.online.pop(avId, set())
++        for friendId in friends:
++            if friendId in self.online:
++                self.sendUpdateToAvatarId(friendId, 'friendOnline', [avId, 0])
++
++    def friendshipMade(self, avIdA, avIdB):
++        for me, other in ((avIdA, avIdB), (avIdB, avIdA)):
++            if me in self.online:
++                self.online[me].add(other)
++        if avIdA in self.online and avIdB in self.online:
++            self.sendUpdateToAvatarId(avIdA, 'friendOnline', [avIdB, 1])
++            self.sendUpdateToAvatarId(avIdB, 'friendOnline', [avIdA, 1])
++
++    # ---- Go To: a toon asks a friend (in any district) if it can come to them
++    def __friends(self, a, b):
++        """True when a and b are both playing and b has a as a friend."""
++        return a in self.online and b in self.online and a in self.online[b]
++
++    def relayTeleportQuery(self, toAvId):
++        fromAvId = self.air.getAvatarIdFromSender()
++        if self.__friends(fromAvId, toAvId):
++            self.sendUpdateToAvatarId(toAvId, 'teleportQueryFrom', [fromAvId])
++        else:
++            # not playing, or not a friend: the asker is told it cannot be done
++            self.sendUpdateToAvatarId(fromAvId, 'teleportResponseFrom', [toAvId, 0, 0, 0, 0])
++
++    def relayTeleportResponse(self, toAvId, available, shardId, hoodId, zoneId):
++        fromAvId = self.air.getAvatarIdFromSender()
++        if self.__friends(fromAvId, toAvId):
++            self.sendUpdateToAvatarId(toAvId, 'teleportResponseFrom', [fromAvId, available, shardId, hoodId, zoneId])
++
++    def relayTeleportGiveup(self, toAvId):
++        fromAvId = self.air.getAvatarIdFromSender()
++        if self.__friends(fromAvId, toAvId):
++            self.sendUpdateToAvatarId(toAvId, 'teleportGiveupFrom', [fromAvId])
 diff --git a/toontown/golf/GolfScoreBoard.py b/toontown/golf/GolfScoreBoard.py
 index 684cb94..5ea3882 100644
 --- a/toontown/golf/GolfScoreBoard.py
@@ -14665,7 +14983,7 @@ index 44a8ecd..1ea0bb7 100644
  from panda3d.core import *
  from .DistributedNPCToonBaseAI import *
 diff --git a/toontown/toon/DistributedToon.py b/toontown/toon/DistributedToon.py
-index 3a52f75..7886db6 100644
+index 3a52f75..3cf5c3b 100644
 --- a/toontown/toon/DistributedToon.py
 +++ b/toontown/toon/DistributedToon.py
 @@ -11,6 +11,7 @@ from otp.avatar import Avatar, DistributedAvatar
@@ -14684,7 +15002,7 @@ index 3a52f75..7886db6 100644
          self.bFishBingoTutorialDone = False
          self.bFishBingoMarkTutorialDone = False
          self.accessories = []
-@@ -399,6 +401,32 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
+@@ -399,6 +401,30 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
      def getDialogueArray(self, *args):
          return Toon.Toon.getDialogueArray(self, *args)
  
@@ -14697,17 +15015,15 @@ index 3a52f75..7886db6 100644
 +            dna.makeFromNetString(dnaBlob)
 +            handle = FriendHandle.FriendHandle(friendId, name, dna, petId)
 +            cr.friendsMap[friendId] = handle
-+            if online:
++            if online or friendId in cr.friendsOnline:
 +                cr.friendsOnline[friendId] = handle
-+            elif friendId in cr.friendsOnline:
-+                del cr.friendsOnline[friendId]
 +        cr.friendsMapPending = 0
 +        messenger.send('friendsMapComplete')
 +
 +    def setFriendOnline(self, friendId, online):
 +        cr = base.cr
 +        if online:
-+            handle = cr.friendsMap.get(friendId) or cr.identifyFriend(friendId)
++            handle = cr.friendsMap.get(friendId) or cr.identifyFriend(friendId)       # (the details may still be on their way)
 +            cr.friendsOnline[friendId] = handle
 +            messenger.send('friendOnline', [friendId, 0, 0])
 +        elif friendId in cr.friendsOnline:
@@ -14717,7 +15033,7 @@ index 3a52f75..7886db6 100644
      def setDefaultShard(self, shard):
          self.defaultShard = shard
  
-@@ -466,6 +494,9 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
+@@ -466,6 +492,9 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
              return Task.cont
  
      def setTalk(self, fromAV, fromAC, avatarName, chat, mods, flags):
@@ -14727,7 +15043,7 @@ index 3a52f75..7886db6 100644
          if base.cr.avatarFriendsManager.checkIgnored(fromAV):
              self.d_setWhisperIgnored(fromAV)
              return
-@@ -1188,7 +1219,7 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
+@@ -1188,7 +1217,7 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
          return
  
      def playSplashEffect(self, x, y, z):
@@ -14736,7 +15052,7 @@ index 3a52f75..7886db6 100644
              if random.random() < 0.1:
                  self.sendLogSuspiciousEvent('AvatarHackWarning! playing hacked splash effect')
              return
-@@ -1732,6 +1763,16 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
+@@ -1732,6 +1761,16 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
          def hasPet(self):
              return self.petId != 0
  
@@ -14754,7 +15070,7 @@ index 3a52f75..7886db6 100644
              self.d_setPetTutorialDone(bDone)
              self.setPetTutorialDone(bDone)
 diff --git a/toontown/toon/DistributedToonAI.py b/toontown/toon/DistributedToonAI.py
-index b5489fe..e027075 100644
+index b5489fe..7d0f4e6 100644
 --- a/toontown/toon/DistributedToonAI.py
 +++ b/toontown/toon/DistributedToonAI.py
 @@ -186,6 +186,7 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
@@ -14834,14 +15150,14 @@ index b5489fe..e027075 100644
 +            self.air.dbInterface.queryObject(self.air.dbId, friendId, got, fieldNames=('setName', 'setDNAString', 'setPetId'))
 +
 +    def notifyFriendsOnline(self, online):
-+        """Friends who are in this district right now are told this toon came or went."""
++        """Tell the UberDOG this toon arrived or left: it tells the toon's friends in every district, and keeps Go To working."""
 +        try:
-+            for pair in self.friendsList:
-+                friend = self.air.doId2do.get(pair[0])
-+                if friend is not None and friend is not self:
-+                    friend.sendUpdate('setFriendOnline', [self.doId, online])
++            if online:
++                self.air.toonPresence.sendUpdate('avatarOnline', [self.doId, [pair[0] for pair in self.friendsList]])
++            else:
++                self.air.toonPresence.sendUpdate('avatarOffline', [self.doId])
 +        except Exception:
-+            self.notify.warning('could not tell the friends of %s' % self.doId)
++            self.notify.warning('could not tell the presence service about %s' % self.doId)
 +
      def d_setFriendsList(self, friendsList):
          self.sendUpdate('setFriendsList', [friendsList])
@@ -16966,3 +17282,13 @@ index 14788b1..7364880 100644
                  inDreamland = True
              alphaPath = 'phase_4/maps/tt_t_ara_gen_tunnelAheadSign_a.rgb'
              if Filename(signTexturePath).exists():
+diff --git a/toontown/uberdog/ToontownUDRepository.py b/toontown/uberdog/ToontownUDRepository.py
+index 9ee9b85..621e555 100644
+--- a/toontown/uberdog/ToontownUDRepository.py
++++ b/toontown/uberdog/ToontownUDRepository.py
+@@ -45,3 +45,5 @@ class ToontownUDRepository(ToontownInternalRepository):
+         if __astron__:
+             # Create our Astron login manager...
+             self.astronLoginManager = self.generateGlobalObject(OTP_DO_ID_ASTRON_LOGIN_MANAGER, 'AstronLoginManager')
++            # ...and the service that knows who is playing, in any district, and carries Go To messages
++            self.toonPresence = self.generateGlobalObject(OTP_DO_ID_TOON_PRESENCE, 'ToonPresence')
