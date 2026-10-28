@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends nginx libgl1 li
 COPY overlay/direct /usr/local/lib/python3.9/site-packages/direct
 # the pure-Python stand-ins for the compiled libotp / libtoontown, loaded into every Python process
 RUN printf 'import sys\nsys.path.insert(0, "/ot/src")\ntry:\n    import otpy.install\n    otpy.install.install()\nexcept Exception as e:\n    print("otpy install failed", e, file=sys.stderr)\n' > /usr/local/lib/python3.9/site-packages/sitecustomize.py
-COPY auth_service.py wsbridge.py nginx.conf run.sh /ot/
+COPY auth_service.py wsbridge.py discord_status.py nginx.conf run.sh /ot/
 RUN chmod +x /ot/run.sh && cp /ot/nginx.conf /etc/nginx/conf.d/default.conf && rm -f /etc/nginx/sites-enabled/default
 WORKDIR /ot/src
 ENTRYPOINT ["/usr/bin/tini", "--"]

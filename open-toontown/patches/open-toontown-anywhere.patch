@@ -33,7 +33,7 @@ index 522e1ba..2b33346 100644
 +# fish bingo needs a server-side manager that this snapshot lacks
 +want-fish-bingo 1
 diff --git a/etc/toon.dc b/etc/toon.dc
-index 5c4ed03..5a1846e 100755
+index 5c4ed03..faf98ef 100755
 --- a/etc/toon.dc
 +++ b/etc/toon.dc
 @@ -2,25 +2,6 @@ from direct.distributed import DistributedObjectGlobal
@@ -190,7 +190,7 @@ index 5c4ed03..5a1846e 100755
  };
  
 +dclass ToonPresence : DistributedObject {
-+  avatarOnline(uint32, uint32[]) airecv;
++  avatarOnline(uint32, uint32[], string) airecv;
 +  avatarOffline(uint32) airecv;
 +  friendshipMade(uint32, uint32) airecv;
 +  relayTeleportQuery(uint32) airecv clsend;
@@ -10593,10 +10593,14 @@ index 0000000..00d30fb
 +    notify = DirectNotifyGlobal.directNotify.newCategory('ToonPresenceAI')
 diff --git a/toontown/friends/ToonPresenceUD.py b/toontown/friends/ToonPresenceUD.py
 new file mode 100644
-index 0000000..bb185f6
+index 0000000..722132f
 --- /dev/null
 +++ b/toontown/friends/ToonPresenceUD.py
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,93 @@
++import json
++import os
++import time
++
 +from direct.directnotify import DirectNotifyGlobal
 +from direct.distributed.DistributedObjectGlobalUD import DistributedObjectGlobalUD
 +
@@ -10606,14 +10610,35 @@ index 0000000..bb185f6
 +    a friend coming or going, and the Go To (teleport to a friend) questions and answers. Each district's AI tells it when a
 +    toon arrives or leaves; a client can only ask it to pass a Go To message on to a friend."""
 +    notify = DirectNotifyGlobal.directNotify.newCategory('ToonPresenceUD')
++    STATUS_FILE = '/ot/data/online.json'          # who is playing, for the Discord status script (counts only)
++    STATUS_EVERY = 30.0
 +
 +    def __init__(self, air):
 +        DistributedObjectGlobalUD.__init__(self, air)
 +        self.online = {}                    # avId -> set of that toon's friends' avIds
++        self.district = {}                  # avId -> name of the district the toon is in
++        taskMgr.doMethodLater(self.STATUS_EVERY, self.__writeStatus, 'toonPresenceStatus')
++
++    def __writeStatus(self, task):
++        """Write how many toons are playing (in total and in each district) for the Discord status script. Counts only, no names."""
++        try:
++            counts = {}
++            for avId in self.online:
++                name = self.district.get(avId, '') or 'Unknown'
++                counts[name] = counts.get(name, 0) + 1
++            data = {'updated': int(time.time()), 'total': len(self.online), 'districts': counts}
++            tmp = self.STATUS_FILE + '.tmp'
++            with open(tmp, 'w') as f:
++                json.dump(data, f)
++            os.replace(tmp, self.STATUS_FILE)
++        except Exception:
++            self.notify.warning('could not write the status file')
++        return task.again
 +
 +    # ---- from the districts
-+    def avatarOnline(self, avId, friends):
++    def avatarOnline(self, avId, friends, districtName):
 +        self.online[avId] = set(friends)
++        self.district[avId] = districtName
 +        for friendId in friends:
 +            if friendId in self.online:
 +                self.sendUpdateToAvatarId(friendId, 'friendOnline', [avId, 1])
@@ -10621,6 +10646,7 @@ index 0000000..bb185f6
 +
 +    def avatarOffline(self, avId):
 +        friends = self.online.pop(avId, set())
++        self.district.pop(avId, None)
 +        for friendId in friends:
 +            if friendId in self.online:
 +                self.sendUpdateToAvatarId(friendId, 'friendOnline', [avId, 0])
@@ -15129,7 +15155,7 @@ index 3a52f75..3cf5c3b 100644
              self.d_setPetTutorialDone(bDone)
              self.setPetTutorialDone(bDone)
 diff --git a/toontown/toon/DistributedToonAI.py b/toontown/toon/DistributedToonAI.py
-index b5489fe..8bffc8e 100644
+index b5489fe..c7027e2 100644
 --- a/toontown/toon/DistributedToonAI.py
 +++ b/toontown/toon/DistributedToonAI.py
 @@ -1,3 +1,4 @@
@@ -15230,7 +15256,7 @@ index b5489fe..8bffc8e 100644
 +        """Tell the UberDOG this toon arrived or left: it tells the toon's friends in every district, and keeps Go To working."""
 +        try:
 +            if online:
-+                self.air.toonPresence.sendUpdate('avatarOnline', [self.doId, [pair[0] for pair in self.friendsList]])
++                self.air.toonPresence.sendUpdate('avatarOnline', [self.doId, [pair[0] for pair in self.friendsList], getattr(self.air, 'districtName', '')])
 +            else:
 +                self.air.toonPresence.sendUpdate('avatarOffline', [self.doId])
 +        except Exception:

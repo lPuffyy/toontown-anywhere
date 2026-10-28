@@ -7,6 +7,7 @@ L=/ot/data/logs
 nginx
 python -u /ot/auth_service.py > $L/auth.log 2>&1 &
 python -u /ot/wsbridge.py > $L/bridge.log 2>&1 &
+python -u /ot/discord_status.py > $L/discord.log 2>&1 &       # edits one Discord message with the number of toons playing (needs data/discord_webhook)
 cd /ot/src/astron/linux && chmod +x astrond && ./astrond --loglevel info ../config/astrond-linux.yml > $L/astron.log 2>&1 &
 sleep 6
 cd /ot/src

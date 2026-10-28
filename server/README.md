@@ -10,6 +10,8 @@ Everything the game needs on the server side, in one container. How it fits toge
 | `nginx.conf` | Serves the page and packs; proxies `/ws`, `/auth`, `/recover`, `/setrecovery`, `/__log` |
 | `auth_service.py` | Password sign-in and recovery (`users.json`), and the test-session log receiver |
 | `wsbridge.py` | WebSocket to Astron client agent TCP bridge, with per-address limits |
+| `discord_status.py` | Edits one Discord message with the number of toons playing (counts only); needs `data/discord_webhook` |
+| `server_status.py` | Runs in its own container and edits one Discord message with online, starting or offline; see the operations notes |
 | `restart_auth_service.py` | Restarts the sign-in service inside a running container (after copying in a new `auth_service.py`) |
 | `astrond-linux.yml` | Astron's configuration for the container (the client agent listens on all interfaces, inside the container) |
 | `live.prc` | Server settings for the live game (new accounts get `NO_ACCESS`) |
