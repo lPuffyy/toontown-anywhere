@@ -26,6 +26,14 @@ Good to know:
 - Pick a name and a password and tap **Play**. If you have been here before, use the same ones. Passwords can be
   recovered with the two answers you set up (**Forgot password?**).
 
+## What the game records
+
+To find and fix crashes, the page sends **error and crash information** to our server: Python error messages, page errors, lost
+connections, the kind of phone and browser, the screen size, and the **sign-in name** (never the password). It does not record
+touches, chat or screenshots. A report is kept only on our own server and is read only by us when a bug is being looked at.
+Opening the page with `?log=1` added to the address turns on a fuller log for that visit, which we ask for when we are
+chasing a specific problem.
+
 ## Community
 
 - **Discord:** <https://discord.gg/NxdkuR2aCp>, for help, bug reports and chat.

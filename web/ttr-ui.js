@@ -53,18 +53,36 @@
     if (/[?&]log=1/.test(location.search)) sessionStorage.setItem('ttr.log', '1');
     if (sessionStorage.getItem('ttr.log') === '1') LOGGING = true;
   } catch (e) {}
+  // Everyone else is logged quietly: only crash information (Python tracebacks, errors, lost connections, page errors) and one line
+  // about the device and the sign-in name. No passwords, no touches, no frame timings. At most 400 lines per visit.
+  let quietSent = 0, tbLeft = 0, lastQuiet = '';
+  const QUIET_WANT = /Traceback|[A-Za-z_]*(Error|Exception)\b|STEP FAILED|reconnecting|webnet: (closed|error)|Aborted/;
+  function quietLog(m) {
+    if (quietSent >= 400) return;
+    let want = false;
+    if (m.indexOf('PY|') === 0) {
+      const t = m.slice(3).trim();
+      if (/Traceback \(most recent call last\)/.test(t)) { tbLeft = 30; want = true; }
+      else if (tbLeft > 0) { want = true; tbLeft--; if (/^[A-Za-z_.]*(Error|Exception)\b/.test(t)) tbLeft = 0; }
+      else if (QUIET_WANT.test(t)) want = true;
+    } else if (/^JS\| (page error|unhandled|console\.error|session)/.test(m)) want = true;
+    if (!want || m === lastQuiet) return;
+    lastQuiet = m; quietSent++;
+    try { navigator.sendBeacon('/__log', m); } catch (e) {}
+  }
   function plog(m) {
     if (LOGGING) { try { navigator.sendBeacon('/__log', m); } catch (e) {} return; }
+    if (m.indexOf('JS| env') !== 0) { quietLog(m); return; }
     // the real site: only the screen-fact lines, a few per visit, as a plain request the web server's log records
     if (m.indexOf('JS| env') !== 0 || dn >= 12) return;
     dn++; try { new Image().src = '/__d?' + encodeURIComponent(m) + '&r=' + Date.now(); } catch (e) {}
   }
   T.plog = plog;
-  if (LOGGING) {
+  {
     addEventListener('error', (e) => plog('JS| page error: ' + e.message + ' @ ' + (e.filename || '') + ':' + (e.lineno || '')));
     addEventListener('unhandledrejection', (e) => plog('JS| unhandled rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)));
-    ['error', 'warn'].forEach((lv) => { const o = console[lv]; console[lv] = function () { o.apply(console, arguments); try { plog('JS| console.' + lv + ': ' + Array.prototype.slice.call(arguments).map(String).join(' ').slice(0, 600)); } catch (e) {} }; });
-    plog('JS| log session started: ' + navigator.userAgent + ' ' + innerWidth + 'x' + innerHeight);
+    (LOGGING ? ['error', 'warn'] : ['error']).forEach((lv) => { const o = console[lv]; console[lv] = function () { o.apply(console, arguments); try { plog('JS| console.' + lv + ': ' + Array.prototype.slice.call(arguments).map(String).join(' ').slice(0, 600)); } catch (e) {} }; });
+    plog((LOGGING ? 'JS| log session started: ' : 'JS| session: ') + navigator.userAgent + ' ' + innerWidth + 'x' + innerHeight);
   }
   const _cl = console.log; console.log = function () { _cl.apply(console, arguments); try { const m = String(arguments[0]); if (m.indexOf('PY|') === 0) plog(m); } catch (e) {} };
   let installUp = false;
@@ -571,6 +589,7 @@
     setStatus('Starting Toontown...', '', null); bar.style.display = 'none'; spin.style.display = '';
     T.wsUrl = prefs.ws;
     T.cookie = cookie; T.go = true;
+    plog('JS| session user: ' + String(cookie).split(':')[0]);       // the name only, never the password
   }
   T.started = function () {          // called by the game once it is drawing
     bg.style.display = 'none'; logo.style.display = 'none'; title.style.display = 'none'; load.style.display = 'none';

@@ -204,6 +204,17 @@ toons stay in the database).
 
 - To restore, stop the container, unpack over `src/astron/databases` and `data/users.json`, and start it.
 
+## Client logging
+
+Every phone sends **crash information** to `data/logs/client.log`, quietly: Python tracebacks and error lines, page errors, lost
+connections, one line about the device (browser, screen size) and one line with the sign-in name. At most 400 lines per
+visit; nothing else (no passwords, touches or frame timings). The page decides this (`quietLog` in `web/ttr-ui.js`), so a
+change needs only a new page script, with no server restart.
+
+The file stops growing at 30 MB, and each address may send 6,000 lines an hour (see `server/auth_service.py`); when the file is
+full nothing more is saved, so look at its size now and then and move it aside (`mv client.log client.log.old`) when it grows.
+The privacy note in the README tells players what is recorded: keep it in step with this.
+
 ## Test sessions with logging
 
 Open the page with `?log=1` (for example `https://toontown.puffsco.com/play/?log=1`) on the phone that shows the
