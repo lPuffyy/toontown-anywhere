@@ -1,14 +1,14 @@
 # What differs from stock Open Toontown
 
-Everything we changed in the game, grouped by what it is for, followed by the known problems. The changes are in
-`open-toontown/patches/open-toontown-anywhere.patch` (276 files; `CHANGED_FILES.txt` lists them) and are made against
-upstream Open Toontown commit `2b366a2`. How to apply them is in [open-toontown/README.md](../open-toontown/README.md).
+Everything we changed in the game, grouped by what it is for, followed by the known problems. The changes are
+the `anywhere` branch of our fork, [open-toontown-anywhere](https://github.com/lPuffyy/open-toontown-anywhere), on top of upstream Open Toontown commit `2b366a2`
+(`git log develop..anywhere` there, or compare it with upstream).
 
 ## Server
 
 ### Districts and population
 
-- Three districts, started by `server/run.sh`: **Toon Valley**, **Giggle Grove** and **Silly Meadow**, one AI process
+- Three districts, started by `docker/run.sh` in the fork: **Toon Valley**, **Giggle Grove** and **Silly Meadow**, one AI process
   each, with their own channel ranges.
 - The district statistics object (`ToontownDistrictStats`) is now generated under the game's root object, which is where
   the client's interest can see it. This is what makes the Districts page show populations.
@@ -77,7 +77,7 @@ upstream Open Toontown commit `2b366a2`. How to apply them is in [open-toontown/
 
 ### Access
 
-- A brand-new account gets `NO_ACCESS` (set in `server/live.prc`), not stock Open Toontown's `SYSTEM_ADMIN`. Staff are
+- A brand-new account gets `NO_ACCESS` (set in `docker/live.prc` in the fork), not stock Open Toontown's `SYSTEM_ADMIN`. Staff are
   made by editing the account in the database.
 
 ### Toon colours

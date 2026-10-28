@@ -73,7 +73,7 @@ compiled to WebAssembly, drawing with WebGL. Our glue code is in `web/game/`:
 
 Open Toontown needs two compiled Panda3D modules, `panda3d.otp` and `panda3d.toontown` (nametags, margin cells, the DNA
 loader, Cog street paths, movement code). There is no build of them for WebAssembly, so we wrote **`otpy`**
-(`open-toontown/otpy/`), pure Python with the same interface:
+(`otpy/` in the fork), pure Python with the same interface:
 
 | Module | Replaces |
 |---|---|
@@ -93,22 +93,22 @@ The home server is not exposed directly. A Cloudflare tunnel (`cloudflared`) for
 `toontown.puffsco.com` to the container's one published port, 7380. Cloudflare caches static files, which matters when
 files change (see OPERATIONS.md, "Updating the client").
 
-### 2.4 The server container (`server/`)
+### 2.4 The server container (`docker/` in the fork)
 
-Everything the game needs on the server side runs in a single container (`ot-live`, built from `server/Dockerfile`).
-`server/run.sh` starts these, in order, and stops the whole container if the UberDOG or any district dies, so Docker
+Everything the game needs on the server side runs in a single container (`ot-live`, built from the fork's `docker/Dockerfile`).
+`docker/run.sh` starts these, in order, and stops the whole container if the UberDOG or any district dies, so Docker
 restarts everything together:
 
 1. **nginx** (port 80 inside, 7380 published). Serves the page and game files, and proxies `/ws` and the sign-in
-   paths (`server/nginx.conf`).
-2. **Sign-in service** (`server/auth_service.py`, port 7381). Checks passwords, handles recovery, collects test-session
+   paths (`docker/nginx.conf`).
+2. **Sign-in service** (`docker/auth_service.py`, port 7381). Checks passwords, handles recovery, collects test-session
    logs. Section 5.
-3. **WebSocket bridge** (`server/wsbridge.py`, port 7390). Copies bytes between a browser WebSocket and Astron's TCP
+3. **WebSocket bridge** (`docker/wsbridge.py`, port 7390). Copies bytes between a browser WebSocket and Astron's TCP
    client port. It reads nothing and changes nothing. It allows 8 connections and 30 new connections a minute per
    address.
 4. **Astron** (`astrond`). The message director (7199), event logger (7197), state server (4002), database server
    (4003, YAML files in `astron/databases/astrondb`), database state server, and the client agent (7198). The Linux
-   settings are `server/astrond-linux.yml`.
+   settings are `astron/config/astrond-linux.yml`, made by the Dockerfile.
 5. **UberDOG** (`toontown.uberdog.UDStart`, base channel 1000000). The global services: login manager, friends managers,
    delivery manager, news and the rest listed in `astrond-linux.yml`.
    The one we added is **ToonPresence** (object 4730): it knows who is playing in any district, tells friends when
@@ -123,8 +123,8 @@ The image is Python 3.9 with:
 - **Panda3D 1.11.0** (a development wheel from the Panda3D archive, `1.11.0.dev4085+shaderpipeline.388`), which gives
   the compiled engine and the DC (network protocol) library;
 - the Python side of **Panda3D 1.11.0's `direct` package** copied over the wheel's, because the Astron classes the game
-  uses (`AstronInternalRepository` and friends) are missing from the wheel's copy. Build this folder from the Panda3D
-  1.11.0 SDK (the pure-Python files only) and put it at `server/overlay/direct` before `docker build`;
+  uses (`AstronInternalRepository` and friends) are missing from the wheel's copy. That folder is in the fork
+  (`docker/overlay/direct`, with Panda3D's license);
 - `pytz` and `websockets`;
 - a `sitecustomize.py` that loads `otpy`, so `panda3d.otp` and `panda3d.toontown` exist in every Python process.
 
@@ -148,7 +148,7 @@ Three folders are mounted into the container, so the image itself holds no data:
 5. The game sends the name as its play token. The UberDOG's login manager (`AstronLoginManagerUD`) looks the name up in
    `astron/databases/accounts.json`, which maps names to account objects:
    - a known name loads that account and its up-to-six toons;
-   - an unknown name gets a new account on the spot, with the default access level `NO_ACCESS` (set in `server/live.prc`),
+   - an unknown name gets a new account on the spot, with the default access level `NO_ACCESS` (set in `docker/live.prc`),
      so ordinary players have no staff powers;
    - accounts that were given `SYSTEM_ADMIN` in the database (only the owner's) can use the in-game magic words.
 6. The player picks a toon, the game asks for an avatar, and the toon appears in the default district. From there it is

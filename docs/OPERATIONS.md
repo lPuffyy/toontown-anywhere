@@ -9,7 +9,7 @@ In this guide, `$ROOT` is the folder on the home server that holds the container
 $ROOT/src/    the patched Open Toontown code, otpy, astron/ (config, binary, databases)
 $ROOT/web/    _play/ (the built page)  and  root/ (packs.json, manifest.json, _packs/*.zip, _ui/)
 $ROOT/data/   users.json, backups/, logs/, phone_logs/
-$ROOT/build/  the Dockerfile and the files it copies in
+$ROOT/build/  the Dockerfile and the files it copies in (from the fork's `docker/` folder)
 ```
 
 The container is called `ot-live`. On our server the Docker config folder is not readable by the normal user, so every
@@ -84,8 +84,7 @@ scp QuestManagerAI.py server:$ROOT/src/toontown/quest/QuestManagerAI.py
 docker restart ot-live
 ```
 
-Do the same edit in your Open Toontown checkout, and regenerate the patch (see `open-toontown/README.md`) so the
-repository matches the server.
+Make the same edit in the fork ([open-toontown-anywhere](https://github.com/lPuffyy/open-toontown-anywhere), `anywhere` branch) and push it, so the repository matches the server.
 
 ### The client (what players run)
 
@@ -117,10 +116,10 @@ Changes to a file that both sides read (for example `ToonDNA.py`, `FishingTarget
 
 ### The image
 
-Rebuild it only when the Dockerfile, `run.sh`, nginx settings or the Python services in `server/` change:
+Rebuild it only when the Dockerfile, `run.sh`, nginx settings or the Python services (in the fork's `docker/` folder) change:
 
 ```
-cd $ROOT/build && docker build -t ot-live .          # needs overlay/direct, see ARCHITECTURE.md
+cd $ROOT/build && docker build -t ot-live .          # files from the fork's docker/ folder
 docker rm -f ot-live && docker run ...               # the command above
 ```
 
@@ -134,8 +133,8 @@ Two messages in Discord are kept up to date by webhook, so the channel stays qui
 
 | Message | Made by | Shows |
 |---|---|---|
-| **Active toons** | `server/discord_status.py`, inside the game container | how many toons are playing now, and how many in each district (counts only, never names) |
-| **Server status** | `server/server_status.py`, in its own small container `ot-status` | online, starting or offline, and whether each district has opened |
+| **Active toons** | `docker/discord_status.py` in the fork, inside the game container | how many toons are playing now, and how many in each district (counts only, never names) |
+| **Server status** | `ops/server_status.py`, in its own small container `ot-status` | online, starting or offline, and whether each district has opened |
 
 - **Active toons** reads `data/online.json`, which the ToonPresence service rewrites every 30 seconds. It starts with the game
   container. It needs the webhook address in `data/discord_webhook` (one line); with no such file it does nothing.
@@ -156,7 +155,7 @@ Two messages in Discord are kept up to date by webhook, so the channel stays qui
 
 ## Bug reports from Discord
 
-`server/bug_reports.py` runs in its own container (`ot-bugs`) and saves the posts of the Discord bug-reports forum channel as
+`ops/bug_reports.py` runs in its own container (`ot-bugs`) and saves the posts of the Discord bug-reports forum channel as
 files, so a report can be read next to the logs. It is **read only**: the bot has just "View Channel" and "Read Message
 History" on that channel and never posts, edits or reacts.
 
@@ -211,7 +210,7 @@ connections, one line about the device (browser, screen size) and one line with 
 visit; nothing else (no passwords, touches or frame timings). The page decides this (`quietLog` in `web/ttr-ui.js`), so a
 change needs only a new page script, with no server restart.
 
-The file stops growing at 30 MB, and each address may send 6,000 lines an hour (see `server/auth_service.py`); when the file is
+The file stops growing at 30 MB, and each address may send 6,000 lines an hour (see `docker/auth_service.py` in the fork); when the file is
 full nothing more is saved, so look at its size now and then and move it aside (`mv client.log client.log.old`) when it grows.
 The privacy note in the README tells players what is recorded: keep it in step with this.
 

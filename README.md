@@ -42,13 +42,12 @@ chasing a specific problem.
 ## What is in this repository
 
 This repository holds everything we wrote to run the game, but **no game files**: no models, textures, sounds or
-Disney content. The game's own code comes from Open Toontown, and our changes to it are a patch.
+Disney content. The game's own code, our changes to it and the server's Docker image live in our fork of Open Toontown, [open-toontown-anywhere](https://github.com/lPuffyy/open-toontown-anywhere).
 
 | Folder | What it is |
 |---|---|
 | [`web/`](web) | The browser client: the page's screens (sign-in, loading, controls), the Python glue that runs Open Toontown in the browser, and the scripts that build the download packs and the page. |
-| [`server/`](server) | The all-in-one server container: Dockerfile, start-up script, web server settings, the WebSocket bridge and the sign-in service. |
-| [`open-toontown/`](open-toontown) | Our changes to Open Toontown (a patch against a known upstream commit) and `otpy`, our pure-Python replacement for the game's compiled libraries. |
+| [`ops/`](ops) | Small services that run beside the game server in their own containers: the Discord server-status message and the read-only bug-report collector. |
 | [`tools/`](tools) | Migration of the old Toontown: Anywhere accounts, and small operations scripts. |
 | [`docs/`](docs) | The full write-up of the system. |
 
