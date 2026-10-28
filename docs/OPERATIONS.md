@@ -124,6 +124,32 @@ For a small change to `auth_service.py` or `nginx.conf` you can copy the file in
 `python /tmp/restart_auth_service.py` or `nginx -s reload`, and rebuild later. A change made that way is lost when the
 container is removed, so keep `$ROOT/build/` in step.
 
+## Discord status messages
+
+Two messages in Discord are kept up to date by webhook, so the channel stays quiet (each is one message that is edited):
+
+| Message | Made by | Shows |
+|---|---|---|
+| **Active toons** | `server/discord_status.py`, inside the game container | how many toons are playing now, and how many in each district (counts only, never names) |
+| **Server status** | `server/server_status.py`, in its own small container `ot-status` | online, starting or offline, and whether each district has opened |
+
+- **Active toons** reads `data/online.json`, which the ToonPresence service rewrites every 30 seconds. It starts with the game
+  container. It needs the webhook address in `data/discord_webhook` (one line); with no such file it does nothing.
+- **Server status** has to live outside the game container so it can still say "offline" when that container is down. It checks
+  that the web server answers, that `online.json` is fresh, and that each district's log has finished starting. It needs
+  the webhook address in `status/discord_webhook`. To (re)create it:
+
+  ```
+  docker run -d --name ot-status --restart unless-stopped --network host     -v $ROOT/data:/ot/data:ro -v $ROOT/status:/status python:3.9-slim python -u /status/server_status.py
+  ```
+
+  with `server_status.py` copied into `$ROOT/status/`. Its "since" time is when the monitor first saw the current state, so after
+  restarting `ot-status` it begins again from that moment.
+- **The webhook addresses are secrets** (anyone with one can post to the channel). They live only in those files on the
+  server, never in this repository. If one leaks, delete the webhook in Discord and make a new one.
+- To change what a message says, edit the script and restart the process (for `ot-status`, `docker restart ot-status`;
+  for the toon count, rebuild the image or copy the script in and restart the container).
+
 ## Accounts
 
 ### Logins (`data/users.json`)
