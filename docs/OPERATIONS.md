@@ -1,0 +1,178 @@
+# Running the server
+
+How to run, update, back up and debug the live system. Read [ARCHITECTURE.md](ARCHITECTURE.md) first.
+
+In this guide, `$ROOT` is the folder on the home server that holds the container's three mounts. On our server it is
+`/DATA/AppData/ot-live`, with:
+
+```
+$ROOT/src/    the patched Open Toontown code, otpy, astron/ (config, binary, databases)
+$ROOT/web/    _play/ (the built page)  and  root/ (packs.json, manifest.json, _packs/*.zip, _ui/)
+$ROOT/data/   users.json, backups/, logs/, phone_logs/
+$ROOT/build/  the Dockerfile and the files it copies in
+```
+
+The container is called `ot-live`. On our server the Docker config folder is not readable by the normal user, so every
+`docker` command is run with `DOCKER_CONFIG=/tmp/dc` (a writable empty folder). Leave that off elsewhere.
+
+## Everyday
+
+### Start, stop, restart
+
+```
+docker start ot-live
+docker stop ot-live
+docker restart ot-live
+```
+
+A restart takes **about two and a half minutes**, because the three districts start one after another and each takes a
+minute to load. Everyone playing is disconnected, and the browser game reconnects by itself when it can. The container
+restarts itself if the server host reboots (`--restart unless-stopped`) and if the UberDOG or a district crashes.
+
+How it was created (for rebuilding the container):
+
+```
+docker run -d --name ot-live --restart unless-stopped -p 7380:80 \
+  -v $ROOT/src:/ot/src -v $ROOT/web:/ot/web -v $ROOT/data:/ot/data ot-live
+```
+
+### Is it healthy?
+
+```
+docker ps --filter name=ot-live
+for f in ai1 ai2 ai3; do tail -n 1 $ROOT/data/logs/$f.log; done      # each district ends its start-up with "Done."
+grep -il traceback $ROOT/data/logs/*.log                             # should print nothing
+```
+
+### Logs
+
+All in `$ROOT/data/logs/`, **replaced every time the container starts** (copy them first if you are chasing a problem
+that happened before a restart):
+
+| File | Process |
+|---|---|
+| `astron.log` | Astron |
+| `ud.log` | the UberDOG |
+| `ai1.log`, `ai2.log`, `ai3.log` | Toon Valley, Giggle Grove, Silly Meadow |
+| `bridge.log` | the WebSocket bridge (one `open` and one `close` line per connection, with the address) |
+| `auth.log` | the sign-in service |
+| `client.log` | test sessions (see below) |
+
+A `ConnectionClosedError` traceback in `bridge.log` is just a phone disconnecting.
+
+### Who is online, and who has logged in
+
+The scripts in `tools/` run inside the container:
+
+```
+docker cp tools/who_is_online.py ot-live:/tmp/ && docker exec ot-live python /tmp/who_is_online.py
+docker cp tools/count_logins.py  ot-live:/tmp/ && docker exec ot-live python /tmp/count_logins.py
+```
+
+`who_is_online.py` counts open connections from `bridge.log`. `count_logins.py` lists the accounts whose last login is
+later than the migration. The connection logs hold addresses, not names, so matching a connection to a player is a guess
+based on the last login time.
+
+## Updating
+
+### Server code
+
+The container reads the code from `$ROOT/src`, so changing a server file is: copy it into place, then restart.
+
+```
+scp QuestManagerAI.py server:$ROOT/src/toontown/quest/QuestManagerAI.py
+docker restart ot-live
+```
+
+Do the same edit in your Open Toontown checkout, and regenerate the patch (see `open-toontown/README.md`) so the
+repository matches the server.
+
+### The client (what players run)
+
+Anything the **phone** runs (the game's Python, art, or the page's own files) is delivered through the web folder.
+
+1. **Game code or art changed:** rebuild the packs on your build machine:
+
+   ```
+   OT_DIR=/path/to/open-toontown python web/make_ot_packs.py       # writes web/build/site
+   ```
+
+   Upload only the packs whose size changed, plus `packs.json` and `manifest.json`, to `$ROOT/web/root/`
+   (`_packs/<name>.zip` into `$ROOT/web/root/_packs/`). Players download only the packs whose size changed.
+2. **Page files changed** (`ttr-ui.js`, `ttr-ui.css`, `ttr-audio.js`, `index.html`): copy them into `$ROOT/web/_play/`.
+   Raise the number after `?v=` on the script and stylesheet links in `index.html`, so browsers fetch the new copy.
+3. **Cloudflare keeps copies of static files.** After a client update, purge these in the Cloudflare dashboard
+   (Caching, Configuration, Custom Purge), or choose Purge Everything: `/packs.json`, `/_packs/<changed>.zip`,
+   `/play/`, `/play/index.html`, `/play/ttr-ui.js`, `/play/ttr-ui.css`. A purge is also what makes an **art file you
+   removed** (such as a logo) really go away.
+4. Players reload the page once. A phone that still shows the old page needs its site data cleared
+   (Safari: Settings, Safari, Advanced, Website Data), or the home-screen app deleted and added again.
+
+Server-only changes (anything under `toontown/…AI.py`, `astron/`, `etc/`) need only step "Server code" above.
+Changes to a file that both sides read (for example `ToonDNA.py`, `FishingTargetGlobals.py`) need **both**.
+
+### The image
+
+Rebuild it only when the Dockerfile, `run.sh`, nginx settings or the Python services in `server/` change:
+
+```
+cd $ROOT/build && docker build -t ot-live .          # needs overlay/direct, see ARCHITECTURE.md
+docker rm -f ot-live && docker run ...               # the command above
+```
+
+For a small change to `auth_service.py` or `nginx.conf` you can copy the file into the running container, run
+`python /tmp/restart_auth_service.py` or `nginx -s reload`, and rebuild later. A change made that way is lost when the
+container is removed, so keep `$ROOT/build/` in step.
+
+## Accounts
+
+### Logins (`data/users.json`)
+
+The file has `open_registration` (true or false) and `users` (name to salted hash, recovery answers and an optional
+`admin` flag). The sign-in service rereads it on every request, so you can edit it while the server runs. To close
+registration to new names, set `open_registration` to `false`. To remove someone's login, delete their entry (their
+toons stay in the database).
+
+### Game accounts and toons (`src/astron/databases`)
+
+- `accounts.json` maps a name to an account number.
+- `astrondb/<number>.yaml` is each object: an `AstronAccount` (its toons and access level) or a `DistributedToon`.
+- To make an account staff, set its `ACCESS_LEVEL` to `"SYSTEM_ADMIN"` (or `ADMIN`, `DEVELOPER`, `MODERATOR`). Stop the
+  container or make the change while the person is offline; Astron rewrites these files as the game runs.
+- Never edit toons while the container is running unless you are sure the toon is not loaded.
+
+## Backups
+
+- Nightly, the container writes `data/backups/auto-<date>.tgz` (the databases and `users.json`) and keeps the newest 14.
+- Take a manual one before any risky change:
+
+  ```
+  tar czf $ROOT/data/backups/manual-$(date +%Y%m%d-%H%M).tgz -C $ROOT/src/astron databases -C $ROOT/data users.json
+  ```
+
+- To restore, stop the container, unpack over `src/astron/databases` and `data/users.json`, and start it.
+
+## Test sessions with logging
+
+Open the page with `?log=1` (for example `https://toontown.puffsco.com/play/?log=1`) on the phone that shows the
+problem and reproduce it. Then read `$ROOT/data/logs/client.log`. Each line is `date time address text`; lines starting
+`PY|` are the game's own output (including Python errors), and `JS|` lines are page errors and browser warnings. Logging
+stays on for the rest of that browser visit and is off again on the next normal visit.
+
+## Going back to the old server
+
+The previous Toontown: Anywhere containers were stopped, not deleted. To go back, stop `ot-live` and start the old
+five containers again (the game server, its web server, the WebSocket bridge, the log and sign-in service, and its
+backup loop). Anything done on the new server after the switch does not exist on the old one. A backup of the old data
+from just before the switch is in the old install's backups folder (`pre-ot-cutover-…tgz`).
+
+## Troubleshooting
+
+| Symptom | Look at |
+|---|---|
+| Players cannot connect at all | Is the container up? `ai1.log` to `ai3.log` ending in "Done."? Then `bridge.log` for `open` lines. |
+| One district missing | The last lines of its log. A district that cannot load makes the whole container restart. |
+| "Wrong password" for someone who is sure | `users.json`: is the name spelled as they type it (names are lower-cased)? Recovery answers reset it. |
+| A change is not showing on phones | Cloudflare purge, `?v=` raised, packs.json updated, site data cleared on the phone. |
+| A toon looks wrong | Colours are the 39-entry table in `ToonDNA.py`; check client and server both have it. |
+| Game output after a crash is gone | Logs are replaced on restart; use a `?log=1` session next time. |

@@ -1,0 +1,5 @@
+# the container and the patch must keep Unix line endings on every platform
+server/* text eol=lf
+tools/*.py text eol=lf
+*.patch -text
+open-toontown/patches/CHANGED_FILES.txt text eol=lf
