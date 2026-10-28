@@ -62,6 +62,9 @@ upstream Open Toontown commit `2b366a2`. How to apply them is in [open-toontown/
   toon's object; the server drops a client that sends to an object it cannot see (error 117), so Go To to anyone out of view
   would have disconnected the player. The client now sends them to `ToonPresence`, which passes them on, but only between
   toons who are both playing and are friends.
+- **Ending a friendship works** (it used to crash the game: the client sent a message type Astron does not have). The client asks
+  its own district to drop the friend and tells `ToonPresence`, which tells the friend's phone, which asks the friend's district
+  to drop the other toon. If the friend is not playing at that moment, they keep the old friend until they remove it themselves.
 - Secret friends are not offered (both secret requests answer "not available").
 - Only toons in the same district can invite each other, which is also how the invitation works in the game.
 
