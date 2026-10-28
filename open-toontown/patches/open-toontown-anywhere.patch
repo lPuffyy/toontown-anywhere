@@ -9724,7 +9724,7 @@ index f352a3b..0992989 100644
  from toontown.toonbase import ToontownGlobals
  from toontown.toonbase import TTLocalizer
 diff --git a/toontown/estate/houseDesign.py b/toontown/estate/houseDesign.py
-index 162da33..256ca16 100644
+index 162da33..8e32295 100644
 --- a/toontown/estate/houseDesign.py
 +++ b/toontown/estate/houseDesign.py
 @@ -13,6 +13,12 @@ from direct.showbase import PythonUtil
@@ -9740,6 +9740,15 @@ index 162da33..256ca16 100644
  camPos50 = (Point3(0.0, -10.0, 50.0),
   Point3(0.0, -9.66, 49.06),
   Point3(0.0, 1.5, 12.38),
+@@ -401,6 +407,8 @@ class ObjectManager(NodePath, DirectObject):
+             house.showExteriorWindows()
+         self.furnitureManager.d_avatarExit()
+         self.furnitureManager = None
++        if base.localAvatar.ghostMode == 1:
++            base.localAvatar.setGhostMode(0)          # editing hid the toon; give it back (a staff ghost, mode 2, is left alone)
+         base.localAvatar.setCameraPositionByIndex(0)
+         self.exitDeleteMode()
+         self.houseExtents.detachNode()
 diff --git a/toontown/fishing/DistributedFishingPondAI.py b/toontown/fishing/DistributedFishingPondAI.py
 index d2e86ab..ae57884 100644
 --- a/toontown/fishing/DistributedFishingPondAI.py
