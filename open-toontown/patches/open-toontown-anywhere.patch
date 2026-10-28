@@ -9724,7 +9724,7 @@ index f352a3b..0992989 100644
  from toontown.toonbase import ToontownGlobals
  from toontown.toonbase import TTLocalizer
 diff --git a/toontown/estate/houseDesign.py b/toontown/estate/houseDesign.py
-index 162da33..8e32295 100644
+index 162da33..f9b6a7e 100644
 --- a/toontown/estate/houseDesign.py
 +++ b/toontown/estate/houseDesign.py
 @@ -13,6 +13,12 @@ from direct.showbase import PythonUtil
@@ -9740,6 +9740,15 @@ index 162da33..8e32295 100644
  camPos50 = (Point3(0.0, -10.0, 50.0),
   Point3(0.0, -9.66, 49.06),
   Point3(0.0, 1.5, 12.38),
+@@ -386,7 +392,7 @@ class ObjectManager(NodePath, DirectObject):
+         base.setCellsAvailable(base.leftCells + [base.bottomCells[0]], 0)
+         if self.guiInterval:
+             self.guiInterval.finish()
+-        self.guiInterval = self.furnitureGui.posHprScaleInterval(1.0, Point3(-1.16, 1, -0.03), Vec3(0), Vec3(0.06), startPos=Point3(-1.19, 1, 0.33), startHpr=Vec3(0), startScale=Vec3(0.04), blendType='easeInOut', name='lerpFurnitureButton')
++        self.guiInterval = self.furnitureGui.posHprScaleInterval(1.0, Point3(0.155, -0.6, -1.045), Vec3(0), Vec3(0.06), startPos=Point3(0.115, 0.0, -0.66), startHpr=Vec3(0), startScale=Vec3(0.04), blendType='easeInOut', name='lerpFurnitureButton')
+         self.guiInterval.start()
+         taskMgr.add(self.recenterButtonFrameTask, 'recenterButtonFrameTask', 10)
+         messenger.send('wakeup')
 @@ -401,6 +407,8 @@ class ObjectManager(NodePath, DirectObject):
              house.showExteriorWindows()
          self.furnitureManager.d_avatarExit()
@@ -9749,6 +9758,15 @@ index 162da33..8e32295 100644
          base.localAvatar.setCameraPositionByIndex(0)
          self.exitDeleteMode()
          self.houseExtents.detachNode()
+@@ -915,7 +923,7 @@ class ObjectManager(NodePath, DirectObject):
+ 
+     def createMainControls(self, guiModels):
+         attic = guiModels.find('**/attic')
+-        self.furnitureGui = DirectFrame(relief=None, pos=(-1.19, 1, 0.33), scale=0.04, image=attic)
++        self.furnitureGui = DirectFrame(relief=None, parent=base.a2dTopLeft, pos=(0.115, 0.0, -0.66), scale=0.04, image=attic)
+         bMoveStopUp = guiModels.find('**/bu_atticX/bu_attic_up')
+         bMoveStopDown = guiModels.find('**/bu_atticX/bu_attic_down')
+         bMoveStopRollover = guiModels.find('**/bu_atticX/bu_attic_rollover')
 diff --git a/toontown/fishing/DistributedFishingPondAI.py b/toontown/fishing/DistributedFishingPondAI.py
 index d2e86ab..ae57884 100644
 --- a/toontown/fishing/DistributedFishingPondAI.py
@@ -15338,7 +15356,7 @@ index ed1fb2e..eadc2b7 100644
  from toontown.toonbase import TTLocalizer
  from direct.gui.DirectGui import *
 diff --git a/toontown/toon/LocalToon.py b/toontown/toon/LocalToon.py
-index 86f1f5a..213a9a8 100644
+index 86f1f5a..3a2a650 100644
 --- a/toontown/toon/LocalToon.py
 +++ b/toontown/toon/LocalToon.py
 @@ -1,4 +1,5 @@
@@ -15347,6 +15365,41 @@ index 86f1f5a..213a9a8 100644
  import math
  import time
  import re
+@@ -961,7 +962,7 @@ class LocalToon(DistributedToon.DistributedToon, LocalAvatar.LocalAvatar):
+         if self.__furnitureGui:
+             return
+         guiModels = loader.loadModel('phase_5.5/models/gui/house_design_gui')
+-        self.__furnitureGui = DirectFrame(relief=None, pos=(-1.19, 0.0, 0.33), scale=0.04, image=guiModels.find('**/attic'))
++        self.__furnitureGui = DirectFrame(relief=None, parent=base.a2dTopLeft, pos=(0.115, 0.0, -0.66), scale=0.04, image=guiModels.find('**/attic'))
+         DirectLabel(parent=self.__furnitureGui, relief=None, image=guiModels.find('**/rooftile'))
+         bMoveStartUp = guiModels.find('**/bu_attic/bu_attic_up')
+         bMoveStartDown = guiModels.find('**/bu_attic/bu_attic_down')
+@@ -1141,7 +1142,7 @@ class LocalToon(DistributedToon.DistributedToon, LocalAvatar.LocalAvatar):
+         self.refreshOnscreenButtons()
+ 
+     def obscureMoveFurnitureButton(self, increment):
+-        self.moveFurnitureButtonObscured += increment
++        self.moveFurnitureButtonObscured = max(0, self.moveFurnitureButtonObscured + increment)       # (an unmatched -1 must not hide the button later)
+         self.refreshOnscreenButtons()
+ 
+     def obscureClarabelleButton(self, increment):
+@@ -1179,14 +1180,14 @@ class LocalToon(DistributedToon.DistributedToon, LocalAvatar.LocalAvatar):
+         if self.moveFurnitureButtonObscured <= 0:
+             if self.furnitureManager != None and self.furnitureDirector == self.doId:
+                 self.loadFurnitureGui()
+-                self.__furnitureGui.setPos(-1.16, 0, -0.03)
++                self.__furnitureGui.setPos(0.155, -0.6, -1.045)
+                 self.__furnitureGui.setScale(0.06)
+             elif self.cr.furnitureManager != None:
+                 self.showFurnitureGui()
+                 if self.lerpFurnitureButton:
+                     self.lerpFurnitureButton.finish()
+                     self.lerpFurnitureButton = None
+-                self.lerpFurnitureButton = self.__furnitureGui.posHprScaleInterval(pos=Point3(-1.19, 0.0, 0.33), hpr=Vec3(0.0, 0.0, 0.0), scale=Vec3(0.04, 0.04, 0.04), duration=1.0, blendType='easeInOut', name='lerpFurnitureButton')
++                self.lerpFurnitureButton = self.__furnitureGui.posHprScaleInterval(pos=Point3(0.115, 0.0, -0.66), hpr=Vec3(0.0, 0.0, 0.0), scale=Vec3(0.04, 0.04, 0.04), duration=1.0, blendType='easeInOut', name='lerpFurnitureButton')
+                 self.lerpFurnitureButton.start()
+         if hasattr(self, 'inEstate') and self.inEstate:
+             self.loadGardeningGui()
 diff --git a/toontown/toon/NPCFriendPanel.py b/toontown/toon/NPCFriendPanel.py
 index f527f60..62baec7 100644
 --- a/toontown/toon/NPCFriendPanel.py

@@ -15,10 +15,10 @@ Open work, most important first. Each item says what is known. When one is finis
 - [ ] **The game connection does not check the password.** Only the page's sign-in does, so anyone who talks to the
   WebSocket with another player's name is let in as that player. Fix: the sign-in service issues a short-lived signed
   token, and the login manager checks it. See [ARCHITECTURE.md](ARCHITECTURE.md), section 3.
-- [ ] **Toon collisions and visibility after editing furniture.** One player ended up with a toon that walked through
-  everything and a missing "stop editing" button after editing and returning to the playground. The hidden-toon part is
-  fixed (the toon is shown again when editing ends); the collision part has no known cause. Reproduce with `?log=1`
-  while leaving the house before stopping the edit.
+- [ ] **Furniture editing on a phone.** Fixed so far: the toon is shown again when editing ends, the clipping is gone (confirmed by a
+  player), and the attic and stop-editing buttons are pinned to the screen's top-left corner so a wide screen cannot push them away.
+  Still to confirm: that the attic button now stays after editing, and that furniture can be picked up and moved by touch. If
+  moving by touch still fails, the page's touches may not reach the game as mouse presses and drags (see `web/game/webui.py`).
 - [ ] **The phone ringing is not heard.** The sound file is in the pack. Cause not found. Some phones are silent
   because of the ring/silent switch; check that first.
 - [ ] **Offline gifts** (`toontown/estate/DistributedPhoneAI.py`, `got` callback): the database query is made without the
