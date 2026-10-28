@@ -60,4 +60,4 @@ those projects require.
 ## Our own code
 
 Everything else in this repository (the web page, the glue code, `otpy`, the server container and the tools) is under the
-Apache License 2.0, see [LICENSE](LICENSE).
+BSD 3-Clause License, see [LICENSE](LICENSE).

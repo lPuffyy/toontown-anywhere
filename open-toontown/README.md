@@ -56,4 +56,4 @@ bigger.
 
 The patch contains lines of Open Toontown's code and is under Open Toontown's **BSD 3-Clause** licence, copyright (c)
 2019 Open Toontown, see [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). `otpy` and everything else in this
-repository is under the Apache License 2.0, see [../LICENSE](../LICENSE).
+repository is under the BSD 3-Clause License, see [../LICENSE](../LICENSE).
