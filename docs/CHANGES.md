@@ -1,7 +1,7 @@
 # What differs from stock Open Toontown
 
 Everything we changed in the game, grouped by what it is for, followed by the known problems. The changes are in
-`open-toontown/patches/open-toontown-anywhere.patch` (268 files; `CHANGED_FILES.txt` lists them) and are made against
+`open-toontown/patches/open-toontown-anywhere.patch` (276 files; `CHANGED_FILES.txt` lists them) and are made against
 upstream Open Toontown commit `2b366a2`. How to apply them is in [open-toontown/README.md](../open-toontown/README.md).
 
 ## Server
@@ -55,8 +55,22 @@ upstream Open Toontown commit `2b366a2`. How to apply them is in [open-toontown/
   in this district) and sends them to the toon's own client (`setFriendDetails`, a new field in `etc/toon.dc`); it is sent
   again when two toons become friends. Friends in the district are told when a friend arrives or leaves
   (`setFriendOnline`). "Online" therefore means "in the same district".
+- **Friends in other districts, and Go To.** A new UberDOG service, `ToonPresence` (object 4730, `toontown/friends/ToonPresence*.py`,
+  listed in `astrond.yml`), knows which toons are playing in every district. Each district's AI tells it when a toon arrives, leaves
+  or makes a friend, and it tells that toon's friends in any district (`friendOnline`), so the friends list shows who is online
+  everywhere. It also carries the **Go To** questions and answers. In the stock game a client sends those straight to the other
+  toon's object; the server drops a client that sends to an object it cannot see (error 117), so Go To to anyone out of view
+  would have disconnected the player. The client now sends them to `ToonPresence`, which passes them on, but only between
+  toons who are both playing and are friends.
 - Secret friends are not offered (both secret requests answer "not available").
 - Only toons in the same district can invite each other, which is also how the invitation works in the game.
+
+### Options
+
+- **Options are remembered in the browser** (`otp/settings/Settings.py`). The game's own options file lived in the browser's
+  temporary file system and was gone on every load, so the sound and music switches had to be turned off each time. In the
+  browser, options are now saved in the browser's local storage, one set for each sign-in name, and come back when that name
+  plays again on that phone. (Computers still use `useropt.json`.) They are not stored on the server, so they are per device.
 
 ### Access
 
@@ -122,8 +136,8 @@ Honest list, most important first.
 1. **The game connection does not check the password.** Only the page does (see ARCHITECTURE.md, section 3). Anyone who
    connects straight to the WebSocket with another player's name is let in as them. Planned fix: the sign-in service
    issues a short-lived signed token and the login manager verifies it.
-2. **Friends are only seen when both toons are in the same district.** Friend invitations work (see above), but the
-   friends list's online status for toons in other districts needs the UberDOG friends manager, which is not connected.
+2. **Friend invitations only work between toons in the same district** (the two toons have to be next to each other, as in
+   the game). Friends, online status and Go To work across districts.
 3. **The phone ringing is reported missing** (the sound file is in the pack; why it is not heard is not found). Some phones
    are also silent because of the ring/silent switch.
 4. **The server runs on `otpy`**, our pure-Python replacement for the game's compiled libraries, not the compiled ones. It

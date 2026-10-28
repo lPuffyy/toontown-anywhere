@@ -111,6 +111,8 @@ restarts everything together:
    settings are `server/astrond-linux.yml`.
 5. **UberDOG** (`toontown.uberdog.UDStart`, base channel 1000000). The global services: login manager, friends managers,
    delivery manager, news and the rest listed in `astrond-linux.yml`.
+   The one we added is **ToonPresence** (object 4730): it knows who is playing in any district, tells friends when
+   someone comes or goes, and relays the Go To messages.
 6. **Three district AIs** (`toontown.ai.AIStart`), one process each: **Toon Valley** (channel base 401000000),
    **Giggle Grove** (402000000) and **Silly Meadow** (403000000). They start 25 seconds, then 15 seconds apart, and each
    takes about a minute to finish loading, so a restart takes about two and a half minutes.
