@@ -612,8 +612,20 @@
   const jump = el('div', 'pad', hud); jump.id = 'ttr-jump'; jump.textContent = 'JUMP';
   const cam = el('div', 'pad', hud); cam.id = 'ttr-cam'; cam.textContent = 'CAM';
   const act = el('div', 'pad', hud); act.id = 'ttr-act'; act.textContent = 'ACTION';
+  const tasks = el('div', 'pad', hud); tasks.id = 'ttr-tasks'; tasks.textContent = 'TASKS';
   const padl = el('div', 'pad', hud); padl.id = 'ttr-padl'; padl.textContent = '◀';
   const padr = el('div', 'pad', hud); padr.id = 'ttr-padr'; padr.textContent = '▶';
+  // frames-per-second counter (the page's own animation frames, which is how often the game can draw)
+  const fps = el('div', null, hud); fps.id = 'ttr-fps'; fps.textContent = '-- FPS';
+  (function () {
+    let n = 0, t0 = performance.now();
+    function tick(t) {
+      n++;
+      if (t - t0 >= 500) { if (hud.style.display !== 'none') fps.textContent = Math.round(n * 1000 / (t - t0)) + ' FPS'; n = 0; t0 = t; }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  })();
   const st = { f: 0, b: 0, l: 0, r: 0, j: 0, a: 0, pl: 0, pr: 0 };
   let hudVisible = false;
   function pushInput() { T.inp = [st.f, st.b, st.l, st.r, st.j, st.a, st.pl, st.pr].join(','); }
@@ -625,6 +637,9 @@
     place(jump, jx, jy, jb, jb);
     place(cam, jx + (jb - cb) / 2, jy - cb - 16 * sc, cb, cb); cam.style.fontSize = cb * 0.26 + 'px';
     place(act, jx - jb - 20 * sc, jy, jb, jb); act.style.fontSize = jb * 0.26 + 'px';
+    place(fps, W / 2 - 40 * sc, Math.max(SAFE.t, 6) + 4 * sc, 80 * sc, 20 * sc); fps.style.fontSize = 13 * sc + 'px';
+    const tb = 62 * sc;           // TASKS: left edge, above the stick
+    place(tasks, Math.max(SAFE.l, 24) + 20 * sc + (js - tb) / 2, H - js - Math.max(SAFE.b, 16) - 24 * sc - tb - 24 * sc, tb, tb); tasks.style.fontSize = tb * 0.24 + 'px';
     const py = H - pb - Math.max(SAFE.b, 16) - 20 * sc;
     place(padl, W / 2 - pb - 14 * sc, py, pb, pb); padl.style.fontSize = pb * 0.26 + 'px';
     place(padr, W / 2 + 14 * sc, py, pb, pb); padr.style.fontSize = pb * 0.26 + 'px';
@@ -657,6 +672,16 @@
   bindHold(jump, () => { st.j = 1; pushInput(); }, () => { st.j = 0; pushInput(); });
   bindHold(cam, () => { T.camN++; }, () => {});
   bindHold(act, () => { st.a = 1; pushInput(); }, () => { st.a = 0; pushInput(); });
+  // TASKS presses the game's tasks key (End): the key going down shows the task list, coming up hides it, so a tap shows it and the next tap hides it
+  let tasksOn = false;
+  function tasksKey(type) {
+    const cv = document.querySelector('canvas.emscripten') || document;
+    const k = { key: 'End', code: 'End', keyCode: 35, which: 35, bubbles: true, cancelable: true };
+    try { cv.dispatchEvent(new KeyboardEvent(type, k)); } catch (e) { plog('JS| tasks key failed ' + e); }
+  }
+  function tasksSet(on) { if (on === tasksOn) return; tasksOn = on; tasks.classList.toggle('on', on); tasksKey(on ? 'keydown' : 'keyup'); }
+  tasks.addEventListener('click', (e) => { e.preventDefault(); gameFocus(); tasksSet(!tasksOn); });
+  tasks.addEventListener('pointerdown', (e) => e.stopPropagation());
   bindHold(padl, () => { st.pl = 1; pushInput(); }, () => { st.pl = 0; pushInput(); });
   bindHold(padr, () => { st.pr = 1; pushInput(); }, () => { st.pr = 0; pushInput(); });
   // Python tells us what to show: controls, the ACTION button, the tug-of-war buttons (same rules as the app)
@@ -664,12 +689,13 @@
     vis = !!+vis;
     if (hudVisible && !vis) { joyReset(); st.a = st.pl = st.pr = 0; pushInput(); }
     hudVisible = vis;
-    [joy, jump, cam].forEach((n) => { n.style.display = vis ? '' : 'none'; });
+    if (!vis) tasksSet(false);
+    [joy, jump, cam, tasks].forEach((n) => { n.style.display = vis ? '' : 'none'; });
     act.style.display = (vis && +action) ? '' : 'none';
     const tg = vis && +tug;
     padl.style.display = padr.style.display = tg ? '' : 'none';
   };
-  [joy, jump, cam, act, padl, padr].forEach((n) => { n.style.display = 'none'; });
+  [joy, jump, cam, tasks, act, padl, padr].forEach((n) => { n.style.display = 'none'; });
 
   // ------------------------------------------------------------------ typed chat: the game's own text box shows the text live;
   // this invisible input only brings up the keyboard and passes every keystroke to the game

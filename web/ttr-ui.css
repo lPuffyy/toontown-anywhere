@@ -73,6 +73,9 @@ canvas.emscripten { touch-action: none; position: fixed !important; inset: 0 !im
 #ttr-knob { position: absolute; border-radius: 50%; background: rgba(255,209,51,.85); border: 3px solid rgba(0,0,0,.35); pointer-events: none; }
 #ttr-jump { background: rgba(64,153,255,.55); font-size: 20px; }
 #ttr-cam, #ttr-act, #ttr-padl, #ttr-padr { background: rgba(242,140,38,.6); }
+#ttr-fps { position: absolute; text-align: center; font: 700 13px system-ui, sans-serif; color: #fff; text-shadow: 0 1px 2px #000; opacity: .75; pointer-events: none; }
+#ttr-tasks { background: rgba(60,170,90,.6); }
+#ttr-tasks.on { background: rgba(60,170,90,.95); border-color: #fff; }
 
 /* touch feel on the sign-in screen */
 .ttr-field { -webkit-user-select: text; user-select: text; touch-action: manipulation; -webkit-touch-callout: default; caret-color: #1f4da6; }
