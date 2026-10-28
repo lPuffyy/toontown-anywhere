@@ -108,6 +108,10 @@ Anything the **phone** runs (the game's Python, art, or the page's own files) is
 4. Players reload the page once. A phone that still shows the old page needs its site data cleared
    (Safari: Settings, Safari, Advanced, Website Data), or the home-screen app deleted and added again.
 
+**After changing `etc/toon.dc` or `etc/otp.dc`, always rebuild and upload the code pack too**, then run
+`tools/check_pack_matches_server.py`. If the pack and the server disagree, Astron rejects every player (error 125, "Client DC
+hash mismatch") and the game says "Your installed files appear to be invalid".
+
 Server-only changes (anything under `toontown/…AI.py`, `astron/`, `etc/`) need only step "Server code" above.
 Changes to a file that both sides read (for example `ToonDNA.py`, `FishingTargetGlobals.py`) need **both**.
 
