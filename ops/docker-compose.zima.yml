@@ -1,0 +1,33 @@
+# Our live server on the Zima, running the published image instead of the hand-copied code folder.
+#
+#   cd /DATA/AppData/ot-live
+#   export DOCKER_CONFIG=/tmp/dc            # only on the Zima (its Docker config folder is not readable)
+#   docker compose -f docker-compose.zima.yml pull
+#   docker stop ot-live && docker rename ot-live ot-live-old      # keep the old one for rollback
+#   docker compose -f docker-compose.zima.yml up -d
+#
+# Wait about two and a half minutes: each of data/logs/ai1.log, ai2.log and ai3.log ends with "Done." when its district is open.
+#
+# Roll back:  docker compose -f docker-compose.zima.yml down && docker rename ot-live-old ot-live && docker start ot-live
+#
+# The mounts are the same folders the old container used, so the toons, accounts, logs, backups and the browser client's
+# files carry over. The game's code now comes from the image (not from ./src), so a server code change means a new image.
+services:
+  ot-live:
+    image: ghcr.io/lpuffyy/open-toontown-anywhere:latest
+    container_name: ot-live
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }     # the game's logs are also printed to the Zima's Logs tab; keep them from piling up
+    ports:
+      - "7380:80"                     # the Cloudflare tunnel points at this port
+    volumes:
+      - /DATA/AppData/ot-live/src/resources:/ot/src/resources:ro
+      - /DATA/AppData/ot-live/src/astron/databases:/ot/src/astron/databases
+      # state the game writes next to its code: suit buildings, gardens, magic word settings. Not in the image, so keep them here.
+      - /DATA/AppData/ot-live/src/data:/ot/src/data
+      - /DATA/AppData/ot-live/src/estate_data:/ot/src/estate_data
+      - /DATA/AppData/ot-live/src/config:/ot/src/config
+      - /DATA/AppData/ot-live/data:/ot/data
+      - /DATA/AppData/ot-live/web:/ot/web
