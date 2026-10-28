@@ -27,6 +27,9 @@ Open work, most important first. Each item says what is known. When one is finis
 
 ## Worth doing
 
+- [ ] **Tell a player to reload when the server rejects them for old files.** After any protocol change, phones still running the
+  old code pack are rejected (Astron error 125) and the game shows "Your installed files appear to be invalid". The page could notice
+  that `packs.json` changed and ask the player to reload.
 - [ ] **Test the server on `otpy`.** The server runs our pure-Python replacement for the game's compiled libraries.
   Watch Cog movement, building takeovers and suit planning for differences. Compare against the compiled libraries on the
   Windows test machine.
