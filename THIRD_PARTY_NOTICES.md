@@ -8,8 +8,8 @@ This repository contains **no game files**: no models, textures, sounds or other
 ## Open Toontown
 
 The game's code (the `otp` and `toontown` packages and its server) comes from the **Open Toontown** project,
-<https://github.com/open-toontown/open-toontown>. Our changes to it are in
-[open-toontown/patches/](open-toontown/patches), and the patch contains parts of Open Toontown's code. Open Toontown is
+<https://github.com/open-toontown/open-toontown>. Our changes to it, and the server's Docker image, are in our fork,
+<https://github.com/lPuffyy/open-toontown-anywhere>, which carries Open Toontown's code. Open Toontown is
 licensed under the BSD 3-Clause License:
 
 ```

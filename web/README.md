@@ -34,7 +34,7 @@ background and system fonts) and an optional `logo.png`.
    OT_DIR=/path/to/open-toontown python web/make_ot_packs.py      # makes web/build/site/
    ```
 
-4. Put the files where the server serves them (`$ROOT/web`, see [../server/README.md](../server/README.md)):
+4. Put the files where the server serves them (`$ROOT/web`, see [the operations notes](../docs/OPERATIONS.md)):
    `web/game/build/web/*` to `_play/`, `web/build/site/*` to `root/`, and your `_ui/` folder into both `_play/` and `root/`.
 
 ## Try it locally
