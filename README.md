@@ -57,8 +57,8 @@ Live and under active development. Known problems are listed in [docs/CHANGES.md
 
 ## License and notices
 
-Our own code is under the Apache License 2.0, see [LICENSE](LICENSE). Open Toontown is under the BSD 3-Clause
-License and Panda3D under a modified BSD license. Third-party components and credits are listed in
+Our own code is under the BSD 3-Clause License, see [LICENSE](LICENSE). Open Toontown is under the BSD 3-Clause
+License too, and Panda3D under a modified BSD license. Third-party components and credits are listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Toontown is a trademark of Disney. This is a fan project with no commercial purpose.
