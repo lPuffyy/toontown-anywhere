@@ -1,0 +1,121 @@
+@font-face { font-family: "Toon Display"; src: url("_ui/ToonDisplay.ttf") format("truetype"); font-weight: 100 900; font-style: normal; font-display: swap; }
+/* Toontown: Anywhere (web): All sizes are in points times --sc, the page scale. */
+:root {
+  --sc: 1;
+  --mf: "Toon Display", "Marker Felt", "MarkerFelt-Wide", "Chalkboard SE", "Comic Sans MS", "Segoe Print", system-ui, sans-serif;
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+html, body, #ttr, #ttr * { touch-action: manipulation; }   /* no double-tap zoom */
+html, body { margin: 0; padding: 0; height: 100%; background: #489cf0; overflow: hidden; overscroll-behavior: none; }
+#transfer, #infobox, #crt, #dlg, #pyconsole, #html, #box { display: none !important; }
+canvas.emscripten { touch-action: none; position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; margin: 0 !important; z-index: 5 !important; }
+@supports (height: 100dvh) { canvas.emscripten { width: 100dvw !important; height: 100dvh !important; } }   /* the visible area, not the one with the browser bars hidden (Android Chrome, Safari tabs) */
+#canvas3d { display: none !important; }
+
+#ttr { position: fixed; inset: 0; z-index: 100; pointer-events: none; font-family: var(--mf); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#ttr * { box-sizing: border-box; }
+#ttr .abs { position: absolute; }
+#ttr .hidden { display: none !important; }
+#ttr .on { pointer-events: auto; }
+
+/* ---- backdrop ---- */
+#ttr-bg { position: absolute; inset: 0; background: linear-gradient(#6bbcff, #1a4dcc); pointer-events: none; }
+#ttr-bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#ttr-bg .dot { position: absolute; border-radius: 50%; background: rgba(255,255,255,.07); }
+#ttr-title { position: absolute; left: 0; right: 0; top: 16%; text-align: center; font-weight: 700; font-size: calc(84px * var(--sc)); color: #ffd926;
+  text-shadow: 0 5px 0 rgba(0,0,0,.5); white-space: nowrap; transform-origin: center; }
+#ttr-title small { display: block; font-weight: 400; font-size: calc(28px * var(--sc)); color: rgba(255,255,255,.9); text-shadow: none; margin-top: 4px; }
+#ttr-logo { position: absolute; left: 50%; transform: translateX(-50%); pointer-events: none; }
+
+/* ---- loading ---- */
+#ttr-bar { position: absolute; left: 50%; transform: translateX(-50%); height: calc(18px * 3.2); border-radius: 6px; overflow: hidden; background: rgba(0,0,0,.25); }
+#ttr-bar i { display: block; height: 100%; width: 0; background: #ffd926; }
+#ttr-status { position: absolute; left: 0; right: 0; text-align: center; font-weight: 700; font-size: calc(26px * var(--sc)); color: #fff; }
+#ttr-detail { position: absolute; left: 0; right: 0; text-align: center; font: 500 calc(16px * var(--sc)) system-ui, sans-serif; color: rgba(255,255,255,.75); }
+#ttr-error { position: absolute; left: 40px; right: 40px; top: 30%; height: 36%; overflow: auto; background: rgba(0,0,0,.45); color: #ffd9d9; border-radius: 12px;
+  font: 12px ui-monospace, Menlo, monospace; padding: 12px; white-space: pre-wrap; }
+#ttr-spin { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border: 5px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: ttrspin 0.9s linear infinite; }
+@keyframes ttrspin { to { transform: rotate(360deg); } }
+
+/* ---- sign in ---- */
+.ttr-field { position: absolute; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,.92); border-radius: 14px; border: 3px solid #1f4da6;
+  font: 700 calc(24px * var(--sc)) var(--mf); color: #1a3373; text-align: center; outline: none; padding: 0 10px; height: calc(44px * var(--sc)); -webkit-appearance: none; }
+.ttr-field::placeholder { color: #808080; font-weight: 700; }
+.ttr-btn { position: absolute; border-radius: 18px; border: 4px solid #8c520d; background: #ffd926; color: #733805; font: 700 calc(30px * var(--sc)) var(--mf); text-align: center; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ttr-btn:disabled { opacity: .6; }
+.ttr-pill { position: absolute; border-radius: 12px; border: 2px solid rgba(255,255,255,.9); color: #fff; font: 700 calc(13px * var(--sc)) var(--mf); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; -webkit-tap-highlight-color: transparent; }
+.ttr-pill img { height: 62%; width: auto; }
+.ttr-pill.light { background: rgba(255,255,255,.85); color: #1a3380; border-color: #1f4da6; }
+.ttr-link { position: absolute; font: 700 calc(14px * var(--sc)) system-ui, sans-serif; color: #14338c; text-align: center; background: none; border: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+#ttr-msg { position: absolute; left: 40px; right: 40px; text-align: center; font-weight: 700; font-size: calc(17px * var(--sc)); color: #1a408c; }
+#ttr-msg.bad { color: #d91a1a; }
+#ttr-credit { position: absolute; left: 20px; right: 20px; text-align: center; font: 600 calc(11px * var(--sc)) system-ui, sans-serif; color: rgba(20,51,115,.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- cards (server choice, recovery) ---- */
+#ttr-cardwrap { position: absolute; inset: 0; overflow-y: auto; pointer-events: auto; -webkit-overflow-scrolling: touch; }
+.ttr-card { position: relative; margin: 0 auto; background: rgba(255,255,255,.95); border: 4px solid #1f4da6; border-radius: 22px; color: #1a3373; }
+.ttr-card .t { position: absolute; left: 0; right: 0; text-align: center; font-weight: 700; }
+.ttr-card .s { position: absolute; left: 0; right: 0; text-align: center; font: 600 12px system-ui, sans-serif; }
+.ttr-card .ttr-field { transform: none; border-radius: 14px; font: 600 calc(17px * var(--sc)) system-ui, sans-serif; }
+.ttr-card .ttr-btn { border-radius: 16px; border-width: 3px; }
+.ttr-card .ttr-pill { border-radius: 16px; border: 3px solid #1f4da6; }
+.ttr-card .ttr-pill.gray { background: #ebebeb; color: #1a3380; border-width: 2px; }
+.ttr-card .ttr-pill.blue { background: #59a6ff; color: #fff; }
+
+/* ---- in-game controls ---- */
+#ttr-hud .pad { position: absolute; touch-action: none; pointer-events: auto; border-radius: 50%; border: 3px solid rgba(255,255,255,.6); color: #fff; display: flex; align-items: center; justify-content: center;
+  font-family: var(--mf); font-weight: 700; -webkit-tap-highlight-color: transparent; }
+#ttr-hud .pad.down { opacity: .7; }
+#ttr-joy { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.45) !important; }
+#ttr-knob { position: absolute; border-radius: 50%; background: rgba(255,209,51,.85); border: 3px solid rgba(0,0,0,.35); pointer-events: none; }
+#ttr-jump { background: rgba(64,153,255,.55); font-size: 20px; }
+#ttr-cam, #ttr-act, #ttr-padl, #ttr-padr { background: rgba(242,140,38,.6); }
+
+/* touch feel on the sign-in screen */
+.ttr-field { -webkit-user-select: text; user-select: text; touch-action: manipulation; -webkit-touch-callout: default; caret-color: #1f4da6; }
+.ttr-btn, .ttr-pill, .ttr-link { touch-action: manipulation; }
+#ttr-logo { transition: opacity .25s ease; }
+
+/* turn-your-phone prompt */
+#ttr-rotate { position: fixed; inset: 0; z-index: 300; pointer-events: auto; background: linear-gradient(#6bbcff, #1a4dcc); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; }
+#ttr-rotate .tx { font: 700 26px var(--mf); color: #fff; text-align: center; padding: 0 30px; text-shadow: 0 3px 0 rgba(0,0,0,.35); }
+#ttr-rotate .ph { width: 64px; height: 108px; border: 6px solid #ffd926; border-radius: 14px; box-shadow: 0 4px 0 rgba(0,0,0,.35); animation: ttrturn 2.2s ease-in-out infinite; }
+@keyframes ttrturn { 0%, 15% { transform: rotate(0deg); } 55%, 100% { transform: rotate(90deg); } }
+
+html, body { position: fixed; width: 100%; height: 100%; overflow: hidden; }
+
+/* typed chat: invisible keyboard input (the game's own box shows the text) */
+#ttr-textin { position: fixed; left: 0; top: 0; width: 2px; height: 2px; opacity: 0; font-size: 16px; border: 0; padding: 0; pointer-events: none; }
+
+/* add-to-home-screen instructions (normal iPhone/iPad browser tab): same look as the turn-your-phone screen */
+#ttr-install { position: fixed; inset: 0; z-index: 400; pointer-events: auto; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: linear-gradient(#6bbcff, #1a4dcc); display: flex;
+  padding: max(16px, var(--sat)) max(16px, var(--sar)) max(16px, var(--sab)) max(16px, var(--sal)); }
+#ttr-install .box { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 640px; text-align: center; }
+#ttr-install .ic { width: 52px; height: 52px; border: 6px solid #ffd926; border-radius: 14px; box-shadow: 0 4px 0 rgba(0,0,0,.35); color: #ffd926; display: flex; align-items: center; justify-content: center; }
+#ttr-install .h { font: 700 26px var(--mf); color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,.35); }
+#ttr-install ol { list-style: none; margin: 0; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+#ttr-install li { display: flex; gap: 12px; align-items: center; font: 700 19px var(--mf); color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
+#ttr-install li i { flex: none; width: 32px; height: 32px; border-radius: 50%; background: #ffd926; color: #733805; text-shadow: none; font-style: normal; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 3px 0 rgba(0,0,0,.35); }
+#ttr-install .shr { vertical-align: middle; color: #ffd926; margin: 0 2px; }
+#ttr-install .go { font: 700 16px var(--mf); color: rgba(255,255,255,.9); background: none; border: 0; text-decoration: underline; padding: 8px; cursor: pointer; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
+
+
+/* Open Toontown loader: the headline font is a thin small-caps face, so make it bigger and give the letters a solid fill with a blue outline */
+#ttr-title { font-size: calc(56px * var(--sc)); -webkit-text-stroke: calc(5px * var(--sc)) #1c3f9c; paint-order: stroke fill; }
+#ttr-title small { font-size: calc(46px * var(--sc)); color: #fff; -webkit-text-stroke: calc(6px * var(--sc)) #1c3f9c; paint-order: stroke fill; margin-top: calc(6px * var(--sc)); }
+#ttr-status { font-size: calc(34px * var(--sc)); -webkit-text-stroke: calc(5px * var(--sc)) #1c3f9c; paint-order: stroke fill; }
+#ttr-detail { text-shadow: 0 1px 3px rgba(20,51,115,.7); color: rgba(255,255,255,.92); }
+
+/* the same cloud-sky picture the loading screen uses, behind the turn-your-phone and add-to-home-screen screens */
+#ttr-rotate, #ttr-install { background: #2f86e8 url(_ui/background.jpg) center / cover no-repeat; }
+#ttr-install .box { padding: 22px 18px; border-radius: 28px; background: rgba(20, 70, 190, .45); box-shadow: 0 6px 0 rgba(10, 40, 120, .3), inset 0 0 0 3px rgba(255,255,255,.35); }
+
+/* iPhone: let the full-screen pages reach under the bottom toolbar instead of stopping above it */
+@supports (height: 100lvh) {
+  html, body { height: 100lvh; }
+  #ttr-rotate, #ttr-install { inset: auto; top: 0; left: 0; width: 100%; height: 100lvh; }
+}

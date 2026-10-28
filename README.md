@@ -1,175 +1,63 @@
 # Toontown: Anywhere
 
-An **unofficial** client for **TTR-Offline** servers that runs on your phone: **in your browser** (an installable web
-app for iPhone, iPad and Android) or as a **native iOS app**. It is not affiliated with, endorsed by, or connected to
-Toontown Rewritten, its team, or Disney, and it **cannot connect to the official Toontown Rewritten servers**.
+An **unofficial, fan-made** way to play Toontown on your phone: in your browser, as an installable web app for iPhone, iPad
+and Android. It is not affiliated with, endorsed by, or connected to Disney or Toontown Rewritten.
 
-## Play in your browser (easiest)
+The game is built on **[Open Toontown](https://github.com/open-toontown/open-toontown)** (the open-source Toontown
+Online code) with our own changes, and it runs on our own server. The browser client is Python running in WebAssembly
+([pygbag](https://github.com/pygame-web/pygbag) with Panda3D).
 
-Open **<https://toontown.puffsco.com/play/>** on your phone or tablet, then add it to your Home Screen so it opens like an
-app, full screen and in landscape. No app store and no computer needed.
+## Play
 
-**iPhone or iPad (Safari):**
-1. Open the address above in **Safari**.
-2. Tap the **Share** button (tap the **...** button first if you don't see it), then **View More** if it is shown, then
-   **Add to Home Screen**, then **Add**.
-3. Open **TT: Anywhere** from your Home Screen.
+Open **<https://toontown.puffsco.com/play/>** on your phone or tablet, then add it to your Home Screen so it opens full
+screen in landscape.
 
-**Android (Chrome works best):**
-1. Open the address above in your browser app itself, not inside another app.
-2. Tap the **...** menu, then **Install app** (or **Add to Home screen**).
-3. Open **TT: Anywhere** from your Home screen. If it still shows a bar at the top, install it again from Chrome.
+**iPhone or iPad (Safari):** open the address, tap **Share** (tap the **...** button first if you don't see it), then
+**View More** if it is shown, then **Add to Home Screen**, then **Add**. Open **TT: Anywhere** from your Home Screen.
+
+**Android (Chrome works best):** open the address in the browser app itself, tap the **...** menu, then **Install app**
+(or **Add to Home screen**), and open **TT: Anywhere** from your Home screen.
 
 Good to know:
-- The first start downloads the game files, **about 600 MB**, so use Wi-Fi. They are kept on the device after that. Keep it
-  installed to the Home Screen: Safari can clear the saved files of a normal browser tab after about a week without use.
+
+- The first start downloads the game files (about 390 MB). Use Wi-Fi. They are kept on the device afterwards. Keep the
+  app installed to the Home Screen: Safari can clear the saved files of a normal browser tab after about a week without use.
 - Phones drop the connection when you switch to another app. Coming back, the game tries to reconnect by itself.
-- It is built with [pygbag](https://github.com/pygame-web/pygbag) (Python in the browser). The page's source is not in this
-  repository yet.
-
-## Credits
-
-This project exists because of other people's work. Thank you to:
-
-- **[RegDogg](https://github.com/RegDogg)** for **[TTR-Offline](https://github.com/RegDogg/TTR-Offline)**
-  (Apache License 2.0). The game client this app runs, and the server it talks to, are TTR-Offline. Every bit of
-  the game itself is his work and the work of the people TTR-Offline builds on. This app is only a way to run his
-  client on iOS. He also maintains the
-  [TTR-Offline Panda3D fork](https://github.com/RegDogg/TTR-Offline-panda3d) that the app is built on.
-- The **[Panda3D](https://www.panda3d.org)** team and contributors, for the engine.
-- The **[BeeWare](https://beeware.org)** project, for
-  [Python-Apple-support](https://github.com/beeware/Python-Apple-support), which makes embedding Python on iOS possible.
-- The **[SideStore](https://sidestore.io)** project, for making on-device sideloading practical.
-- The **[pygbag](https://github.com/pygame-web/pygbag)** / pygame-web project, whose Python runtime and Panda3D
-  WebAssembly build make the browser version possible.
-- The authors of OpenSSL, libpng, libjpeg, FreeType, and libogg/libvorbis. The full list with licenses is in
-  [THIRD_PARTY_NOTICES.md](panda_ios/THIRD_PARTY_NOTICES.md), which is also bundled inside the app.
-
-**This repository contains no game files.** No game code, models, textures, or audio. The apps download the client
-code and resources from a **file server** and connect to a **game server**. The native app can connect to **any
-TTR-Offline server**: the one it comes set up for, or one you type in (see "Choosing a server" below). This
-repository's own code is the native iOS app shell, the touch controls and the build scripts.
-
-## Screenshots
-
-Screenshots of the game are in the app's listing in SideStore. This is how the listing looks:
-
-<img src="docs/screenshots/sidestore.jpg" alt="Toontown: Anywhere listed in SideStore" width="320">
-
-## Optional: the native iOS app (SideStore)
-
-If you want the native app, for example to connect to a different server, install it through a **SideStore source**,
-which also delivers updates. Most people can skip this and use the browser version above.
-
-1. Set up SideStore on your device by following the official guide: **<https://docs.sidestore.io>**
-   (project: <https://github.com/SideStore/SideStore>).
-2. In SideStore, open the **Sources** tab and tap **+**.
-3. Paste this source address:
-
-   ```
-   https://toontown.puffsco.com/_app/anywhere/source.json
-   ```
-
-4. Open **Toontown: Anywhere** in the source and tap **Get**. New versions then show up as updates in SideStore.
-
-Notes:
-- The source lists the newest build only. Each entry includes the file size and a SHA-256 checksum.
-- The app is **not** from the App Store. Sideloaded apps expire and need refreshing (SideStore does that for you
-  while it is running, as long as it is set up).
-- If the source's name or icon looks out of date, remove the source and add it again.
-- Other sideloading tools like [AltStore](https://altstore.io) work too, using the `.ipa` from your own build.
-
-The app provided in the SideStore source and this repo comes set up with my own server as the default choice. It
-can connect to any other TTR-Offline server too, see "Choosing a server" below. To make your own server the
-default, build your own app (the section after that).
+- Pick a name and a password and tap **Play**. If you have been here before, use the same ones. Passwords can be
+  recovered with the two answers you set up (**Forgot password?**).
 
 ## Community
 
 - **Discord:** <https://discord.gg/NxdkuR2aCp>, for help, bug reports and chat.
 - **Reddit:** <https://www.reddit.com/r/ToontownAnywhere/s/p7FFnl9jGJ>, r/ToontownAnywhere.
 
-Both links are also on the app's sign-in screen.
+## What is in this repository
 
-## Choosing a server
+This repository holds everything we wrote to run the game, but **no game files**: no models, textures, sounds or
+Disney content. The game's own code comes from Open Toontown, and our changes to it are a patch.
 
-The first time you open the app it asks which server to play on:
+| Folder | What it is |
+|---|---|
+| [`web/`](web) | The browser client: the page's screens (sign-in, loading, controls), the Python glue that runs Open Toontown in the browser, and the scripts that build the download packs and the page. |
+| [`server/`](server) | The all-in-one server container: Dockerfile, start-up script, web server settings, the WebSocket bridge and the sign-in service. |
+| [`open-toontown/`](open-toontown) | Our changes to Open Toontown (a patch against a known upstream commit) and `otpy`, our pure-Python replacement for the game's compiled libraries. |
+| [`tools/`](tools) | Migration of the old Toontown: Anywhere accounts, and small operations scripts. |
+| [`docs/`](docs) | The full write-up of the system. |
 
-- **Connect to Toontown: Anywhere** uses the server the app was built for (the default; in the SideStore app, that is my server).
-- **A different server:** type in the server's file address (for example `https://files.example.com`) and its game
-  address (`host:port`, for example `play.example.com:7298`), then tap **Connect**. The app checks that both are
-  reachable before saving them.
+Start with **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. The other documents:
 
-The app remembers your choice. The **Change server** button on the sign-in screen switches to another server later.
-Each server keeps its own downloaded game files, saved username and password, so switching back is quick. Game
-files are only downloaded after you have picked a server.
-
-**Only connect to servers you trust.** A server supplies the game's code, and that code runs inside this app.
-
-## Build your own app for your own server
-
-The server addresses are baked in at build time as the app's **default server**. (Players can also type in a
-different server inside the app, see "Choosing a server" above, so building your own is only needed if you want
-your own server to be the default.)
-
-1. **Fork this repository** on GitHub and enable Actions on the fork.
-2. Run the **panda-ios** workflow (Actions, Run workflow). Inputs:
-   - `resource_server`: URL of your file server, for example `https://files.example.com` or `http://192.168.1.10:7380`
-   - `game_server`: `host:port` of your game server, for example `play.example.com:7298`
-3. Download the **TTRPanda-ipa** artifact. It is an **unsigned** `.ipa`.
-4. Sign and install it yourself (SideStore, AltStore or Feather).
-
-After the first full run, **panda-ios-app** rebuilds just the app shell from that run's saved libraries (about a minute).
-It takes the saved run's id as an input.
-
-### Publishing your own SideStore source
-
-A source is one JSON file (`source.json`) that lists your app and where to download the `.ipa`. Host it and the
-`.ipa` on any static web server. SideStore documents the format. Mine lists each version with its date, download
-URL, size and SHA-256, plus an icon address.
-
-## What your servers need to provide
-
-**Game server:** a running [TTR-Offline](https://github.com/RegDogg/TTR-Offline) server (Astron, UberDOG and an AI).
-The app connects with a play cookie of the form `name:password`. A plain TTR-Offline server accepts any cookie. If
-you want real passwords, your account service has to check them.
-
-**File server** (static HTTP or HTTPS), whose root contains:
-- the TTR-Offline `resources` folders (`phase_3` and so on), and a `_code/` folder with the game's Python code
-  (`toontown/`, `otp/`, `config/`)
-- `manifest.json`, made with `python3 panda_ios/make_manifest.py /path/to/served/folder`
-- optional, but much faster first installs: `packs.json` and `_packs/*.zip`, made with
-  `python3 panda_ios/make_packs.py /path/to/served/folder` (run it after the manifest)
-- optional: `_ui/background.jpg` and `_ui/logo.png` for the start screen
-- optional sign-in and password-recovery endpoints (the app calls them if present; a `404` means the server
-  doesn't have them and the app carries on):
-  - `POST /auth`: body `name:password`. Answer `200` for ok, or `403` with a message to show the player. Answering
-    `200` with the body `setup` asks the app to offer the player a password-recovery setup.
-  - `POST /setrecovery`: body is three lines: `name:password`, a nickname, and a toon name.
-  - `POST /recover`: body is four lines: name, nickname, toon name, new password. Answer `200` when the answers match
-    and the password was changed.
-
-You are responsible for having the right to host whatever you serve. Check the licenses of the TTR-Offline code and
-the resources repository before you share anything.
-
-## What the build does
-1. Clones the Panda3D fork used by TTR-Offline and applies small patches (`panda_ios/patch_sources.py`).
-2. Builds OpenSSL, libpng, libjpeg, FreeType, Ogg/Vorbis for iOS, and Panda3D with an OpenGL ES 1 display.
-3. Embeds Python (BeeWare Python-Apple-support) and produces the unsigned `.ipa`.
-
-## Features
-- Browser version: the real game client running in your browser as an installable web app (iPhone, iPad, Android).
-- Native iOS: Panda3D 1.10 (the TTR-Offline fork) and CPython 3.10 cross-compiled for iPhone and iPad.
-- Touch controls (joystick, jump, camera, action) that hide whenever a menu or panel is open.
-- A keyboard bridge for typed chat, iPad scaling, and sound that plays even when the phone is on silent.
-- Sign-in with a username and password, with optional password recovery (see above).
-- Connects to any TTR-Offline server: pick one on first launch and switch later with the Change server button.
+- [docs/OPERATIONS.md](docs/OPERATIONS.md): running, updating, backing up and debugging the live server.
+- [docs/MIGRATION.md](docs/MIGRATION.md): how the old server's players were moved over, and what changed for them.
+- [docs/CHANGES.md](docs/CHANGES.md): everything that differs from stock Open Toontown, and the known problems.
 
 ## Status
-Experimental. The browser version is developed and tested mainly on iPhone, with some testing on Android. The native app is
-developed and tested on iPhone and iPad with dev-signed builds; the OpenGL ES 1 API it uses is deprecated by Apple.
+
+Live and under active development. Known problems are listed in [docs/CHANGES.md](docs/CHANGES.md#known-problems).
 
 ## License and notices
-Apache License 2.0, see [LICENSE](LICENSE). Third-party components and credits are listed in
-[THIRD_PARTY_NOTICES.md](panda_ios/THIRD_PARTY_NOTICES.md), which is also bundled inside the app.
+
+Our own code is under the Apache License 2.0, see [LICENSE](LICENSE). Open Toontown is under the BSD 3-Clause
+License and Panda3D under a modified BSD license. Third-party components and credits are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Toontown is a trademark of Disney. This is a fan project with no commercial purpose.

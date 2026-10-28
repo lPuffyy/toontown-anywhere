@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+web/build/
+web/game/build/
+web/game/*.tar.gz
+server/overlay/
