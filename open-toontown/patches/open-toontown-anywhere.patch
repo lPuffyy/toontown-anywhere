@@ -23,7 +23,7 @@ index 522e1ba..2b33346 100644
 +# fish bingo needs a server-side manager that this snapshot lacks
 +want-fish-bingo 1
 diff --git a/etc/toon.dc b/etc/toon.dc
-index 5c4ed03..27a652b 100755
+index 5c4ed03..cff3ede 100755
 --- a/etc/toon.dc
 +++ b/etc/toon.dc
 @@ -2,25 +2,6 @@ from direct.distributed import DistributedObjectGlobal
@@ -60,7 +60,22 @@ index 5c4ed03..27a652b 100755
    setStats : setAvatarCount, setNewAvatarCount;
  };
  
-@@ -560,9 +542,10 @@ dclass DistributedToon : DistributedPlayer {
+@@ -440,6 +422,14 @@ dclass DistributedAnimatedProp : DistributedObject {
+ 
+ typedef int16 pair16[2];
+ 
++struct FriendDetail {
++  uint32 friendId;
++  string name;
++  blob dna;
++  uint32 petId;
++  uint8 online;
++};
++
+ dclass DistributedToon : DistributedPlayer {
+   setDNAString(blob) required broadcast ownrecv db;
+   setGM(uint8 = 0) required broadcast ownrecv db;
+@@ -560,9 +550,10 @@ dclass DistributedToon : DistributedPlayer {
    catalogGenAccessories(uint32) broadcast ownrecv;
    setPetId(uint32 = 0) required broadcast ownrecv db;
    setPetMovie(uint32, uint8) ownsend airecv;
@@ -74,10 +89,12 @@ index 5c4ed03..27a652b 100755
    setKartBodyType(int8 = -1) required broadcast ownrecv db;
    setKartBodyColor(int8 = -1) required broadcast ownrecv db;
    setKartAccessoryColor(int8 = -1) required broadcast ownrecv db;
-@@ -621,74 +604,6 @@ dclass DistributedToon : DistributedPlayer {
+@@ -619,74 +610,8 @@ dclass DistributedToon : DistributedPlayer {
+   setDISLname(string) ram;
+   setDISLid(uint32) ram db airecv;
    toggleSleep() ownrecv;
- };
- 
+-};
+-
 -dclass DistributedCCharBase : DistributedObject {
 -  setChat(uint32, uint32, uint32) broadcast;
 -  fadeAway() broadcast;
@@ -144,11 +161,11 @@ index 5c4ed03..27a652b 100755
 -};
 -
 -dclass DistributedSuperGoofy : DistributedGoofySpeedway {
--};
--
++  setFriendDetails(FriendDetail[]) ownrecv ram;
++  setFriendOnline(uint32, uint8) ownrecv ram;
+ };
+ 
  dclass DistributedPartyGate : DistributedObject {
-   getPartyList(uint32) airecv clsend;
-   partyChoiceRequest(uint32, uint64, uint64) airecv clsend;
 diff --git a/otp/ai/TimeManager.py b/otp/ai/TimeManager.py
 index dd90517..e9f215e 100644
 --- a/otp/ai/TimeManager.py
@@ -244,10 +261,10 @@ index f169ed1..1e81242 100644
  import random
  import gc
 diff --git a/otp/friends/FriendManagerAI.py b/otp/friends/FriendManagerAI.py
-index 616cfbc..8a11efb 100644
+index 616cfbc..3d3320c 100644
 --- a/otp/friends/FriendManagerAI.py
 +++ b/otp/friends/FriendManagerAI.py
-@@ -1,5 +1,146 @@
+@@ -1,5 +1,148 @@
  from direct.directnotify import DirectNotifyGlobal
  from direct.distributed.DistributedObjectAI import DistributedObjectAI
 +from otp.otpbase import OTPGlobals
@@ -307,6 +324,8 @@ index 616cfbc..8a11efb 100644
 +        for toon, other in ((a, b), (b, a)):
 +            toon.extendFriendsList(other.getDoId(), 0)
 +            toon.d_setFriendsList(toon.getFriendsList())
++            if hasattr(toon, 'sendFriendDetails'):
++                toon.sendFriendDetails()
 +        questManager = getattr(self.air, 'questManager', None)
 +        if questManager:
 +            for toon, other in ((a, b), (b, a)):
@@ -14646,10 +14665,18 @@ index 44a8ecd..1ea0bb7 100644
  from panda3d.core import *
  from .DistributedNPCToonBaseAI import *
 diff --git a/toontown/toon/DistributedToon.py b/toontown/toon/DistributedToon.py
-index 3a52f75..d7ffba4 100644
+index 3a52f75..7886db6 100644
 --- a/toontown/toon/DistributedToon.py
 +++ b/toontown/toon/DistributedToon.py
-@@ -159,6 +159,7 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
+@@ -11,6 +11,7 @@ from otp.avatar import Avatar, DistributedAvatar
+ from otp.speedchat import SCDecoders
+ from otp.chat import TalkAssistant
+ from . import Toon
++from . import ToonDNA
+ from direct.task.Task import Task
+ from direct.distributed import DistributedSmoothNode
+ from direct.distributed import DistributedObject
+@@ -159,6 +160,7 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
          self.maxNPCFriends = 16
          self.petId = 0
          self.bPetTutorialDone = False
@@ -14657,7 +14684,40 @@ index 3a52f75..d7ffba4 100644
          self.bFishBingoTutorialDone = False
          self.bFishBingoMarkTutorialDone = False
          self.accessories = []
-@@ -466,6 +467,9 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
+@@ -399,6 +401,32 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
+     def getDialogueArray(self, *args):
+         return Toon.Toon.getDialogueArray(self, *args)
+ 
++    def setFriendDetails(self, details):
++        """Who our friends are: filled in by the server because the game has no 'get friends list' request. The friends list
++        window reads names and looks from base.cr.friendsMap."""
++        cr = base.cr
++        for friendId, name, dnaBlob, petId, online in details:
++            dna = ToonDNA.ToonDNA()
++            dna.makeFromNetString(dnaBlob)
++            handle = FriendHandle.FriendHandle(friendId, name, dna, petId)
++            cr.friendsMap[friendId] = handle
++            if online:
++                cr.friendsOnline[friendId] = handle
++            elif friendId in cr.friendsOnline:
++                del cr.friendsOnline[friendId]
++        cr.friendsMapPending = 0
++        messenger.send('friendsMapComplete')
++
++    def setFriendOnline(self, friendId, online):
++        cr = base.cr
++        if online:
++            handle = cr.friendsMap.get(friendId) or cr.identifyFriend(friendId)
++            cr.friendsOnline[friendId] = handle
++            messenger.send('friendOnline', [friendId, 0, 0])
++        elif friendId in cr.friendsOnline:
++            del cr.friendsOnline[friendId]
++            messenger.send('friendOffline', [friendId])
++
+     def setDefaultShard(self, shard):
+         self.defaultShard = shard
+ 
+@@ -466,6 +494,9 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
              return Task.cont
  
      def setTalk(self, fromAV, fromAC, avatarName, chat, mods, flags):
@@ -14667,7 +14727,7 @@ index 3a52f75..d7ffba4 100644
          if base.cr.avatarFriendsManager.checkIgnored(fromAV):
              self.d_setWhisperIgnored(fromAV)
              return
-@@ -1188,7 +1192,7 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
+@@ -1188,7 +1219,7 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
          return
  
      def playSplashEffect(self, x, y, z):
@@ -14676,7 +14736,7 @@ index 3a52f75..d7ffba4 100644
              if random.random() < 0.1:
                  self.sendLogSuspiciousEvent('AvatarHackWarning! playing hacked splash effect')
              return
-@@ -1732,6 +1736,16 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
+@@ -1732,6 +1763,16 @@ class DistributedToon(DistributedPlayer.DistributedPlayer, Toon.Toon, Distribute
          def hasPet(self):
              return self.petId != 0
  
@@ -14694,7 +14754,7 @@ index 3a52f75..d7ffba4 100644
              self.d_setPetTutorialDone(bDone)
              self.setPetTutorialDone(bDone)
 diff --git a/toontown/toon/DistributedToonAI.py b/toontown/toon/DistributedToonAI.py
-index b5489fe..2028597 100644
+index b5489fe..e027075 100644
 --- a/toontown/toon/DistributedToonAI.py
 +++ b/toontown/toon/DistributedToonAI.py
 @@ -186,6 +186,7 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
@@ -14705,7 +14765,16 @@ index b5489fe..2028597 100644
          self.flowerCollection = None
          self.shovel = 0
          self.shovelSkill = 0
-@@ -254,10 +255,10 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
+@@ -219,6 +220,8 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
+             messenger.send('avatarEntered', [self])
+             if __astron__:
+                 self.sendUpdate('setDefaultShard', [self.air.districtId])
++            self.sendFriendDetails()
++            self.notifyFriendsOnline(1)
+         if hasattr(self, 'gameAccess') and self.gameAccess != 2:
+             if self.hat[0] != 0:
+                 self.replaceItemInAccessoriesList(ToonDNA.HAT, 0, 0, 0, self.hat[0], self.hat[1], self.hat[2])
+@@ -254,10 +257,10 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
                          hoodsVisited.append(canonicalHood)
                          self.b_setHoodsVisited(hoodsVisited)
  
@@ -14719,7 +14788,65 @@ index b5489fe..2028597 100644
                              self.b_setTeleportAccess(teleportAccess)
  
      def sendDeleteEvent(self):
-@@ -1515,6 +1516,9 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
+@@ -274,6 +277,7 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
+         self.notify.debug('----Deleting DistributedToonAI %d ' % self.doId)
+         if self.isPlayerControlled():
+             messenger.send('avatarExited', [self])
++            self.notifyFriendsOnline(0)
+         if simbase.wantPets:
+             if self.isInEstate():
+                 print('ToonAI - Exit estate toonId:%s' % self.doId)
+@@ -593,6 +597,49 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
+     def getShtickerBook(self):
+         return ''
+ 
++    def sendFriendDetails(self):
++        """Tell this toon's own client who its friends are (name, look, pet, and whether they are in this district now): the
++        server has no 'get friends list' request, so the friends list window is filled from this."""
++        friendIds = [pair[0] for pair in self.friendsList]
++        if not friendIds:
++            self.sendUpdate('setFriendDetails', [[]])
++            return
++        results = {}
++        pending = set(friendIds)
++
++        def finish():
++            self.sendUpdate('setFriendDetails', [[results[i] for i in friendIds if i in results]])
++
++        def done(friendId):
++            pending.discard(friendId)
++            if not pending:
++                finish()
++
++        for friendId in friendIds:
++            friend = self.air.doId2do.get(friendId)
++            if friend is not None and hasattr(friend, 'dna'):
++                results[friendId] = (friendId, friend.getName(), friend.dna.makeNetString(), friend.getPetId(), 1)
++                done(friendId)
++                continue
++
++            def got(dclass, fields, friendId=friendId):
++                if fields:
++                    results[friendId] = (friendId, fields.get('setName', ('',))[0], fields.get('setDNAString', (b'',))[0],
++                                         fields.get('setPetId', (0,))[0], 0)
++                done(friendId)
++
++            self.air.dbInterface.queryObject(self.air.dbId, friendId, got, fieldNames=('setName', 'setDNAString', 'setPetId'))
++
++    def notifyFriendsOnline(self, online):
++        """Friends who are in this district right now are told this toon came or went."""
++        try:
++            for pair in self.friendsList:
++                friend = self.air.doId2do.get(pair[0])
++                if friend is not None and friend is not self:
++                    friend.sendUpdate('setFriendOnline', [self.doId, online])
++        except Exception:
++            self.notify.warning('could not tell the friends of %s' % self.doId)
++
+     def d_setFriendsList(self, friendsList):
+         self.sendUpdate('setFriendsList', [friendsList])
+         return None
+@@ -1515,6 +1562,9 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
      def getFishTank(self):
          return self.fishTank.getNetLists()
  
@@ -14729,7 +14856,7 @@ index b5489fe..2028597 100644
      def makeRandomFishTank(self):
          self.fishTank.generateRandomTank()
          self.d_setFishTank(*self.fishTank.getNetLists())
-@@ -2289,7 +2293,8 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
+@@ -2289,7 +2339,8 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
          now = int(time.time() / 60 + 0.5)
          delivered, remaining = self.onOrder.extractDeliveryItems(now)
          deliveredGifts, remainingGifts = self.onGiftOrder.extractDeliveryItems(now)
@@ -14739,7 +14866,7 @@ index b5489fe..2028597 100644
          giftItem = CatalogItemList.CatalogItemList(deliveredGifts, store=CatalogItem.Customization | CatalogItem.DeliveryDate)
          if len(giftItem) > 0:
              self.air.writeServerEvent('Getting Gift', self.doId, 'sender %s receiver %s gift %s' % (giftItem[0].giftTag, self.doId, giftItem[0].getName()))
-@@ -2353,7 +2358,11 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
+@@ -2353,7 +2404,11 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
              if self.air:
                  house = self.air.doId2do.get(self.houseId)
                  if house and house.mailbox:
@@ -14752,7 +14879,7 @@ index b5489fe..2028597 100644
  
      def setMailboxContents(self, mailboxContents):
          self.notify.debug('Setting mailboxContents to %s.' % mailboxContents)
-@@ -2605,6 +2614,8 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
+@@ -2605,6 +2660,8 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
      def incrementPopulation(self):
          if self.isPlayerControlled():
              DistributedPlayerAI.DistributedPlayerAI.incrementPopulation(self)
@@ -14761,7 +14888,7 @@ index b5489fe..2028597 100644
  
      def decrementPopulation(self):
          if self.isPlayerControlled():
-@@ -3059,13 +3070,19 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
+@@ -3059,13 +3116,19 @@ class DistributedToonAI(DistributedPlayerAI.DistributedPlayerAI, DistributedSmoo
                      self.air.writeServerEvent('suspicious', self.doId, 'setPetMovie: playing pet movie %s on non-pet object %s' % (flag, petId))
              return
  

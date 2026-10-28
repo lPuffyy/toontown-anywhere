@@ -50,6 +50,11 @@ upstream Open Toontown commit `2b366a2`. How to apply them is in [open-toontown/
   (`ToontownStart.py` no longer creates the missing global object). The manager runs the invitation: it checks the
   invitee is in the district, is not the inviter and is not already a friend, passes the invitation on, relays the
   invitee's answer, adds both toons to each other's friends lists when it is yes (limit 50), and tells the inviter.
+- **The friends list is filled by the server.** The game has no "get friends list" request on Astron, so the list window
+  had no names to show. When a toon enters a district, its AI looks up each friend (name, look, pet, and whether the friend is
+  in this district) and sends them to the toon's own client (`setFriendDetails`, a new field in `etc/toon.dc`); it is sent
+  again when two toons become friends. Friends in the district are told when a friend arrives or leaves
+  (`setFriendOnline`). "Online" therefore means "in the same district".
 - Secret friends are not offered (both secret requests answer "not available").
 - Only toons in the same district can invite each other, which is also how the invitation works in the game.
 
