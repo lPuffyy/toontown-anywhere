@@ -7,7 +7,7 @@
   const LS = (() => { try { return window.localStorage; } catch (e) { return { getItem() { return null; }, setItem() {}, removeItem() {} }; } })();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const T = window.ttr = {
-    pyReady: false, go: false, dbg: false, safeL: 0, safeR: 0, safeT: 0, safeB: 0, vh: 0, pycode: '', winW: 0, winH: 0, cookie: '', inp: '0,0,0,0,0,0,0,0', camN: 0, txtIn: 0, txtSub: 0, txtVal: '',
+    pyReady: false, go: false, gameConfig: '', typeBtn: '', dbg: false, safeL: 0, safeR: 0, safeT: 0, safeB: 0, vh: 0, pycode: '', winW: 0, winH: 0, cookie: '', inp: '0,0,0,0,0,0,0,0', camN: 0, txtIn: 0, txtSub: 0, txtVal: '',
     wsUrl: window.TTR_WS || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'),
   };
 
@@ -584,10 +584,16 @@
     try { await downloadAll(); showLogin(); }
     catch (e) { console.error(e); showError(String(e && e.stack || e)); }
   }
-  function startGame(cookie) {
+  async function startGame(cookie) {
     login.style.display = 'none'; cardClose(); showLoad(true);
     setStatus('Starting Toontown...', '', null); bar.style.display = 'none'; spin.style.display = '';
     T.wsUrl = prefs.ws;
+    try {            // the server's game settings (gameconfig.json); no file, or no answer in 3 seconds, means the game's own defaults
+      const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 3000);
+      const r = await fetch('/gameconfig.json?t=' + Date.now(), { cache: 'no-store', signal: ctl.signal });
+      clearTimeout(timer);
+      if (r.ok) T.gameConfig = await r.text();
+    } catch (e) { }
     T.cookie = cookie; T.go = true;
     plog('JS| session user: ' + String(cookie).split(':')[0]);       // the name only, never the password
   }
@@ -705,7 +711,15 @@
     // at 0.36 and beyond): the keyboard opens at once, and closes again if the game opens no text box
     // (the game keeps its buttons inside the safe area, so the notch side moves them over by that much)
     const inCorner = p.clientX < SAFE.l + H * 0.13 && p.clientY < SAFE.t + H * 0.14;
-    if (!textOn && !inCorner) return;
+    // the Type a Name button on the name screen: the game tells us where it is (T.typeBtn, as fractions of the window)
+    let onTypeBtn = false;
+    const nb = String(T.typeBtn || '').split(',').map(Number);
+    const cv = document.querySelector('canvas.emscripten');
+    if (nb.length === 2 && isFinite(nb[0]) && isFinite(nb[1]) && cv) {
+      const r = cv.getBoundingClientRect();
+      onTypeBtn = Math.hypot(p.clientX - (r.left + nb[0] * r.width), p.clientY - (r.top + nb[1] * r.height)) < r.height * 0.1;
+    }
+    if (!textOn && !inCorner && !onTypeBtn) return;
     try { tin.focus({ preventScroll: true }); } catch (err) {}
     askAt = Date.now();
     setTimeout(() => { if (!textOn && Date.now() - askAt >= 1400) tin.blur(); }, 1500);
