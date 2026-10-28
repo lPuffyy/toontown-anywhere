@@ -53,3 +53,7 @@ Open work, most important first. Each item says what is known. When one is finis
 - A server-side copy of each player's options, so sound settings follow them to another phone (today they are saved
   per phone in the browser).
 - A small page for staff to see who is online and which districts have invasions.
+- Release notes to Discord (low priority): post a short plain-language note to a release-notes channel when the server image
+  is published (a last step in the fork's build workflow, webhook kept as a GitHub Actions secret) and when a client pack is
+  uploaded (a small script on the server that reads the webhook from a private file). Only commits with a `Release note:` line
+  would post. Open questions: which channel, whether players read it, and one message per update or one edited message.
