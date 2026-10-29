@@ -51,6 +51,31 @@ def web_patch(arc, text):
         sub("scZ = 0.96", "scZ = -0.04")
         sub("self.speedChat.setPos(-1.05, 0, scZ)", "self.speedChat.setPos(_SC_X, 0, scZ)")
         sub("self.speedChat.setScale(TTLocalizer.TTCISCspeedChat)", "self.speedChat.setScale(_SC_SCALE)")
+    elif arc.endswith("toontown/quest/QuestParser.py"):
+        # the tutorial moves the chat buttons with the 4:3 screen's coordinates; here they hang from the top left corner (above), so those
+        # coordinates would send them off the screen. Send them to where the web layout keeps them instead, and point the arrows at them there.
+        text = "\n".join([
+            "_WEB_CHAT = {'chatScButton': (0.36, 0, -0.135), 'chatNormalButton': (0.135, 0, -0.135)}",
+            "def _webChatPos(name, x, y, z):",
+            "    home = _WEB_CHAT.get(name)",
+            "    if home is None:",
+            "        return x, y, z",
+            "    if x < -1.0:",
+            "        return home",
+            "    return home[0] + 0.45, y, home[2] - 0.25",
+            "def _webChatScale(name, x, y, z):",
+            "    if name in _WEB_CHAT and abs(x - 1.179) < 0.01:",
+            "        return 2.0, 2.0, 2.0",
+            "    return x, y, z",
+            ""]) + text
+        sub("        return Func(node.setPos, x, y, z)", "        x, y, z = _webChatPos(nodeName, x, y, z)\n        return Func(node.setPos, x, y, z)")
+        sub("        return Sequence(LerpPosInterval(node, t, Point3(x, y, z), blendType='easeInOut'), duration=0.0)",
+            "        x, y, z = _webChatPos(nodeName, x, y, z)\n        return Sequence(LerpPosInterval(node, t, Point3(x, y, z), blendType='easeInOut'), duration=0.0)")
+        sub("        return Func(node.setScale, x, y, z)", "        x, y, z = _webChatScale(nodeName, x, y, z)\n        return Func(node.setScale, x, y, z)")
+        sub("        return Sequence(LerpScaleInterval(node, t, VBase3(x, y, z), blendType='easeInOut'), duration=0.0)",
+            "        x, y, z = _webChatScale(nodeName, x, y, z)\n        return Sequence(LerpScaleInterval(node, t, VBase3(x, y, z), blendType='easeInOut'), duration=0.0)")
+        sub("        return Func(arrows.arrowsOn, x1, y1, h1, x2, y2, h2)",
+            "        if max(x1, x2) < -0.5:\n            return Func(lambda: arrows.arrowsOn(x1 + 4.0 / 3.0, y1 - 1.0, h1, x2 + 4.0 / 3.0, y2 - 1.0, h2, parent=base.a2dTopLeft))\n        return Func(arrows.arrowsOn, x1, y1, h1, x2, y2, h2)")
     elif arc.endswith("toontown/toon/LocalToon.py"):
         # the page hangs screen-edge buttons from the side anchors, so a slide to an absolute spot would throw this one off screen: only scale it
         sub("self.__furnitureGui.posHprScaleInterval(pos=Point3(-1.19, 0.0, 0.33), hpr=Vec3(0.0, 0.0, 0.0), scale=Vec3(0.04, 0.04, 0.04), duration=1.0, blendType='easeInOut', name='lerpFurnitureButton')",
@@ -103,6 +128,17 @@ with zipfile.ZipFile(zp, "w", zipfile.ZIP_STORED) as z:
     add(z, os.path.join(OT, "LICENSE"), "_code/LICENSE-OpenToontown")          # BSD: source redistributions keep the licence notice
     add(z, os.path.join(HERE, "NOTICE.txt"), "_code/NOTICE.txt")
     n += 2
+# a patch that no longer fits the source can leave a file that will not even load, and the game then stops at the loading screen: refuse to ship that
+with zipfile.ZipFile(zp) as _z:
+    _bad = []
+    for _n in _z.namelist():
+        if _n.endswith(".py"):
+            try:
+                compile(_z.read(_n), _n, "exec")
+            except SyntaxError as _e:
+                _bad.append("%s: %s" % (_n, _e))
+if _bad:
+    raise SystemExit("syntax errors in the code pack, not publishing: " + "; ".join(_bad))
 packs.append(["_code", os.path.getsize(zp)])
 print("_code", n, "files", os.path.getsize(zp) // 1024, "KB")
 for d in sorted(os.listdir(RES)):
