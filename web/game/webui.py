@@ -30,7 +30,7 @@ def _auto_reconnect():
         if st is None or st.getName() != "noConnection":
             _rc["since"] = 0.0
             return
-        if getattr(cr, "bootedIndex", None) in (127, 152):       # thrown out on purpose: do not retry by ourselves
+        if getattr(cr, "bootedIndex", None) in (100, 127, 152):       # thrown out on purpose (100: the same account signed in somewhere else): do not retry by ourselves
             return
         if str(platform.window.document.visibilityState) != "visible":
             return
