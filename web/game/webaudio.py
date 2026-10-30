@@ -210,6 +210,9 @@ class WebAudioManager:
     def getSound(self, path, positional=False, mode=0):
         return WebSound(self, path)
 
+    def getNullSound(self):
+        return WebSound(self, "")
+
     def setVolume(self, v):
         self._vol = float(v)
         for s in list(_playing):
@@ -294,3 +297,10 @@ def install(ShowBase):
         self.musicManager.setConcurrentSoundLimit(1)
         self.musicManager.setActive(self.musicActive)
     ShowBase.createBaseAudioManagers = createBaseAudioManagers
+
+    def makeExtraSfxManager(self):
+        """For game code that wants a sound manager of its own (the battle sounds): AudioManager.createAudioManager() is silent here."""
+        mgr = WebAudioManager()
+        mgr.setActive(self.sfxActive)
+        return mgr
+    ShowBase.makeExtraSfxManager = makeExtraSfxManager
