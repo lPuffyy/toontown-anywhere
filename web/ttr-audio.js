@@ -103,7 +103,9 @@
       slot.id = id; v.slot = slot; v.el = slot.el;
       try {
         const el = slot.el; el.src = blobUrl(path); el.loop = !!loop; if (slot.gain) slot.gain.gain.value = vol; else el.volume = Math.max(0, Math.min(1, vol));
-        const go = () => { try { if (offset > 0) el.currentTime = offset; } catch (e) {} el.play().catch((e) => log('music play blocked: ' + e)); };
+        // the music only starts once its header has loaded; if the game stopped (or replaced) it before then, do not start it late,
+        // or it plays on with nobody to stop it (Field Office music running on under the elevator music)
+        const go = () => { if (v.dead || slot.id !== id) return; try { if (offset > 0) el.currentTime = offset; } catch (e) {} el.play().catch((e) => log('music play blocked: ' + e)); };
         if (el.readyState >= 1) go(); else el.addEventListener('loadedmetadata', go, { once: true });
       } catch (e) { log('music failed ' + e); }
       return;
