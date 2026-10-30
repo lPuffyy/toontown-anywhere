@@ -7,6 +7,7 @@
   const LS = (() => { try { return window.localStorage; } catch (e) { return { getItem() { return null; }, setItem() {}, removeItem() {} }; } })();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const T = window.ttr = {
+    aa: (() => { try { return window.localStorage.getItem('ttr_aa') === '0' ? '0' : '1'; } catch (e) { return '1'; } })(),
     pyReady: false, go: false, gameConfig: '', typeBtn: '', dbg: false, safeL: 0, safeR: 0, safeT: 0, safeB: 0, vh: 0, pycode: '', winW: 0, winH: 0, cookie: '', inp: '0,0,0,0,0,0,0,0', camN: 0, txtIn: 0, txtSub: 0, txtVal: '',
     wsUrl: window.TTR_WS || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'),
   };
@@ -103,7 +104,8 @@
     measure(); layouts.forEach((f) => f());
     // Open Toontown test build: draw at the page's own pixel size by default (a phone's full screen resolution is too slow); ?res=1.5 or ?res=2 for sharper
     let cap = 2; try { cap = parseFloat(new URLSearchParams(location.search).get('res') || localStorage.getItem('ttr_res') || '2') || 2; } catch (e) { cap = 2; }
-    const dpr = Math.min(window.devicePixelRatio || 1, Math.max(0.5, Math.min(cap, 2)));
+    cap = Math.max(0.5, Math.min(cap, 2));
+    const dpr = Math.min(window.devicePixelRatio || 1, cap);
     T.winW = Math.round(W * dpr); T.winH = Math.round(H * dpr);
     fitTitle();
     T.safeL = SAFE.l; T.safeR = SAFE.r; T.safeT = SAFE.t; T.safeB = SAFE.b; T.vh = H;      // the game keeps its on-screen items inside these
@@ -696,6 +698,45 @@
     padl.style.display = padr.style.display = tg ? '' : 'none';
   };
   [joy, jump, cam, tasks, act, padl, padr].forEach((n) => { n.style.display = 'none'; });
+
+  // ------------------------------------------------------------------ display settings (sign-in screen and in game)
+  const RES_CHOICES = [['2', 'Sharp'], ['1.5', 'Balanced'], ['1', 'Fast'], ['0.75', 'Fastest']];
+  const lsGet = (k, d) => { try { const v = LS.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
+  const lsSet = (k, v) => { try { LS.setItem(k, v); } catch (e) {} };
+  function applyFps() { fps.style.display = lsGet('ttr_fps', '1') === '0' ? 'none' : ''; }
+  applyFps();
+  const setWrap = el('div', null, root); setWrap.id = 'ttr-set'; setWrap.style.display = 'none';
+  function showSettings() {
+    setWrap.innerHTML = ''; setWrap.style.display = '';
+    const card = el('div', 'card', setWrap);
+    const h = el('h2', null, card); h.textContent = 'Display';
+    const row = (label, hint, choices, current, onPick) => {
+      const r = el('div', 'row', card);
+      const l = el('div', 'lbl', r); l.textContent = label;
+      if (hint) { const sm = el('small', null, l); sm.textContent = hint; }
+      const g = el('div', 'seg', r);
+      choices.forEach(([val, txt]) => {
+        const b = el('button', val === current ? 'sel' : '', g); b.textContent = txt;
+        b.addEventListener('click', () => { [...g.children].forEach((c) => c.classList.remove('sel')); b.classList.add('sel'); onPick(val); });
+      });
+    };
+    row('Picture quality', 'Lower is smoother on slower devices', RES_CHOICES, String(lsGet('ttr_res', '') || '2'), (v) => { lsSet('ttr_res', v); relayout(); });
+    const aaNow = T.aa;
+    const note = el('div', 'note', card); note.style.visibility = 'hidden'; note.textContent = 'Smooth edges changes when the game restarts.';
+    row('Smooth edges', 'Softens jagged lines; off is faster', [['1', 'On'], ['0', 'Off']], aaNow, (v) => { lsSet('ttr_aa', v); note.style.visibility = v === aaNow ? 'hidden' : ''; restart.style.display = v === aaNow ? 'none' : ''; });
+    row('Speed counter', 'The FPS number at the top', [['1', 'Show'], ['0', 'Hide']], lsGet('ttr_fps', '1'), (v) => { lsSet('ttr_fps', v); applyFps(); });
+    const restart = el('button', 'act', card); restart.textContent = 'Restart game now'; restart.style.display = 'none';
+    restart.addEventListener('click', () => location.reload());
+    const done = el('button', 'act done', card); done.textContent = 'Done';
+    done.addEventListener('click', () => { setWrap.style.display = 'none'; setWrap.innerHTML = ''; });
+  }
+  const gearBtn = el('button', 'ttr-gear on', hud); gearBtn.textContent = '⚙';
+  gearBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  gearBtn.addEventListener('click', (e) => { e.preventDefault(); showSettings(); });
+  layouts.push(() => place(gearBtn, W / 2 + 46 * sc, Math.max(SAFE.t, 6), 30 * sc, 28 * sc));
+  const dsp = pill('Display', null, null, login, 'light');
+  dsp.addEventListener('click', showSettings);
+  layouts.push(() => { const ph = 30 * sc; place(dsp, W - 126 * sc - 14 - SAFE.r, Math.max(SAFE.t, 6) + 8 + ph + 8, 126 * sc, ph); dsp.style.visibility = kbMode ? 'hidden' : ''; });
 
   // ------------------------------------------------------------------ typed chat: the game's own text box shows the text live;
   // this invisible input only brings up the keyboard and passes every keystroke to the game

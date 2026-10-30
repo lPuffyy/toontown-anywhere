@@ -122,3 +122,19 @@ html, body { position: fixed; width: 100%; height: 100%; overflow: hidden; }
   html, body { height: 100lvh; }
   #ttr-rotate, #ttr-install { inset: auto; top: 0; left: 0; width: 100%; height: 100lvh; }
 }
+
+/* ---- display settings ---- */
+#ttr-set { position: absolute; inset: 0; z-index: 20; pointer-events: auto; background: rgba(10,25,60,.55); display: flex; align-items: center; justify-content: center; overflow-y: auto;
+  padding: max(12px, var(--sat)) max(12px, var(--sar)) max(12px, var(--sab)) max(12px, var(--sal)); }
+#ttr-set .card { width: min(100%, 520px); margin: auto; background: rgba(255,255,255,.97); border: 4px solid #1f4da6; border-radius: 22px; color: #1a3373; padding: 14px 18px 18px; font-family: system-ui, sans-serif; }
+#ttr-set h2 { margin: 0 0 6px; text-align: center; font: 700 26px var(--mf); }
+#ttr-set .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(31,77,166,.2); flex-wrap: wrap; }
+#ttr-set .lbl { font-weight: 700; font-size: 16px; min-width: 150px; flex: 1; }
+#ttr-set .lbl small { display: block; font-weight: 500; font-size: 12px; opacity: .7; margin-top: 2px; }
+#ttr-set .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+#ttr-set .seg button { font: 700 14px system-ui, sans-serif; padding: 9px 12px; border-radius: 12px; border: 2px solid #1f4da6; background: #fff; color: #1a3380; min-height: 40px; touch-action: manipulation; }
+#ttr-set .seg button.sel { background: #59a6ff; color: #fff; }
+#ttr-set .note { font-size: 12px; color: #a33; padding: 2px 0; }
+#ttr-set .act { display: block; width: 100%; margin-top: 10px; min-height: 44px; border-radius: 14px; border: 3px solid #8c520d; background: #ffd926; color: #733805; font: 700 18px var(--mf); touch-action: manipulation; }
+#ttr-set .act.done { background: #59a6ff; border-color: #1f4da6; color: #fff; }
+.ttr-gear { position: absolute; border-radius: 50%; border: 2px solid rgba(255,255,255,.6); background: rgba(0,0,0,.25); color: #fff; font-size: 18px; line-height: 1; padding: 0; opacity: .75; touch-action: manipulation; }

@@ -166,6 +166,14 @@ try:
                 print("web: extra setting:", _line)
 except BaseException:
     print("web: could not read extra settings", traceback.format_exc())
+# the page's Display settings: smooth edges off asks for a context without multisampling (takes effect when the game starts)
+try:
+    if str(TTR.aa) == "0":
+        for _line in ("framebuffer-multisample 0", "multisamples 0"):
+            loadPrcFileData("", _line)
+        print("web: smooth edges off")
+except BaseException:
+    pass
 from panda3d.core import WindowProperties
 try:
     if int(TTR.winW) > 0:
