@@ -147,6 +147,15 @@ from panda3d.core import loadPrcFileData
 for line in ("load-display pandagles2", "audio-library-name null", "toontown-auto-run 0", "want-dev #f",
              "connect-method native", "sync-video 0", "notify-level warning"):
     loadPrcFileData("", line)
+# The server runs in normal mode, so the game must too: dev mode makes the client ask the server for a cog factory's level spec (which a
+# normal server denies), run leak checks and call Python 2 code. "want-dev #f" alone is too late if the engine has already read the setting.
+try:
+    from direct.showbase import ShowBaseGlobal as _SBG
+    _SBG.__dev__ = False
+    builtins.__dev__ = False
+    print("web: dev mode off")
+except BaseException:
+    print("web: could not turn dev mode off", traceback.format_exc())
 # ?dmul=N : the building code (hosted DNA files) multiplies the depth offsets of windows, flat doors, cornices and door holes by N
 try:
     from urllib.parse import parse_qs as _pq0
