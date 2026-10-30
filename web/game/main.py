@@ -145,7 +145,8 @@ print("web: image types:", [(_r.getType(i).getName(), list(_r.getType(i).getExte
 from panda3d.core import loadPrcFileData
 
 for line in ("load-display pandagles2", "audio-library-name null", "toontown-auto-run 0", "want-dev #f",
-             "connect-method native", "sync-video 0", "notify-level warning"):
+             "connect-method native", "sync-video 0", "notify-level warning",
+             "garbage-collect-states-rate 0.05"):       # the engine's cache clean-up checked everything every frame and grew to 10 ms a frame
     loadPrcFileData("", line)
 # The server runs in normal mode, so the game must too: dev mode makes the client ask the server for a cog factory's level spec (which a
 # normal server denies), run leak checks and call Python 2 code. "want-dev #f" alone is too late if the engine has already read the setting.
@@ -156,6 +157,15 @@ try:
     print("web: dev mode off")
 except BaseException:
     print("web: could not turn dev mode off", traceback.format_exc())
+# Keep each neighbourhood's models in memory after the first visit, so going back is nearly instant (the original game read them again on
+# every visit). Not on iPhone or iPad, where memory is what gets the page killed.
+try:
+    _ua = str(platform.window.navigator.userAgent)
+    _ios = "iPhone" in _ua or "iPad" in _ua or ("Macintosh" in _ua and int(platform.window.navigator.maxTouchPoints or 0) > 1)
+except BaseException:
+    _ios = True
+loadPrcFileData("", "dna-ram-cache-hood-models %s" % ("#f" if _ios else "#t"))
+print("web: keep area models in memory:", not _ios)
 # ?dmul=N : the building code (hosted DNA files) multiplies the depth offsets of windows, flat doors, cornices and door holes by N
 try:
     from urllib.parse import parse_qs as _pq0
@@ -780,7 +790,7 @@ async def main():
         from panda3d.core import loadPrcFile
         loadPrcFile("etc/Configrc.prc")
         for line in ("load-display pandagles2", "audio-library-name null", "toontown-auto-run 0", "want-dev #f", "connect-method native",
-                     "sync-video 0", "notify-level warning", "dna-path resources", "default-model-extension .bam",
+                     "sync-video 0", "notify-level warning", "garbage-collect-states-rate 0.05", "dna-path resources", "default-model-extension .bam",
                      "interpolate-frames 1",       # blend between an animation's frames (the toon animations are authored at 24 fps and look choppy without it)
                      "vertex-buffers 1", "aspect-ratio 0"):      # the game's own config turns vertex buffers OFF, which a browser (WebGL) cannot do
             loadPrcFileData("", line)
