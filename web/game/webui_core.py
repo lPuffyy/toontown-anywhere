@@ -321,6 +321,31 @@ def ui_controls_visible():
     return v
 
 
+_movies = {"set": None}
+
+
+def _cogdo_movie_playing():
+    """True while a Field Office intro / outro movie (the Toon Resistance panel) is playing: the buttons would cover its skip button."""
+    try:
+        if _movies["set"] is None:
+            import weakref
+            from toontown.cogdominium.CogdoUtil import CogdoGameMovie
+            _movies["set"] = weakref.WeakSet()
+            orig = CogdoGameMovie.play
+
+            def play(self, *a, **k):
+                _movies["set"].add(self)
+                return orig(self, *a, **k)
+            CogdoGameMovie.play = play
+        for m in list(_movies["set"]):
+            ival = getattr(m, "_ival", None)
+            if ival is not None and ival.isPlaying():
+                return True
+    except BaseException:
+        pass
+    return False
+
+
 def _controls_visible():
     """1 only while the player can actually move or act: hidden on the start screen, avatar chooser, Make-A-Toon
     and in menus/conversations (so the buttons never cover them)."""
@@ -347,6 +372,8 @@ def _controls_visible():
                 return 0   # the detailed toon info page is open
         except BaseException:
             pass
+        if _cogdo_movie_playing():
+            return 0
         cm = getattr(la, "chatMgr", None)
         if cm is not None:
             cst = cm.fsm.getCurrentState()
