@@ -638,7 +638,8 @@
     const jx = W - jb - Math.max(SAFE.r, 24) - 30 * sc, jy = H - jb - Math.max(SAFE.b, 16) - 130 * sc;
     place(jump, jx, jy, jb, jb);
     place(cam, jx + (jb - cb) / 2, jy - cb - 16 * sc, cb, cb); cam.style.fontSize = cb * 0.26 + 'px';
-    place(act, jx - jb - 20 * sc, jy, jb, jb); act.style.fontSize = jb * 0.26 + 'px';
+    // ACTION sits lower than JUMP, nearer the thumb (players kept missing it when throwing in Field Offices), but clear of the screen's bottom edge
+    place(act, jx - jb - 20 * sc, Math.min(jy + 70 * sc, H - jb - Math.max(SAFE.b, 16) - 8 * sc), jb, jb); act.style.fontSize = jb * 0.26 + 'px';
     place(fps, W / 2 - 40 * sc, Math.max(SAFE.t, 6) + 4 * sc, 80 * sc, 20 * sc); fps.style.fontSize = 13 * sc + 'px';
     const tb = 62 * sc;           // TASKS: left edge, above the stick
     place(tasks, Math.max(SAFE.l, 24) + 20 * sc + (js - tb) / 2, H - js - Math.max(SAFE.b, 16) - 24 * sc - tb - 24 * sc, tb, tb); tasks.style.fontSize = tb * 0.24 + 'px';

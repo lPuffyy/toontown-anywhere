@@ -220,11 +220,21 @@ def ui_action_available():
         return 0
 
 
+def _slingshot_active():
+    """True while the Toon Slingshot minigame runs: there the parachute opens with "down" (down arrow / joystick back), not Control."""
+    import builtins
+    cr = getattr(getattr(builtins, "base", None), "cr", None)
+    for do in list(getattr(cr, "doId2do", {}).values()):
+        if type(do).__name__ == "DistributedTargetGame":
+            return True
+    return False
+
+
 def ui_action(down):
     """ACTION button: press the key the current game is waiting for (Control, Delete, Insert or Alt)."""
     try:
         if down:
-            _action_down[0] = _action_key() or "control"
+            _action_down[0] = "arrow_down" if _slingshot_active() else (_action_key() or "control")
             _send_keys((_action_down[0],), True)
         else:
             _send_keys((_action_down[0] or "control",), False)
