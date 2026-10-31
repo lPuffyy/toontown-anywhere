@@ -688,8 +688,10 @@
   bindHold(padl, () => { st.pl = 1; pushInput(); }, () => { st.pl = 0; pushInput(); });
   bindHold(padr, () => { st.pr = 1; pushInput(); }, () => { st.pr = 0; pushInput(); });
   // Python tells us what to show: controls, the ACTION button, the tug-of-war buttons (same rules as the app)
+  let uiArgs = [0, 0, 0];
   T.setUI = function (vis, action, tug) {
-    vis = !!+vis;
+    uiArgs = [vis, action, tug];
+    vis = !!+vis && !touchHidden();
     if (hudVisible && !vis) { joyReset(); st.a = st.pl = st.pr = 0; pushInput(); }
     hudVisible = vis;
     if (!vis) tasksSet(false);
@@ -726,6 +728,10 @@
     const note = el('div', 'note', card); note.style.visibility = 'hidden'; note.textContent = 'Smooth edges changes when the game restarts.';
     row('Smooth edges', 'Softens jagged lines; off is faster', [['1', 'On'], ['0', 'Off']], aaNow, (v) => { lsSet('ttr_aa', v); note.style.visibility = v === aaNow ? 'hidden' : ''; restart.style.display = v === aaNow ? 'none' : ''; });
     row('Speed counter', 'The FPS number at the top', [['1', 'Show'], ['0', 'Hide']], lsGet('ttr_fps', '1'), (v) => { lsSet('ttr_fps', v); applyFps(); });
+    row('On-screen controls', 'Auto hides them while you play with a keyboard', [['auto', 'Auto'], ['show', 'Show'], ['hide', 'Hide']], lsGet('ttr_touch', 'auto'),
+      (v) => { lsSet('ttr_touch', v); applyTouchUI(); });
+    const keysBtn = el('button', 'act', card); keysBtn.textContent = 'Keyboard keys';
+    keysBtn.addEventListener('click', showKeys);
     const restart = el('button', 'act', card); restart.textContent = 'Restart game now'; restart.style.display = 'none';
     restart.addEventListener('click', () => location.reload());
     const done = el('button', 'act done', card); done.textContent = 'Done';
@@ -801,6 +807,99 @@
     textOn = !!+on; plog('JS| setText ' + on);
     if (textOn) { tin.value = val || ''; try { tin.focus({ preventScroll: true }); } catch (e) {} } else { tin.blur(); }
   };
+
+  // ------------------------------------------------------------------ hardware keyboard (iPad Magic Keyboard, a desktop): the touch controls hide while
+  // one is used, and keys can be remapped. A page cannot ask what keyboard is attached, so a real key press outside typed chat is the sign;
+  // a finger on the screen after a quiet spell brings the controls back. A remapped key is swallowed and the game's own key is sent instead,
+  // so the game's keys keep working too.
+  const GAME_KEYS = [        // [id, label, the game's key]
+    ['fwd', 'Walk forward', 'ArrowUp'], ['back', 'Walk back', 'ArrowDown'], ['left', 'Turn left', 'ArrowLeft'], ['right', 'Turn right', 'ArrowRight'],
+    ['jump', 'Jump', 'ControlLeft'], ['pie', 'Throw pie', 'Delete'], ['tasks', 'Tasks', 'End'], ['gags', 'Gags', 'Home'],
+    ['map', 'Map', 'AltLeft'], ['book', 'Shticker Book', 'F8'], ['friends', 'Friends', 'F7'], ['camera', 'Camera view', 'Tab']];
+  const KEYINFO = { ArrowUp: ['ArrowUp', 38], ArrowDown: ['ArrowDown', 40], ArrowLeft: ['ArrowLeft', 37], ArrowRight: ['ArrowRight', 39],
+    ControlLeft: ['Control', 17], Delete: ['Delete', 46], End: ['End', 35], Home: ['Home', 36], AltLeft: ['Alt', 18], F8: ['F8', 119], F7: ['F7', 118], Tab: ['Tab', 9] };
+  const actTarget = {}; GAME_KEYS.forEach(([id, , code]) => { actTarget[id] = code; });
+  let keyMap = {};           // the player's key (event code) -> action id
+  try { keyMap = JSON.parse(lsGet('ttr_keys', '{}')) || {}; } catch (e) { keyMap = {}; }
+  const saveKeys = () => lsSet('ttr_keys', JSON.stringify(keyMap));
+  let kbUsed = false, lastKeyAt = 0, keyCapture = null;
+  const heldKeys = {};       // the player's key -> the game key sent for it, until it comes up
+  function touchHidden() { const m = lsGet('ttr_touch', 'auto'); return m === 'hide' || (m === 'auto' && kbUsed); }
+  function applyTouchUI() { T.setUI(uiArgs[0], uiArgs[1], uiArgs[2]); }
+  function keyName(code) {
+    const named = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', ControlLeft: 'Ctrl', ControlRight: 'Right Ctrl', AltLeft: 'Alt/Option',
+      AltRight: 'Right Alt', ShiftLeft: 'Shift', ShiftRight: 'Right Shift', MetaLeft: 'Cmd', MetaRight: 'Right Cmd', Space: 'Space', Backspace: 'Backspace' };
+    if (named[code]) return named[code];
+    return String(code).replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'Num ');
+  }
+  function typing() { const a = document.activeElement; return textOn || (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')); }
+  function sendKey(type, code, e) {
+    const [key, kc] = KEYINFO[code];
+    const down = type === 'keydown';
+    const ev = new KeyboardEvent(type, { key, code, keyCode: kc, which: kc, repeat: !!(e && e.repeat), bubbles: true, cancelable: true,
+      ctrlKey: (code === 'ControlLeft' && down) || !!(e && e.ctrlKey), altKey: (code === 'AltLeft' && down) || !!(e && e.altKey), shiftKey: !!(e && e.shiftKey) });
+    try { Object.defineProperty(ev, 'keyCode', { get: () => kc }); Object.defineProperty(ev, 'which', { get: () => kc }); } catch (err) {}
+    ev.ttrMade = true;
+    const cv = document.querySelector('canvas.emscripten') || document;
+    try { cv.dispatchEvent(ev); } catch (err) { plog('JS| key send failed ' + err); }
+  }
+  function onKey(e) {
+    if (e.ttrMade) return;
+    if (keyCapture) { e.preventDefault(); e.stopImmediatePropagation(); if (e.type === 'keydown') keyCapture(e); return; }
+    if (hud.style.display === 'none' || typing()) return;
+    if (e.type === 'keydown' && e.key !== 'Meta') {
+      lastKeyAt = Date.now();
+      if (!kbUsed) { kbUsed = true; plog('JS| keyboard in use (' + e.code + ')'); applyTouchUI(); }
+    }
+    const id = keyMap[e.code];
+    if (!id || !actTarget[id]) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    const a = document.activeElement; if (!a || a === document.body) gameFocus();
+    if (e.type === 'keydown') { heldKeys[e.code] = actTarget[id]; sendKey('keydown', actTarget[id], e); }
+    else { const t = heldKeys[e.code] || actTarget[id]; delete heldKeys[e.code]; sendKey('keyup', t, e); }
+  }
+  addEventListener('keydown', onKey, true); addEventListener('keyup', onKey, true);
+  // switching away with a remapped key held: let it go in the game too
+  addEventListener('blur', () => { Object.keys(heldKeys).forEach((c) => { sendKey('keyup', heldKeys[c]); delete heldKeys[c]; }); });
+  addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch' && kbUsed && Date.now() - lastKeyAt > 20000) { kbUsed = false; plog('JS| touch again: controls back'); applyTouchUI(); }
+  }, true);
+  function showKeys() {
+    keyCapture = null;
+    setWrap.innerHTML = ''; setWrap.style.display = '';
+    const card = el('div', 'card', setWrap);
+    const h = el('h2', null, card); h.textContent = 'Keyboard keys';
+    const tip = el('div', 'tip', card); tip.textContent = 'Tap an action, then press the key you want for it. The game\'s own keys keep working too.';
+    GAME_KEYS.forEach(([id, label, code]) => {
+      const r = el('div', 'row', card);
+      const l = el('div', 'lbl', r); l.textContent = label;
+      const sm = el('small', null, l); sm.textContent = 'Game key: ' + keyName(code);
+      const g = el('div', 'seg', r);
+      const b = el('button', null, g);
+      const mine = Object.keys(keyMap).filter((c) => keyMap[c] === id);
+      b.textContent = mine.length ? mine.map(keyName).join(', ') : keyName(code);
+      if (mine.length) b.classList.add('sel');
+      b.addEventListener('click', () => {
+        [...card.querySelectorAll('.seg button.wait')].forEach((x) => x.classList.remove('wait'));
+        b.classList.add('wait'); b.textContent = 'Press a key... (Esc cancels)';
+        keyCapture = (e) => {
+          keyCapture = null;
+          if (e.code && e.code !== 'Escape') {
+            Object.keys(keyMap).forEach((c) => { if (keyMap[c] === id) delete keyMap[c]; });
+            if (e.code !== code) keyMap[e.code] = id;     // the game's own key needs no remap
+            saveKeys(); plog('JS| key ' + e.code + ' -> ' + id);
+          }
+          showKeys();
+        };
+      });
+    });
+    const reset = el('button', 'act', card); reset.textContent = 'Use the game\'s keys';
+    reset.addEventListener('click', () => { keyMap = {}; saveKeys(); showKeys(); });
+    const wasd = el('button', 'act', card); wasd.textContent = 'Use WASD and Space';
+    wasd.addEventListener('click', () => { keyMap = { KeyW: 'fwd', KeyS: 'back', KeyA: 'left', KeyD: 'right', Space: 'jump' }; saveKeys(); showKeys(); });
+    const back = el('button', 'act done', card); back.textContent = 'Back';
+    back.addEventListener('click', () => { keyCapture = null; showSettings(); });
+  }
 
   // ------------------------------------------------------------------ portrait: ask for landscape (iOS has no way to lock it)
   const rot = el('div', null, root);

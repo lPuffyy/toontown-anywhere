@@ -135,6 +135,8 @@ html, body { position: fixed; width: 100%; height: 100%; overflow: hidden; }
 #ttr-set .seg button { font: 700 14px system-ui, sans-serif; padding: 9px 12px; border-radius: 12px; border: 2px solid #1f4da6; background: #fff; color: #1a3380; min-height: 40px; touch-action: manipulation; }
 #ttr-set .seg button.sel { background: #59a6ff; color: #fff; }
 #ttr-set .note { font-size: 12px; color: #a33; padding: 2px 0; }
+#ttr-set .tip { font-size: 13px; text-align: center; opacity: .8; padding: 0 0 8px; }
+#ttr-set .seg button.wait { background: #ffd926; border-color: #8c520d; color: #733805; }
 #ttr-set .act { display: block; width: 100%; margin-top: 10px; min-height: 44px; border-radius: 14px; border: 3px solid #8c520d; background: #ffd926; color: #733805; font: 700 18px var(--mf); touch-action: manipulation; }
 #ttr-set .act.done { background: #59a6ff; border-color: #1f4da6; color: #fff; }
 .ttr-gear { position: absolute; border-radius: 50%; border: 2px solid rgba(255,255,255,.6); background: rgba(0,0,0,.25); color: #fff; font-size: 18px; line-height: 1; padding: 0; opacity: .75; touch-action: manipulation; }
