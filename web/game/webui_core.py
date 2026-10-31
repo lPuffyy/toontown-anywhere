@@ -147,9 +147,31 @@ def ui_text_state():
         e = _focused_entry()
         if e is None:
             return "0|"
-        return "1|" + e.get().replace(chr(10), " ")
+        return "1|" + _plain_text(e).replace(chr(10), " ")
     except BaseException:
         return "0|"
+
+
+def _plain_text(e):
+    """The entry's text without its formatting: the chat box colours words that are not on the whitelist red by wrapping them in
+    \\x01WLEnter\\x01 ... \\x02, which must never reach the page (it came back as the literal word "WLEnter")."""
+    try:
+        return e.get(plain=True)
+    except TypeError:
+        import re
+        return re.sub("\x01[^\x01]*\x01|\x02", "", e.get())
+
+
+def _refilter(e):
+    """After the page sets the chat text, colour it again and decide again whether it may be sent, as typing in the box would."""
+    try:
+        import builtins
+        cm = getattr(getattr(builtins, "localAvatar", None), "chatMgr", None)
+        wl = getattr(cm, "chatInputWhiteList", None)
+        if wl is not None and getattr(wl, "chatEntry", None) is e:
+            wl.applyFilter(None)
+    except BaseException:
+        print("chat refilter error", traceback.format_exc(), flush=True)
 
 
 def ui_text_set(text):
@@ -157,6 +179,7 @@ def ui_text_set(text):
         e = _focused_entry()
         if e is not None:
             e.set(text)
+            _refilter(e)
     except BaseException:
         print("ui_text_set error", traceback.format_exc(), flush=True)
 
