@@ -832,7 +832,9 @@
     if (named[code]) return named[code];
     return String(code).replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'Num ');
   }
-  function typing() { const a = document.activeElement; return textOn || (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')); }
+  // typing: the game has a text box open, or a page text field (sign-in, settings) has the focus. The hidden chat input (tin) can keep
+  // the focus after a message is sent, so it only counts while the game's text box is open (textOn).
+  function typing() { const a = document.activeElement; return textOn || (a && a !== tin && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')); }
   function sendKey(type, code, e) {
     const [key, kc] = KEYINFO[code];
     const down = type === 'keydown';
@@ -854,11 +856,21 @@
     const id = keyMap[e.code];
     if (!id || !actTarget[id]) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    const a = document.activeElement; if (!a || a === document.body) gameFocus();
+    const a = document.activeElement;
+    if (a === tin) tin.blur();          // (its blur hands the focus back to the game)
+    else if (!a || a === document.body) gameFocus();
     if (e.type === 'keydown') { heldKeys[e.code] = actTarget[id]; sendKey('keydown', actTarget[id], e); }
     else { const t = heldKeys[e.code] || actTarget[id]; delete heldKeys[e.code]; sendKey('keyup', t, e); }
   }
   addEventListener('keydown', onKey, true); addEventListener('keyup', onKey, true);
+  // The game takes typed letters from keypress, which a cancelled keydown should already stop; some browsers send it anyway.
+  // A remapped key must never type its letter (that opens typed chat).
+  addEventListener('keypress', (e) => {
+    if (e.ttrMade || keyCapture || typing()) return;
+    if ((e.code && keyMap[e.code]) || (!e.code && Object.keys(heldKeys).some((c) => c === 'Key' + String(e.key).toUpperCase()))) {
+      e.preventDefault(); e.stopImmediatePropagation();
+    }
+  }, true);
   // switching away with a remapped key held: let it go in the game too
   addEventListener('blur', () => { Object.keys(heldKeys).forEach((c) => { sendKey('keyup', heldKeys[c]); delete heldKeys[c]; }); });
   addEventListener('pointerdown', (e) => {
