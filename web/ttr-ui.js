@@ -680,7 +680,7 @@
   function tasksKey(type) {
     const cv = document.querySelector('canvas.emscripten') || document;
     const k = { key: 'End', code: 'End', keyCode: 35, which: 35, bubbles: true, cancelable: true };
-    try { cv.dispatchEvent(new KeyboardEvent(type, k)); } catch (e) { plog('JS| tasks key failed ' + e); }
+    try { const ev = new KeyboardEvent(type, k); ev.ttrMade = true; cv.dispatchEvent(ev); } catch (e) { plog('JS| tasks key failed ' + e); }
   }
   function tasksSet(on) { if (on === tasksOn) return; tasksOn = on; tasks.classList.toggle('on', on); tasksKey(on ? 'keydown' : 'keyup'); }
   tasks.addEventListener('click', (e) => { e.preventDefault(); gameFocus(); tasksSet(!tasksOn); });
@@ -846,7 +846,7 @@
     try { cv.dispatchEvent(ev); } catch (err) { plog('JS| key send failed ' + err); }
   }
   function onKey(e) {
-    if (e.ttrMade) return;
+    if (e.ttrMade || !e.isTrusted) return;   // only a real keyboard counts (the TASKS button sends its own End key)
     if (keyCapture) { e.preventDefault(); e.stopImmediatePropagation(); if (e.type === 'keydown') keyCapture(e); return; }
     if (hud.style.display === 'none' || typing()) return;
     if (e.type === 'keydown' && e.key !== 'Meta') {
