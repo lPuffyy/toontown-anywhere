@@ -695,7 +695,7 @@
     vis = !!+vis && !touchHidden();
     if (hudVisible && !vis) { joyReset(); st.a = st.pl = st.pr = 0; pushInput(); }
     hudVisible = vis;
-    if (!vis) tasksSet(false);
+    if (!+uiArgs[0] || (!vis && !padUsed)) tasksSet(false);   // (a controller's Y still opens the task list with the controls hidden)
     [joy, jump, cam, tasks].forEach((n) => { n.style.display = vis ? '' : 'none'; });
     act.style.display = (vis && +action) ? '' : 'none';
     const tg = vis && +tug;
@@ -705,13 +705,17 @@
 
   // Game controller (standard layout, e.g. Android handhelds): presses the on-screen controls. Left stick or d-pad is the stick,
   // A is JUMP, B is ACTION, X is CAM, Y is TASKS, L1/R1 are the tug-of-war buttons. Only when the game would show the controls (even if
-  // the player hid them), and not while typing.
-  let padPrev = [], padSeen = false;
+  // the player hid them), and not while typing. Like a keyboard, using one hides the on-screen controls (On-screen controls: Auto).
+  let padPrev = [], padSeen = false, padUsed = false;
   requestAnimationFrame(function padPoll() {
     requestAnimationFrame(padPoll);
     let p = null;
     try { for (const x of (navigator.getGamepads ? navigator.getGamepads() : [])) if (x && x.connected) { p = x; break; } } catch (e) {}
     const on = !!p && !!+uiArgs[0] && !textOn;
+    if (on && (p.buttons.some((b) => b.pressed) || p.axes.slice(0, 2).some((v) => Math.abs(v) > 0.5))) {
+      lastKeyAt = Date.now();
+      if (!padUsed) { padUsed = true; plog('JS| controller in use'); applyTouchUI(); }
+    }
     const btn = (i) => on && !!p.buttons[i] && (p.buttons[i].pressed || p.buttons[i].value > 0.5);
     const ax = (i) => (on && p.axes[i]) || 0;
     if (p && !padSeen) { padSeen = true; plog('JS| controller: ' + p.id + ' (' + (p.mapping || 'no mapping') + ')'); }
@@ -752,7 +756,7 @@
     const note = el('div', 'note', card); note.style.visibility = 'hidden'; note.textContent = 'Smooth edges changes when the game restarts.';
     row('Smooth edges', 'Softens jagged lines; off is faster', [['1', 'On'], ['0', 'Off']], aaNow, (v) => { lsSet('ttr_aa', v); note.style.visibility = v === aaNow ? 'hidden' : ''; restart.style.display = v === aaNow ? 'none' : ''; });
     row('Speed counter', 'The FPS number at the top', [['1', 'Show'], ['0', 'Hide']], lsGet('ttr_fps', '1'), (v) => { lsSet('ttr_fps', v); applyFps(); });
-    row('On-screen controls', 'Auto hides them while you play with a keyboard', [['auto', 'Auto'], ['show', 'Show'], ['hide', 'Hide']], lsGet('ttr_touch', 'auto'),
+    row('On-screen controls', 'Auto hides them while you play with a keyboard or controller', [['auto', 'Auto'], ['show', 'Show'], ['hide', 'Hide']], lsGet('ttr_touch', 'auto'),
       (v) => { lsSet('ttr_touch', v); applyTouchUI(); });
     const keysBtn = el('button', 'act', card); keysBtn.textContent = 'Keyboard keys';
     keysBtn.addEventListener('click', showKeys);
@@ -848,7 +852,7 @@
   const saveKeys = () => lsSet('ttr_keys', JSON.stringify(keyMap));
   let kbUsed = false, lastKeyAt = 0, keyCapture = null;
   const heldKeys = {};       // the player's key -> the game key sent for it, until it comes up
-  function touchHidden() { const m = lsGet('ttr_touch', 'auto'); return m === 'hide' || (m === 'auto' && kbUsed); }
+  function touchHidden() { const m = lsGet('ttr_touch', 'auto'); return m === 'hide' || (m === 'auto' && (kbUsed || padUsed)); }
   function applyTouchUI() { T.setUI(uiArgs[0], uiArgs[1], uiArgs[2]); }
   function keyName(code) {
     const named = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', ControlLeft: 'Ctrl', ControlRight: 'Right Ctrl', AltLeft: 'Alt/Option',
@@ -898,7 +902,7 @@
   // switching away with a remapped key held: let it go in the game too
   addEventListener('blur', () => { Object.keys(heldKeys).forEach((c) => { sendKey('keyup', heldKeys[c]); delete heldKeys[c]; }); });
   addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'touch' && kbUsed && Date.now() - lastKeyAt > 20000) { kbUsed = false; plog('JS| touch again: controls back'); applyTouchUI(); }
+    if (e.pointerType === 'touch' && (kbUsed || padUsed) && Date.now() - lastKeyAt > 20000) { kbUsed = padUsed = false; plog('JS| touch again: controls back'); applyTouchUI(); }
   }, true);
   function showKeys() {
     keyCapture = null;
