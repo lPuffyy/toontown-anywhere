@@ -29,7 +29,13 @@ def _auto_reconnect():
         st = fsm.getCurrentState() if fsm is not None else None
         if st is None or st.getName() != "noConnection":
             _rc["since"] = 0.0
+            _rc["told"] = False
             return
+        if not _rc.get("told"):
+            # once per drop: did the server throw us out (and why), or did the connection just go?
+            _rc["told"] = True
+            print("webnet: closed, game shows lost connection: booted=%s %s" % (getattr(cr, "bootedIndex", None),
+                                                                                  str(getattr(cr, "bootedText", "") or "")[:120]))
         if getattr(cr, "bootedIndex", None) in (100, 127, 152):       # thrown out on purpose (100: the same account signed in somewhere else): do not retry by ourselves
             return
         if str(platform.window.document.visibilityState) != "visible":

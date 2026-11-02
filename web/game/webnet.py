@@ -17,22 +17,36 @@ STATESERVER_OBJECT_SET_FIELD = 2020
 
 _JS = """
 window.webnet = {
-  ws: null, state: 'idle', rx: [], err: '',
+  ws: null, state: 'idle', rx: [], err: '', openedAt: 0, lastRx: 0, shownAt: Date.now(),
+  // why a connection ended, for the server's client log (the page sends lines starting "PY| webnet: closed" even when quiet):
+  // the close code, whether the page was on screen, and for how long nothing had come in
+  log: function (what) {
+    var n = window.webnet, now = Date.now(), d = document;
+    var line = 'PY| webnet: ' + what + ' visible=' + d.visibilityState + ' (for ' + Math.round((now - n.shownAt) / 1000) + 's)' +
+      ' open_for=' + (n.openedAt ? Math.round((now - n.openedAt) / 1000) + 's' : '-') +
+      ' last_rx=' + (n.lastRx ? Math.round((now - n.lastRx) / 1000) + 's ago' : '-') + ' online=' + navigator.onLine;
+    try { if (window.ttr && window.ttr.plog) window.ttr.plog(line); else console.log(line); } catch (x) {}
+  },
   open: function (url) {
     var n = window.webnet;
     try {
       var ws = new WebSocket(url);
       ws.binaryType = 'arraybuffer';
-      n.ws = ws; n.state = 'connecting'; n.rx = []; n.err = '';
-      ws.onopen = function () { if (n.ws === ws) n.state = 'open'; };
+      n.ws = ws; n.state = 'connecting'; n.rx = []; n.err = ''; n.openedAt = 0; n.lastRx = 0;
+      ws.onopen = function () { if (n.ws === ws) { n.state = 'open'; n.openedAt = Date.now(); } };
       ws.onmessage = function (e) {
         if (n.ws !== ws) return;
+        n.lastRx = Date.now();
         var b = new Uint8Array(e.data), s = '';
         for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
         n.rx.push(s);
       };
-      ws.onclose = function () { if (n.ws === ws) n.state = 'closed'; };
-      ws.onerror = function () { if (n.ws === ws) n.err = 'websocket error'; };
+      ws.onclose = function (e) {
+        if (n.ws !== ws) return;
+        n.state = 'closed';
+        n.log('closed code=' + e.code + ' clean=' + e.wasClean + (e.reason ? ' reason=' + e.reason : ''));
+      };
+      ws.onerror = function () { if (n.ws === ws) { n.err = 'websocket error'; n.log('error'); } };
     } catch (x) { n.state = 'closed'; n.err = String(x); }
   },
   send: function (b64) {
@@ -55,6 +69,9 @@ window.webnet = {
     try { if (ws) ws.close(); } catch (x) {}
   }
 };
+"""
+_JS += """
+document.addEventListener('visibilitychange', function () { window.webnet.shownAt = Date.now(); });
 """
 platform.window.eval(_JS)
 _wn = platform.window.webnet
