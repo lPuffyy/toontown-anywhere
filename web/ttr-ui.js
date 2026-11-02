@@ -629,8 +629,9 @@
     requestAnimationFrame(tick);
   })();
   const st = { f: 0, b: 0, l: 0, r: 0, j: 0, a: 0, pl: 0, pr: 0 };
+  const gp = { f: 0, b: 0, l: 0, r: 0, j: 0, a: 0, pl: 0, pr: 0 };     // the same controls from a game controller
   let hudVisible = false;
-  function pushInput() { T.inp = [st.f, st.b, st.l, st.r, st.j, st.a, st.pl, st.pr].join(','); }
+  function pushInput() { T.inp = [st.f | gp.f, st.b | gp.b, st.l | gp.l, st.r | gp.r, st.j | gp.j, st.a | gp.a, st.pl | gp.pl, st.pr | gp.pr].join(','); }
   layouts.push(() => {
     const js = 150 * sc, jb = 92 * sc, cb = 58 * sc, pb = 112 * sc;
     place(joy, Math.max(SAFE.l, 24) + 20 * sc, H - js - Math.max(SAFE.b, 16) - 24 * sc, js, js);
@@ -701,6 +702,29 @@
     padl.style.display = padr.style.display = tg ? '' : 'none';
   };
   [joy, jump, cam, tasks, act, padl, padr].forEach((n) => { n.style.display = 'none'; });
+
+  // Game controller (standard layout, e.g. Android handhelds): presses the on-screen controls. Left stick or d-pad is the stick,
+  // A is JUMP, B is ACTION, X is CAM, Y is TASKS, L1/R1 are the tug-of-war buttons. Only when the game would show the controls (even if
+  // the player hid them), and not while typing.
+  let padPrev = [], padSeen = false;
+  requestAnimationFrame(function padPoll() {
+    requestAnimationFrame(padPoll);
+    let p = null;
+    try { for (const x of (navigator.getGamepads ? navigator.getGamepads() : [])) if (x && x.connected) { p = x; break; } } catch (e) {}
+    const on = !!p && !!+uiArgs[0] && !textOn;
+    const btn = (i) => on && !!p.buttons[i] && (p.buttons[i].pressed || p.buttons[i].value > 0.5);
+    const ax = (i) => (on && p.axes[i]) || 0;
+    if (p && !padSeen) { padSeen = true; plog('JS| controller: ' + p.id + ' (' + (p.mapping || 'no mapping') + ')'); }
+    const n = { f: +(btn(12) || ax(1) < -0.35), b: +(btn(13) || ax(1) > 0.35), l: +(btn(14) || ax(0) < -0.35), r: +(btn(15) || ax(0) > 0.35),
+      j: +btn(0), a: +(btn(1) && !!+uiArgs[1]), pl: +(btn(4) && !!+uiArgs[2]), pr: +(btn(5) && !!+uiArgs[2]) };
+    let ch = false;
+    for (const k in n) if (n[k] !== gp[k]) { gp[k] = n[k]; ch = true; }
+    if (ch) pushInput();
+    const now = [btn(2), btn(3)];
+    if (now[0] && !padPrev[0]) T.camN++;
+    if (now[1] && !padPrev[1]) { gameFocus(); tasksSet(!tasksOn); }
+    padPrev = now;
+  });
 
   // ------------------------------------------------------------------ display settings (sign-in screen and in game)
   const RES_CHOICES = [['2', 'Sharp'], ['1.5', 'Balanced'], ['1', 'Fast'], ['0.75', 'Fastest']];
