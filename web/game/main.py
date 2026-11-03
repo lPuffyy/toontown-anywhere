@@ -97,7 +97,6 @@ for _name in ("pdb", "bdb", "cmd", "profile", "cProfile", "pstats", "tkinter", "
         _m.__path__ = []        # lets "import pkg.sub" work too
         if _name == "dbm":
             _stub_module("dbm.dumb")
-_stub_module("panda3d.ode")
 
 import panda3d.core as _c
 
