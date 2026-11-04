@@ -63,7 +63,7 @@
     let want = false;
     if (m.indexOf('PY|') === 0) {
       const t = m.slice(3).trim();
-      if (/Traceback \(most recent call last\)/.test(t)) { tbLeft = 30; want = true; }
+      if (/Traceback \(most recent call last\)/.test(t)) { tbLeft = 150; want = true; }   // (the frame that failed comes last)
       else if (tbLeft > 0) { want = true; tbLeft--; if (/^[A-Za-z_.]*(Error|Exception)\b/.test(t)) tbLeft = 0; }
       else if (QUIET_WANT.test(t)) want = true;
     } else if (/^JS\| (page error|unhandled|console\.error|session)/.test(m)) want = true;
