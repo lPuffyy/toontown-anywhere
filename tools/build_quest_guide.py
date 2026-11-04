@@ -242,7 +242,7 @@ total_steps, total_chains = len(steps), sum(len([q for q in t['starts'] if q in 
 page = '''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Toontown: Anywhere Quest Guide</title>
-<meta name="theme-color" content="#4fb3f0">
+<meta name="theme-color" content="#2f86e8">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
 <style>
@@ -255,13 +255,12 @@ page = '''<!doctype html>
 --accent:#b28cff;--accent2:#45d6a8;--fight:#ff7a70;--errand:#7fb0ff;--social:#45d6a8;--choose:#ffbe4d;--helper:#c19bff;
 --sky1:#1d2a6b;--sky2:#3a3f9a;--grass:#2f6b3a;--shadow:0 6px 18px rgba(0,0,0,.25);color-scheme:dark}}
 *{box-sizing:border-box}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--text)}
+body{margin:0;background:#2f86e8;color:var(--ink);font:16px/1.55 var(--text)}
+body::before{content:"";position:fixed;inset:0;z-index:-1;background:#2f86e8 @@HEROBG@@ center / cover no-repeat}
+@media (prefers-color-scheme:dark){body::after{content:"";position:fixed;inset:0;z-index:-1;background:rgba(14,10,48,.55)}}
 a{color:var(--accent)}
 .wrap{max-width:960px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-right)) 64px max(16px,env(safe-area-inset-left))}
-.hero{position:relative;overflow:hidden;background:#2f86e8 @@HEROBG@@ center / cover no-repeat;color:#fff;padding:calc(28px + env(safe-area-inset-top)) 0 64px}
-@media (prefers-color-scheme:dark){.hero::before{content:"";position:absolute;inset:0;background:rgba(14,10,48,.5)}}
-.hero .hill{position:absolute;left:-10%;right:-10%;bottom:-70px;height:120px;background:var(--grass);border-radius:50% 50% 0 0}
-.hero .hill2{position:absolute;left:30%;right:-20%;bottom:-86px;height:120px;background:var(--bg);border-radius:50% 50% 0 0}
+.hero{position:relative;color:#fff;padding:calc(28px + env(safe-area-inset-top)) 0 18px}
 .hero .in{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left))}
 .brand{font:600 14px/1 var(--head);letter-spacing:.08em;text-transform:uppercase;text-shadow:0 1px 2px rgba(10,40,110,.55)}
 .hero h1{font:700 clamp(34px,7vw,56px)/1.02 var(--head);margin:10px 0 10px;text-shadow:0 3px 0 rgba(20,50,110,.25);text-wrap:balance}
@@ -272,22 +271,22 @@ a{color:var(--accent)}
 .btn.play:active{transform:translateY(2px);box-shadow:0 2px 0 #c99400}
 .btn.ghost{background:rgba(255,255,255,.22);color:#fff;border:2px solid rgba(255,255,255,.7)}
 .btn svg{width:18px;height:18px}
-.how{background:var(--card);border:2px solid var(--line);border-radius:22px;padding:8px 22px 16px;margin:8px 0 22px;box-shadow:var(--shadow);position:relative;z-index:2;scroll-margin-top:130px}
+.how{background:var(--card);border:2px solid var(--line);border-radius:22px;padding:8px 22px 16px;margin:4px 0 22px;box-shadow:var(--shadow);position:relative;z-index:2;scroll-margin-top:130px}
 .how h3{margin:16px 0 6px;font:600 19px var(--head)}.how p,.how li{margin:5px 0}.how ul{padding-left:20px;margin:4px 0}
-.bar{position:sticky;top:0;z-index:5;background:var(--bg);background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);padding:calc(10px + env(safe-area-inset-top)) 0 10px;border-bottom:2px solid var(--line);margin:0 0 4px}
+.bar{position:sticky;top:0;z-index:5;background:var(--bg);background:color-mix(in srgb,var(--bg) 82%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);padding:calc(10px + env(safe-area-inset-top)) 0 10px;margin:0 calc(-1 * max(16px,env(safe-area-inset-left))) 4px;padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right));border-radius:0 0 20px 20px;box-shadow:0 6px 18px rgba(10,40,110,.15)}
 .bar .top{display:flex;gap:8px}
 .bar input{flex:1;min-width:0;font:inherit;padding:12px 16px;border-radius:999px;border:2px solid var(--line);background:var(--card);color:var(--ink);outline:none}
 .bar input:focus{border-color:var(--accent)}
 .bar .mini{flex:0 0 auto;padding:0 18px;font-size:15px}
 .bar .row{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
 .bar button{font:600 14px var(--text);padding:6px 14px;border-radius:999px;border:2px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
-#count{color:var(--muted);font-size:14px}
+#count{color:var(--ink);font-size:14px;font-weight:600}
 nav.toc{display:flex;gap:10px;overflow-x:auto;padding:14px 2px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
 nav.toc a{flex:0 0 auto;text-decoration:none;color:var(--ink);background:var(--card);border:2px solid var(--line);border-bottom:4px solid var(--area);border-radius:16px;padding:9px 14px;font:600 15px var(--head);display:flex;flex-direction:column}
 nav.toc a small{color:var(--muted);font:600 12px var(--text)}
 nav.toc a .dot{display:none}
 .dot{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--area);margin-right:10px;vertical-align:1px;box-shadow:0 0 0 4px color-mix(in srgb,var(--area) 22%,transparent)}
-h2{margin:38px 0 12px;font:700 28px/1.15 var(--head);scroll-margin-top:130px}h2 .muted{font:600 14px var(--text)}
+h2{margin:38px 0 12px;font:700 28px/1.15 var(--head);scroll-margin-top:130px;color:#fff;text-shadow:0 2px 0 rgba(10,40,110,.35),0 0 16px rgba(10,60,150,.35)}h2 .muted{font:600 14px var(--text);color:#fff;opacity:.92}
 h4{margin:18px 0 6px;font:800 12.5px var(--text);color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
 .muted{color:var(--muted);font-size:.92em}
 details.tier{background:var(--card);border:2px solid var(--line);border-left:6px solid var(--area);border-radius:18px;margin:12px 0;box-shadow:var(--shadow);scroll-margin-top:130px}
@@ -317,8 +316,8 @@ details.say{margin:4px 0 0 2px}details.say>summary{cursor:pointer;color:var(--mu
 details.say p{margin:6px 0;padding:8px 12px;background:var(--bg);border-radius:14px 14px 14px 4px;font-size:14.5px}
 .hidden{display:none!important}
 mark{background:#ffe27a;color:#222;border-radius:3px}
-footer{color:var(--muted);font-size:13.5px;margin-top:44px;border-top:2px solid var(--line);padding-top:18px;display:flex;flex-direction:column;gap:14px;align-items:flex-start}
-@media (max-width:520px){.bar .mini span{display:none}.bar .mini{padding:0 14px}.hero{padding-bottom:56px}}
+footer{color:var(--muted);font-size:13.5px;margin-top:44px;background:var(--card);border:2px solid var(--line);border-radius:22px;padding:18px 22px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;align-items:flex-start}
+@media (max-width:520px){.bar .mini span{display:none}.bar .mini{padding:0 14px}}
 @media print{.bar,nav.toc,.hero .cta{display:none}details>*{display:block!important}}
 @@AREACSS@@
 </style></head><body>
@@ -328,7 +327,7 @@ footer{color:var(--muted);font-size:13.5px;margin-top:44px;border-top:2px solid 
 <p>Every ToonTask in the game, in the order the game gives them: @@CHAINS@@ task chains and @@STEPS@@ steps across 50 tiers, read straight out of the game's own quest data.</p>
 <div class="cta"><a class="btn play" href="@@PLAY@@"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>Play Toontown: Anywhere</a>
 <a class="btn ghost" href="#how">How tasks work</a></div>
-</div><div class="hill"></div><div class="hill2"></div></header>
+</div></header>
 <div class="wrap">
 <div class="how" id="how">
 <h3>How the quest line works</h3>
