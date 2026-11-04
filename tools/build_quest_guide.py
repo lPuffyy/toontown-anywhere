@@ -2,7 +2,9 @@
 
     python tools/build_quest_guide.py quests.json docs/quest-guide.html
 """
+import base64
 import html
+import os
 import json
 import re
 import sys
@@ -213,6 +215,10 @@ def area_for(t):
 
 
 PLAY_URL = 'https://toontown.puffsco.com/play/'
+# the game page's cloud sky (_ui/background.jpg on the web server), built into the page so it also shows offline
+BG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'guide_background.jpg')
+HERO_BG = ('url(data:image/jpeg;base64,%s)' % base64.b64encode(open(BG_FILE, 'rb').read()).decode()) if os.path.exists(BG_FILE) else ''
+
 # each area's colour (light, dark) for its stripe, tier badges and nav card
 AREA_COLOURS = {'toontown-central': ('#f2a20c', '#ffc24d'), 'dock-harbor': ('#1f86c9', '#5fb6ee'), 'garden-grove': ('#3f9b2f', '#7fd06b'),
                 'melody-meadow': ('#c2449a', '#ec82c8'), 'the-brrrgh': ('#3aa6c4', '#8fd8ee'), 'slumber-springs': ('#5b4bc4', '#9c8ff0'),
@@ -252,16 +258,14 @@ page = '''<!doctype html>
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--text)}
 a{color:var(--accent)}
 .wrap{max-width:960px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-right)) 64px max(16px,env(safe-area-inset-left))}
-.hero{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--sky1),var(--sky2));color:#fff;padding:calc(28px + env(safe-area-inset-top)) 0 64px}
-.hero::before,.hero::after{content:"";position:absolute;border-radius:999px;background:rgba(255,255,255,.55)}
-.hero::before{width:220px;height:64px;top:38px;right:8%;box-shadow:-90px 26px 0 -8px rgba(255,255,255,.45),60px 30px 0 -14px rgba(255,255,255,.4)}
-.hero::after{width:160px;height:48px;top:120px;left:-30px;box-shadow:120px -10px 0 -10px rgba(255,255,255,.35)}
+.hero{position:relative;overflow:hidden;background:#2f86e8 @@HEROBG@@ center / cover no-repeat;color:#fff;padding:calc(28px + env(safe-area-inset-top)) 0 64px}
+@media (prefers-color-scheme:dark){.hero::before{content:"";position:absolute;inset:0;background:rgba(14,10,48,.5)}}
 .hero .hill{position:absolute;left:-10%;right:-10%;bottom:-70px;height:120px;background:var(--grass);border-radius:50% 50% 0 0}
 .hero .hill2{position:absolute;left:30%;right:-20%;bottom:-86px;height:120px;background:var(--bg);border-radius:50% 50% 0 0}
 .hero .in{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left))}
-.brand{font:600 14px/1 var(--head);letter-spacing:.08em;text-transform:uppercase;opacity:.9}
+.brand{font:600 14px/1 var(--head);letter-spacing:.08em;text-transform:uppercase;text-shadow:0 1px 2px rgba(10,40,110,.55)}
 .hero h1{font:700 clamp(34px,7vw,56px)/1.02 var(--head);margin:10px 0 10px;text-shadow:0 3px 0 rgba(20,50,110,.25);text-wrap:balance}
-.hero p{margin:0 0 20px;max-width:58ch;font-size:17px;color:rgba(255,255,255,.95)}
+.hero p{margin:0 0 20px;max-width:58ch;font-size:17px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(10,40,110,.55),0 0 14px rgba(10,60,150,.35)}
 .cta{display:flex;gap:10px;flex-wrap:wrap}
 .btn{display:inline-flex;align-items:center;gap:8px;text-decoration:none;font:600 17px/1 var(--head);padding:14px 22px;border-radius:999px}
 .btn.play{background:var(--play);color:var(--playink);box-shadow:0 4px 0 #c99400,0 8px 18px rgba(0,0,0,.18)}
@@ -365,6 +369,6 @@ if(location.hash){var el=document.querySelector(location.hash);if(el){var d=el;w
 document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('li.again a');if(!a)return;var el=document.querySelector(a.getAttribute('href'));if(!el)return;var d=el;while(d){if(d.tagName=='DETAILS')d.open=true;d=d.parentElement;}});
 })();
 </script></body></html>'''
-page = page.replace('@@CHAINS@@', str(total_chains)).replace('@@STEPS@@', str(total_steps)).replace('@@NAV@@', ''.join(nav)).replace('@@BODY@@', ''.join(body)).replace('@@AREACSS@@', ''.join(areaCss)).replace('@@PLAY@@', PLAY_URL)
+page = page.replace('@@CHAINS@@', str(total_chains)).replace('@@STEPS@@', str(total_steps)).replace('@@NAV@@', ''.join(nav)).replace('@@BODY@@', ''.join(body)).replace('@@AREACSS@@', ''.join(areaCss)).replace('@@PLAY@@', PLAY_URL).replace('@@HEROBG@@', HERO_BG)
 open(dst, 'w', encoding='utf8', newline='\n').write(page)
 print('wrote', dst, len(page) // 1024, 'KB;', total_chains, 'chains', total_steps, 'steps')
