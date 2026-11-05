@@ -24,6 +24,13 @@
  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
  "sameAs": ["https://discord.gg/NxdkuR2aCp", "https://www.reddit.com/r/ToontownAnywhere/", "https://github.com/lPuffyy/toontown-anywhere"]}
 </script>
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
+ {"@type": "Question", "name": "Can I play Toontown on my phone?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Toontown: Anywhere runs in your web browser on iPhone, iPad and Android phones and tablets, with touch controls built for small screens. Open toontown.puffsco.com/play, make a toon and play."}},
+ {"@type": "Question", "name": "Do I need to download an app?", "acceptedAnswer": {"@type": "Answer", "text": "No app store download is needed. The game runs in Safari or Chrome, and you can add it to your Home Screen so it opens like an app."}},
+ {"@type": "Question", "name": "Is it free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Toontown: Anywhere is free to play, with no purchases."}},
+ {"@type": "Question", "name": "Can I play with friends on a computer?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Phones, tablets and computers all play on the same server, so you can team up with friends on any device."}}]}
+</script>
 <style>
 /* the game page's own look (web/ttr-ui.css): the Toon Display headline font, the cloud-sky picture, yellow buttons and blue-edged cards */
 @font-face { font-family: "Toon Display"; src: url("/_ui/ToonDisplay.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
@@ -54,6 +61,8 @@ h3.toon { font-size: 1.3rem; color: var(--edge); margin-bottom: 6px }
 p { margin: 0 }
 ol, ul { margin: 0; padding-left: 1.3em }
 li + li { margin-top: 4px }
+.faq { display: grid; gap: 6px }
+.faq p + h3 { margin-top: 10px }
 footer { text-align: center; color: #fff; font-size: .85rem; text-shadow: 0 1px 3px rgba(20,51,115,.8) }
 footer a { color: #fff }
 </style>
@@ -106,6 +115,21 @@ footer a { color: #fff }
       <li>Pick a name and a password, then tap <b>Play</b>. Use the same ones next time.</li>
       <li>Stuck on a task? The <a href="/guide/">quest guide</a> lists every Toontask and where to go.</li>
     </ul>
+  </section>
+
+  <section class="card" id="faq">
+    <h2 class="toon">Questions</h2>
+    <div class="faq">
+      <h3 class="toon">Can I play Toontown on my phone?</h3>
+      <p>Yes. Toontown: Anywhere runs in your web browser on iPhone, iPad and Android phones and tablets, with touch controls built for small screens.
+        Open <a href="/play/">toontown.puffsco.com/play</a>, make a toon and play.</p>
+      <h3 class="toon">Do I need to download an app?</h3>
+      <p>No app store download is needed. The game runs in Safari or Chrome, and you can add it to your Home Screen so it opens like an app.</p>
+      <h3 class="toon">Is it free?</h3>
+      <p>Yes. Toontown: Anywhere is free to play, with no purchases.</p>
+      <h3 class="toon">Can I play with friends on a computer?</h3>
+      <p>Yes. Phones, tablets and computers all play on the same server, so you can team up with friends on any device.</p>
+    </div>
   </section>
 
   <section class="card">
