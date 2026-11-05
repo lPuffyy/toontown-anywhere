@@ -373,6 +373,53 @@ def apply_uber(root):
 
 print("web: uber shaders =", _UBER)
 
+# Panda's built-in shader for phones and browsers (everything without a shader of its own) works out vertex positions at "mediump"
+# precision. Most phone GPUs quietly use full precision anyway, but Mali GPUs really use half precision there, so walls and ground
+# wobble apart and the sky shows through the gaps. Draw the 3D world with the same shader at full precision. ?hp=0 turns it off.
+_HP_VERT = """#version 100
+precision highp float;
+attribute vec4 p3d_Vertex;
+attribute vec4 p3d_Color;
+attribute vec4 p3d_MultiTexCoord0;
+varying lowp vec4 color;
+varying highp vec3 texcoord;
+uniform mat4 p3d_ModelViewProjectionMatrix;
+uniform mat4 p3d_TextureMatrix;
+uniform vec4 p3d_ColorScale;
+void main(void) {
+  gl_Position = p3d_ModelViewProjectionMatrix * p3d_Vertex;
+  texcoord = (p3d_TextureMatrix * p3d_MultiTexCoord0).xyw;
+  color = p3d_Color * p3d_ColorScale;
+}
+"""
+_HP_FRAG = """#version 100
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+varying lowp vec4 color;
+varying highp vec3 texcoord;
+uniform lowp sampler2D p3d_Texture0;
+uniform lowp vec4 p3d_TexAlphaOnly;
+void main(void) {
+  gl_FragColor = texture2DProj(p3d_Texture0, texcoord);
+  gl_FragColor += p3d_TexAlphaOnly;
+  gl_FragColor *= color;
+}
+"""
+
+
+def _full_precision_shader(b):
+    if "hp=0" in _q:
+        print("web: full precision shader off")
+        return
+    try:
+        b.render.setShader(_Sh.make(_Sh.SL_GLSL, _HP_VERT, _HP_FRAG))     # models with a shader of their own (the cut-outs) keep theirs
+        print("web: full precision shader on")
+    except BaseException:
+        print("web: full precision shader failed", traceback.format_exc())
+
 # Decals (windows and doors drawn on walls) are made to win over the wall only by a depth offset of 1 per level. On the phone's graphics
 # layer that is too little, which is what makes them flicker. ?decal=N adds N more per level.
 from panda3d.core import DecalEffect as _DE
@@ -820,6 +867,7 @@ async def main():
         print("web: running toontown.toonbase.ToontownStart as", user)
         runpy.run_module("toontown.toonbase.ToontownStart", run_name="__main__")
         print("web: ToontownStart returned; base =", getattr(builtins, "base", None))
+        _full_precision_shader(builtins.base)
     except BaseException:
         print("web: STARTUP FAILED")
         print(traceback.format_exc())
