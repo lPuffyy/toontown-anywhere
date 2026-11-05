@@ -375,7 +375,8 @@ print("web: uber shaders =", _UBER)
 
 # Panda's built-in shader for phones and browsers (everything without a shader of its own) works out vertex positions at "mediump"
 # precision. Most phone GPUs quietly use full precision anyway, but Mali GPUs really use half precision there, so walls and ground
-# wobble apart and the sky shows through the gaps. Draw the 3D world with the same shader at full precision. ?hp=0 turns it off.
+# wobble apart and the sky shows through the gaps. Draw the 3D world with the same shader at full precision. Being tried first by a
+# player with a Mali phone, so for now only ?hp=1 turns it on.
 _HP_VERT = """#version 100
 precision highp float;
 attribute vec4 p3d_Vertex;
@@ -411,7 +412,7 @@ void main(void) {
 
 
 def _full_precision_shader(b):
-    if "hp=0" in _q:
+    if "hp=1" not in _q:
         print("web: full precision shader off")
         return
     try:
