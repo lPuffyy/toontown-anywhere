@@ -383,6 +383,9 @@
   const pField = field('Password', true, login, 'password', 'current-password');
   const playBtn = el('button', 'ttr-btn on', login); playBtn.textContent = 'PLAY!';
   const forgot = el('button', 'ttr-link on', login); forgot.textContent = 'Forgot password?';
+  // (the new-player hint stays up on its own line; sign-in errors and progress go on the line below it instead of replacing it)
+  const hint = el('div', null, login, { position: 'absolute', left: '40px', right: '40px', textAlign: 'center', fontWeight: '700', color: '#1a408c' });
+  hint.textContent = 'New here? Pick a name and password and tap PLAY!';
   const lmsg = el('div', null, login); lmsg.id = 'ttr-msg';
   const credit = el('div', null, login); credit.id = 'ttr-credit';
   credit.textContent = 'Official client for Toontown: Anywhere';
@@ -400,7 +403,7 @@
     let y0 = kb ? top + 10 * sc : H * (haveArt ? 0.47 : 0.36);
     // (short screens, e.g. a phone browser with its toolbars: lift the fields, button and message so they end above the credit line,
     // shrink the logo to the room left over, and give up the credit line only when even that does not fit)
-    const creditTop = H - 22 * sc - Math.max(SAFE.b, 4), stack = 186 * sc, minTop = Math.max(SAFE.t, 6) + 8;
+    const creditTop = H - 22 * sc - Math.max(SAFE.b, 4), stack = 210 * sc, minTop = Math.max(SAFE.t, 6) + 8;
     let showCredit = true;
     if (!kb) {
       let bottom = creditTop - 4;
@@ -416,7 +419,8 @@
     const bw = 220 * sc, bh = 48 * sc;
     place(playBtn, (W - bw) / 2, y0 + 106 * sc, bw, bh);
     place(forgot, (W + bw) / 2 + 10 * sc, y0 + 106 * sc, 150 * sc, bh);
-    lmsg.style.top = y0 + 160 * sc + 'px'; lmsg.style.fontSize = 17 * sc + 'px';
+    hint.style.top = y0 + 160 * sc + 'px'; hint.style.fontSize = 17 * sc + 'px';
+    lmsg.style.top = y0 + 184 * sc + 'px'; lmsg.style.fontSize = 17 * sc + 'px';
     credit.style.top = creditTop + 'px';
     const pw = 126 * sc, ph = 30 * sc;
     place(chg, W - pw - 14 - SAFE.r, Math.max(SAFE.t, 6) + 8, pw, ph);
@@ -437,7 +441,7 @@
     showLoad(false); login.style.display = ''; cardClose();
     uField.value = LS.getItem(prefs.userKey) || '';
     pField.value = LS.getItem(prefs.userKey + '.pw') || '';
-    loginMessage('New here? Pick a name and password and tap PLAY!', false);
+    loginMessage('', false);
     relayout();
   }
   async function authCall(path, text) {
@@ -468,7 +472,7 @@
       if (document.activeElement !== uField && document.activeElement !== pField) { kbMode = false; loginLayout(); window.scrollTo(0, 0); }
     }, 80));
   });
-  login.addEventListener('pointerdown', (e) => { if (e.target === login || e.target === credit || e.target === lmsg) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } });
+  login.addEventListener('pointerdown', (e) => { if (e.target === login || e.target === credit || e.target === lmsg || e.target === hint) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } });
   playBtn.addEventListener('click', signIn);
   // Enter / Go / Send on a phone keyboard does not always arrive as a plain "Enter" key press (Android keyboards that are suggesting words
   // report key "Unidentified" and send the line break as an input event instead), so listen for both ways.
