@@ -7,7 +7,16 @@
   const bufs = new Map(), pend = new Map(), voices = new Map(), urls = new Map();
   let bufBytes = 0; const CAP = 90 * 1024 * 1024;
   const pool = [];
-  const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+  function silentWav(samples) {
+    const v = new DataView(new ArrayBuffer(44 + samples));
+    const tag = (at, s) => { for (let i = 0; i < 4; i++) v.setUint8(at + i, s.charCodeAt(i)); };
+    tag(0, 'RIFF'); v.setUint32(4, 36 + samples, true); tag(8, 'WAVE'); tag(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true);
+    v.setUint16(32, 1, true); v.setUint16(34, 8, true); tag(36, 'data'); v.setUint32(40, samples, true);
+    for (let i = 0; i < samples; i++) v.setUint8(44 + i, 128);
+    return URL.createObjectURL(new Blob([v], { type: 'audio/wav' }));
+  }
+  const SILENT = silentWav(8000);
 
   function context() {
     if (!ctx) {
