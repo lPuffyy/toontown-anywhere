@@ -168,7 +168,7 @@
     bg.querySelectorAll('.dot').forEach((d) => { const s = +d.dataset.d; Object.assign(d.style, { width: s + 'px', height: s + 'px', left: d.dataset.fx * W + 'px', top: d.dataset.fy * H + 'px' }); });
     if (haveArt && logo.naturalWidth) {
       const lh = Math.min(H * 0.40, 200 * sc), lw = lh * logo.naturalWidth / logo.naturalHeight;
-      Object.assign(logo.style, { height: lh + 'px', width: lw + 'px', top: Math.max(H * 0.04, 10) + 'px' });
+      Object.assign(logo.style, { height: lh + 'px', width: lw + 'px', top: Math.max(H * 0.04, 10) + 'px', visibility: '' });
     }
   });
   async function loadArt() {
@@ -396,19 +396,35 @@
     const vv = window.visualViewport;
     const kb = kbMode && vv;
     const top = kb ? vv.offsetTop : 0;                  // the visible area above the keyboard starts here
-    const w = Math.min(W * 0.5, 380 * sc), y0 = kb ? top + 10 * sc : H * (haveArt ? 0.47 : 0.36);
+    const w = Math.min(W * 0.5, 380 * sc);
+    let y0 = kb ? top + 10 * sc : H * (haveArt ? 0.47 : 0.36);
+    // (short screens, e.g. a phone browser with its toolbars: lift the fields, button and message so they end above the credit line,
+    // shrink the logo to the room left over, and give up the credit line only when even that does not fit)
+    const creditTop = H - 22 * sc - Math.max(SAFE.b, 4), stack = 186 * sc, minTop = Math.max(SAFE.t, 6) + 8;
+    let showCredit = true;
+    if (!kb) {
+      let bottom = creditTop - 4;
+      if (bottom - stack < minTop + 40 * sc) { bottom = H - Math.max(SAFE.b, 4); showCredit = false; }
+      y0 = Math.max(minTop, Math.min(y0, bottom - stack));
+      if (haveArt && logo.naturalWidth && login.style.display !== 'none') {
+        const lt = Math.max(H * 0.04, 10), lh = Math.min(H * 0.40, 200 * sc, y0 - 6 - lt);
+        if (lh < 36) logo.style.visibility = 'hidden';
+        else Object.assign(logo.style, { visibility: '', height: lh + 'px', width: lh * logo.naturalWidth / logo.naturalHeight + 'px' });
+      }
+    }
     [uField, pField].forEach((f, i) => { Object.assign(f.style, { width: w + 'px', top: y0 + i * 52 * sc + 'px', left: W / 2 + 'px' }); });
     const bw = 220 * sc, bh = 48 * sc;
     place(playBtn, (W - bw) / 2, y0 + 106 * sc, bw, bh);
     place(forgot, (W + bw) / 2 + 10 * sc, y0 + 106 * sc, 150 * sc, bh);
     lmsg.style.top = y0 + 160 * sc + 'px'; lmsg.style.fontSize = 17 * sc + 'px';
-    credit.style.top = H - 22 * sc - Math.max(SAFE.b, 4) + 'px';
+    credit.style.top = creditTop + 'px';
     const pw = 126 * sc, ph = 30 * sc;
     place(chg, W - pw - 14 - SAFE.r, Math.max(SAFE.t, 6) + 8, pw, ph);
     const lby = H - Math.max(SAFE.b, 4) - 22 * sc - 8 - 30 * sc, lbx = 14 + SAFE.l;
     place(dis, lbx, lby - 38 * sc, 112 * sc, ph);
     place(red, lbx, lby, 112 * sc, ph);
     [credit, chg, dis, red].forEach((n) => { n.style.visibility = kb ? 'hidden' : ''; });
+    if (!showCredit) credit.style.visibility = 'hidden';
     logo.style.opacity = kb ? '0' : '';
   }
   layouts.push(loginLayout);
