@@ -36,7 +36,16 @@ json.dump({"name": "Toontown: Anywhere", "short_name": "TT: Anywhere", "start_ur
            "icons": [{"src": "icon-192.png", "sizes": "192x192", "type": "image/png"}, {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"}]},
           open(os.path.join(web, "manifest.webmanifest"), "w"))
 s = open(index, encoding="utf-8").read()
-s = re.sub(r"<title>[^<]*</title>", "<title>TT: Anywhere</title>", s, count=1)
+# (the Home Screen name comes from apple-mobile-web-app-title and the manifest, so the tab title can say what this is for searches)
+s = re.sub(r"<title>[^<]*</title>", "<title>Play Toontown: Anywhere | Toontown in your browser</title>", s, count=1)
+if 'name="description"' not in s:
+    tags = "".join(t + chr(10) for t in (
+        '<meta name="description" content="Play Toontown: Anywhere, a free fan-made Toontown, in your browser on iPhone, iPad, Android and PC.">',
+        '<link rel="canonical" href="https://toontown.puffsco.com/play/">',
+        '<meta property="og:title" content="Toontown: Anywhere: play Toontown on your phone">',
+        '<meta property="og:description" content="Free, fan-made Toontown in your browser on iPhone, iPad, Android and PC.">',
+        '<meta property="og:image" content="https://toontown.puffsco.com/play/icon-512.png">'))
+    s = s.replace("</head>", tags + "</head>", 1)
 if "apple-touch-icon" not in s:
     tags = "".join(t + chr(10) for t in (
         '<link rel="manifest" href="manifest.webmanifest">',
