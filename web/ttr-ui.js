@@ -403,7 +403,7 @@
     let y0 = kb ? top + 10 * sc : H * (haveArt ? 0.47 : 0.36);
     // (short screens, e.g. a phone browser with its toolbars: lift the fields, button and message so they end above the credit line,
     // shrink the logo to the room left over, and give up the credit line only when even that does not fit)
-    const creditTop = H - 22 * sc - Math.max(SAFE.b, 4), stack = 210 * sc, minTop = Math.max(SAFE.t, 6) + 8;
+    const creditTop = H - 22 * sc - Math.max(SAFE.b, 4), stack = 230 * sc, minTop = Math.max(SAFE.t, 6) + 8;
     let showCredit = true;
     if (!kb) {
       let bottom = creditTop - 4;
