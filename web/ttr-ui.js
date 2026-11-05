@@ -10,6 +10,17 @@
     aa: (() => { try { return window.localStorage.getItem('ttr_aa') === '0' ? '0' : '1'; } catch (e) { return '1'; } })(),
     pyReady: false, go: false, gameConfig: '', typeBtn: '', dbg: false, safeL: 0, safeR: 0, safeT: 0, safeB: 0, vh: 0, pycode: '', winW: 0, winH: 0, cookie: '', inp: '0,0,0,0,0,0,0,0', camN: 0, txtIn: 0, txtSub: 0, txtVal: '',
     wsUrl: window.TTR_WS || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'),
+    // the graphics chip's name (e.g. "Mali-G925"): the game works around some chips' driver bugs, and the log shows it
+    gpu: (() => {
+      try {
+        const c = document.createElement('canvas'), gl = c.getContext('webgl');
+        if (!gl) return '';
+        const ext = gl.getExtension('WEBGL_debug_renderer_info');
+        const name = String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || '');
+        const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext();
+        return name;
+      } catch (e) { return ''; }
+    })(),
   };
 
   // ------------------------------------------------------------------ preferences
@@ -83,7 +94,7 @@
     addEventListener('error', (e) => plog('JS| page error: ' + e.message + ' @ ' + (e.filename || '') + ':' + (e.lineno || '')));
     addEventListener('unhandledrejection', (e) => plog('JS| unhandled rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)));
     (LOGGING ? ['error', 'warn'] : ['error']).forEach((lv) => { const o = console[lv]; console[lv] = function () { o.apply(console, arguments); try { plog('JS| console.' + lv + ': ' + Array.prototype.slice.call(arguments).map(String).join(' ').slice(0, 600)); } catch (e) {} }; });
-    plog((LOGGING ? 'JS| log session started: ' : 'JS| session: ') + navigator.userAgent + ' ' + innerWidth + 'x' + innerHeight);
+    plog((LOGGING ? 'JS| log session started: ' : 'JS| session: ') + navigator.userAgent + ' ' + innerWidth + 'x' + innerHeight + ' gpu ' + (T.gpu || '?'));
   }
   const _cl = console.log; console.log = function () { _cl.apply(console, arguments); try { const m = String(arguments[0]); if (m.indexOf('PY|') === 0) plog(m); } catch (e) {} };
   let installUp = false;

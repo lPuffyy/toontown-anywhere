@@ -420,6 +420,52 @@ def _full_precision_shader(b):
     except BaseException:
         print("web: full precision shader failed", traceback.format_exc())
 
+# Some phone graphics drivers (seen on a Mali GPU, in both Chrome and Firefox) do not clear the depth buffer between frames. Every
+# surface then ties with its own depth from the frame before and loses about half its pixels, so the sky, which is drawn first,
+# shows through walls in flickering patches (even indoors). Reset the depth buffer ourselves: before anything else each frame,
+# draw one invisible card over the whole screen that writes "farthest away" everywhere. On by default for Mali GPUs;
+# ?zfix=1 turns it on for any device, ?zfix=0 turns it off.
+_ZF_VERT = """#version 100
+attribute vec4 p3d_Vertex;
+void main() {
+  gl_Position = vec4(p3d_Vertex.x, p3d_Vertex.z, 0.999999, 1.0);   // just inside the far plane, so it is never clipped
+}
+"""
+_ZF_FRAG = """#version 100
+precision mediump float;
+void main() {
+  gl_FragColor = vec4(0.0);
+}
+"""
+
+
+def _depth_reset(b):
+    try:
+        gpu = str(getattr(TTR, "gpu", "") or "")
+    except BaseException:
+        gpu = ""
+    on = "zfix=1" in _q or ("mali" in gpu.lower() and "zfix=0" not in _q)
+    print("web: gpu =", gpu or "?", "| depth reset", "on" if on else "off")
+    if not on:
+        return
+    try:
+        from panda3d.core import CardMaker, ColorWriteAttrib, DepthTestAttrib, OmniBoundingVolume
+        cm = CardMaker("ttr-depth-reset")
+        cm.setFrame(-1, 1, -1, 1)
+        card = b.render.attachNewNode(cm.generate())
+        card.setShader(_Sh.make(_Sh.SL_GLSL, _ZF_VERT, _ZF_FRAG), 10000)
+        card.setAttrib(ColorWriteAttrib.make(ColorWriteAttrib.COff), 10000)
+        card.setAttrib(DepthTestAttrib.make(DepthTestAttrib.MAlways), 10000)
+        card.setDepthWrite(True, 10000)
+        card.setTwoSided(True, 10000)
+        card.setBin("background", -1000, 10000)          # before the sky (background 100) and everything else
+        card.setLightOff(10000)
+        card.setFogOff(10000)
+        card.node().setBounds(OmniBoundingVolume())       # never culled: the shader puts it over the whole screen
+        card.node().setFinal(True)
+    except BaseException:
+        print("web: depth reset failed", traceback.format_exc())
+
 # Decals (windows and doors drawn on walls) are made to win over the wall only by a depth offset of 1 per level. On the phone's graphics
 # layer that is too little, which is what makes them flicker. ?decal=N adds N more per level.
 from panda3d.core import DecalEffect as _DE
@@ -868,6 +914,7 @@ async def main():
         runpy.run_module("toontown.toonbase.ToontownStart", run_name="__main__")
         print("web: ToontownStart returned; base =", getattr(builtins, "base", None))
         _full_precision_shader(builtins.base)
+        _depth_reset(builtins.base)
     except BaseException:
         print("web: STARTUP FAILED")
         print(traceback.format_exc())
