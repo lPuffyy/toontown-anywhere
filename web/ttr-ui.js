@@ -427,6 +427,9 @@
     const lby = H - Math.max(SAFE.b, 4) - 22 * sc - 8 - 30 * sc, lbx = 14 + SAFE.l;
     place(dis, lbx, lby - 38 * sc, 112 * sc, ph);
     place(red, lbx, lby, 112 * sc, ph);
+    // (keep the hint and message clear of the Discord/Reddit buttons: a long message wraps instead of running under them)
+    const clear = lbx + 112 * sc + 12, side = (W - 2 * clear >= 300 ? Math.max(40, clear) : 40) + 'px';
+    [hint, lmsg].forEach((n) => { n.style.left = side; n.style.right = side; });
     [credit, chg, dis, red].forEach((n) => { n.style.visibility = kb ? 'hidden' : ''; });
     if (!showCredit) credit.style.visibility = 'hidden';
     logo.style.opacity = kb ? '0' : '';
