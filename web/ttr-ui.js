@@ -113,7 +113,7 @@
   function fitTitle() {
     if (typeof title === 'undefined') return;
     let fs = Math.min(56 * sc, W / 17);
-    title.style.fontSize = fs + 'px';
+    title.style.fontSize = fs + 'px'; title.style.top = ''; title.style.visibility = '';
     // measure the text itself (the box is always as wide as the screen, so its scrollWidth never says the text is too wide)
     const textW = () => { const r = document.createRange(); r.selectNodeContents(title.firstChild); return r.getBoundingClientRect().width; };
     for (let i = 0; i < 12 && textW() > W * 0.92; i++) { fs *= 0.9; title.style.fontSize = fs + 'px'; }
@@ -414,6 +414,14 @@
         if (lh < 36) logo.style.visibility = 'hidden';
         else Object.assign(logo.style, { visibility: '', height: lh + 'px', width: lh * logo.naturalWidth / logo.naturalHeight + 'px' });
       }
+      if (title.style.display !== 'none' && login.style.display !== 'none') {
+        // the text title (shown until the logo picture loads) sits above the fields too: up and smaller on a short screen
+        const tt = Math.max(minTop, H * 0.04), room = y0 - 8 - tt;
+        let fs = parseFloat(title.style.fontSize) || 56 * sc;
+        if (fs * 1.2 > room) fs = room / 1.2;
+        if (fs < 14) title.style.visibility = 'hidden';
+        else Object.assign(title.style, { visibility: '', fontSize: fs + 'px', top: Math.min(H * 0.16, y0 - 8 - fs * 1.2) + 'px' });
+      }
     }
     [uField, pField].forEach((f, i) => { Object.assign(f.style, { width: w + 'px', top: y0 + i * 52 * sc + 'px', left: W / 2 + 'px' }); });
     const bw = 220 * sc, bh = 48 * sc;
@@ -433,6 +441,7 @@
     [credit, chg, dis, red].forEach((n) => { n.style.visibility = kb ? 'hidden' : ''; });
     if (!showCredit) credit.style.visibility = 'hidden';
     logo.style.opacity = kb ? '0' : '';
+    title.style.opacity = kb ? '0' : '';
   }
   layouts.push(loginLayout);
   if (window.visualViewport) {

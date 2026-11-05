@@ -222,17 +222,20 @@ def _action_key():
     m = getattr(builtins, "messenger", None)
     if m is None:
         return None
-    for name in _ACTION_NAMES:
-        who = m.whoAccepts(name)
-        if not who:
-            continue
-        for entry in list(who.values()):
-            owner = getattr(entry[0], "__self__", None)
-            if owner is None:
+    # the game's own key first: the arrow-key walker also takes Control (jump), which in the card matching game would
+    # win over the Delete/Insert that flips a card; the walker's Control is only the answer when nothing else listens
+    for owners in ([o for o in _ACTION_OWNERS if o != "ArrowKeys"], ("ArrowKeys",)):
+        for name in _ACTION_NAMES:
+            who = m.whoAccepts(name)
+            if not who:
                 continue
-            # only the specific cranes, tables and minigames that really use an action key
-            if any(c.__name__ in _ACTION_OWNERS for c in type(owner).__mro__):
-                return name
+            for entry in list(who.values()):
+                owner = getattr(entry[0], "__self__", None)
+                if owner is None:
+                    continue
+                # only the specific cranes, tables and minigames that really use an action key
+                if any(c.__name__ in owners for c in type(owner).__mro__):
+                    return name
     return None
 
 
