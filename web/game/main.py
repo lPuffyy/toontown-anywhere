@@ -173,6 +173,7 @@ try:
     print("web: depth offset multiplier =", os.environ["TTA_DEPTH_MUL"])
 except BaseException:
     os.environ["TTA_DEPTH_MUL"] = "6"
+os.environ["TTR_DEPTH_MUL"] = os.environ["TTA_DEPTH_MUL"]      # the code pack's town loader still reads the earlier name
 # test switches: the page address can carry extra engine settings, e.g. ?prc=texture-minfilter%20linear;another-setting%20value
 try:
     from urllib.parse import parse_qs as _pq

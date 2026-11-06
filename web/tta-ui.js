@@ -16,7 +16,7 @@
     }
   } catch (e) {}
   // storage names that hold the downloaded game files keep their earlier names, so those 390 MB are not fetched again
-  const T = window.tta = {
+  const T = window.ttr = window.tta = {   // (the game code in the server pack still looks for window.ttr)
     aa: (() => { try { return window.localStorage.getItem('tta_aa') === '0' ? '0' : '1'; } catch (e) { return '1'; } })(),
     pyReady: false, go: false, gameConfig: '', typeBtn: '', dbg: false, safeL: 0, safeR: 0, safeT: 0, safeB: 0, vh: 0, pycode: '', winW: 0, winH: 0, cookie: '', inp: '0,0,0,0,0,0,0,0', camN: 0, txtIn: 0, txtSub: 0, txtVal: '',
     wsUrl: window.TTA_WS || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'),
