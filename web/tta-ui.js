@@ -2,14 +2,24 @@
    touch controls. The layout numbers are copied from the iOS app (main.m). The game itself runs in Python (main.py). */
 (function () {
   'use strict';
-  const ICONS = window.TTR_ICONS || {};
+  const ICONS = window.TTA_ICONS || {};
   const DEFAULT = { name: 'Toontown: Anywhere', host: 'toontown.puffsco.com' };
   const LS = (() => { try { return window.localStorage; } catch (e) { return { getItem() { return null; }, setItem() {}, removeItem() {} }; } })();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const T = window.ttr = {
-    aa: (() => { try { return window.localStorage.getItem('ttr_aa') === '0' ? '0' : '1'; } catch (e) { return '1'; } })(),
+  // settings and saved sign-ins were kept under another prefix before: copy them to the current names once, so nobody starts over
+  // (the old copies stay where they are, so an older page still finds them)
+  try {
+    const OLD = 'ttr_', NEW = 'tta_';
+    for (let i = LS.length - 1; i >= 0; i--) {
+      const k = LS.key(i);
+      if (k && k.indexOf(OLD) === 0 && LS.getItem(NEW + k.slice(OLD.length)) === null) LS.setItem(NEW + k.slice(OLD.length), LS.getItem(k));
+    }
+  } catch (e) {}
+  // storage names that hold the downloaded game files keep their earlier names, so those 390 MB are not fetched again
+  const T = window.tta = {
+    aa: (() => { try { return window.localStorage.getItem('tta_aa') === '0' ? '0' : '1'; } catch (e) { return '1'; } })(),
     pyReady: false, go: false, gameConfig: '', typeBtn: '', dbg: false, safeL: 0, safeR: 0, safeT: 0, safeB: 0, vh: 0, pycode: '', winW: 0, winH: 0, cookie: '', inp: '0,0,0,0,0,0,0,0', camN: 0, txtIn: 0, txtSub: 0, txtVal: '',
-    wsUrl: window.TTR_WS || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'),
+    wsUrl: window.TTA_WS || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'),
     // the graphics chip's name (e.g. "Mali-G925"): the game works around some chips' driver bugs, and the log shows it
     gpu: (() => {
       try {
@@ -25,9 +35,9 @@
 
   // ------------------------------------------------------------------ preferences
   const prefs = {
-    get mode() { return LS.getItem('ttr_srv_mode'); },
-    get res() { return LS.getItem('ttr_srv_res') || ''; },
-    get game() { return LS.getItem('ttr_srv_game') || ''; },
+    get mode() { return LS.getItem('tta_srv_mode'); },
+    get res() { return LS.getItem('tta_srv_res') || ''; },
+    get game() { return LS.getItem('tta_srv_game') || ''; },
     get isDefault() { return this.mode !== 'custom'; },
     get base() { return this.isDefault ? '' : this.res.replace(/\/+$/, ''); },
     get ws() {
@@ -35,12 +45,12 @@
       const g = this.game;
       return /^wss?:/i.test(g) ? g : ((location.protocol === 'https:' ? 'wss://' : 'ws://') + g);
     },
-    get userKey() { return this.isDefault ? 'ttr_user' : 'ttr_user_' + btoa(this.res).slice(0, 12); },
+    get userKey() { return this.isDefault ? 'tta_user' : 'tta_user_' + btoa(this.res).slice(0, 12); },
   };
 
   // ------------------------------------------------------------------ helpers
   const root = document.createElement('div');
-  root.id = 'ttr';
+  root.id = 'tta';
   document.body.appendChild(root);
   function el(tag, cls, parent, css) {
     const e = document.createElement(tag);
@@ -62,8 +72,8 @@
   // message, is sent to the server's /__log, where it is saved with the time and this device's address.
   let LOGGING = location.port === '8001' || location.port === '8002';
   try {
-    if (/[?&]log=1/.test(location.search)) sessionStorage.setItem('ttr.log', '1');
-    if (sessionStorage.getItem('ttr.log') === '1') LOGGING = true;
+    if (/[?&]log=1/.test(location.search)) sessionStorage.setItem('tta.log', '1');
+    if (sessionStorage.getItem('tta.log') === '1') LOGGING = true;
   } catch (e) {}
   // Everyone else is logged quietly: only crash information (Python tracebacks, errors, lost connections, page errors) and one line
   // about the device and the sign-in name. No passwords, no touches, no frame timings. At most 400 lines per visit.
@@ -114,7 +124,7 @@
     if (kbHold) return;
     measure(); layouts.forEach((f) => f());
     // Open Toontown test build: draw at the page's own pixel size by default (a phone's full screen resolution is too slow); ?res=1.5 or ?res=2 for sharper
-    let cap = 2; try { cap = parseFloat(new URLSearchParams(location.search).get('res') || localStorage.getItem('ttr_res') || '2') || 2; } catch (e) { cap = 2; }
+    let cap = 2; try { cap = parseFloat(new URLSearchParams(location.search).get('res') || localStorage.getItem('tta_res') || '2') || 2; } catch (e) { cap = 2; }
     cap = Math.max(0.5, Math.min(cap, 2));
     const dpr = Math.min(window.devicePixelRatio || 1, cap);
     T.winW = Math.round(W * dpr); T.winH = Math.round(H * dpr);
@@ -162,15 +172,15 @@
 
   // ------------------------------------------------------------------ backdrop: splash art
   const bg = el('div', null, root);
-  bg.id = 'ttr-bg';
+  bg.id = 'tta-bg';
   [[0.3, 0.1, 150], [0.75, 0.55, 110], [0.1, 0.7, 130], [0.6, 0.15, 90], [0.9, 0.85, 120], [0.45, 0.8, 100], [0.2, 0.3, 80]].forEach((d) => {
     const dot = el('div', 'dot', bg); dot.dataset.fx = d[0]; dot.dataset.fy = d[1]; dot.dataset.d = d[2];
   });
   const title = el('div', null, root);
-  title.id = 'ttr-title';
+  title.id = 'tta-title';
   title.textContent = 'TOONTOWN: ANYWHERE';
   const logo = el('img', null, root);
-  logo.id = 'ttr-logo';
+  logo.id = 'tta-logo';
   logo.style.display = 'none';
   const bgImg = el('img', null, bg);
   bgImg.style.display = 'none';
@@ -221,13 +231,13 @@
 
   // ------------------------------------------------------------------ loading screen
   const load = el('div', null, root);
-  load.id = 'ttr-load';
-  const bar = el('div', null, load); bar.id = 'ttr-bar'; const barFill = el('i', null, bar);
-  const status = el('div', null, load); status.id = 'ttr-status';
-  const detail = el('div', null, load); detail.id = 'ttr-detail';
-  const spin = el('div', null, load); spin.id = 'ttr-spin'; spin.style.display = 'none';
-  const errBox = el('div', null, load); errBox.id = 'ttr-error'; errBox.style.display = 'none';
-  const errBtn = el('button', 'ttr-pill light on', load); errBtn.textContent = 'Change server'; errBtn.style.display = 'none';
+  load.id = 'tta-load';
+  const bar = el('div', null, load); bar.id = 'tta-bar'; const barFill = el('i', null, bar);
+  const status = el('div', null, load); status.id = 'tta-status';
+  const detail = el('div', null, load); detail.id = 'tta-detail';
+  const spin = el('div', null, load); spin.id = 'tta-spin'; spin.style.display = 'none';
+  const errBox = el('div', null, load); errBox.id = 'tta-error'; errBox.style.display = 'none';
+  const errBtn = el('button', 'tta-pill light on', load); errBtn.textContent = 'Change server'; errBtn.style.display = 'none';
   layouts.push(() => {
     const bw = Math.min(W * 0.6, 640);
     Object.assign(bar.style, { width: bw + 'px', top: H * 0.68 - 29 + 'px' });
@@ -372,7 +382,7 @@
 
   // ------------------------------------------------------------------ shared pieces: pills, fields
   function pill(text, icon, fill, parent, cls) {
-    const b = el('button', 'ttr-pill ' + (cls || ''), parent);
+    const b = el('button', 'tta-pill ' + (cls || ''), parent);
     if (fill) b.style.background = fill;
     if (icon && ICONS[icon]) { const i = el('img', null, b); i.src = ICONS[icon]; }
     const s = document.createElement('span'); s.textContent = text; b.appendChild(s);
@@ -380,7 +390,7 @@
     return b;
   }
   function field(ph, secure, parent, name, ac) {
-    const f = el('input', 'ttr-field on', parent);
+    const f = el('input', 'tta-field on', parent);
     f.type = secure ? 'password' : 'text'; f.placeholder = ph;
     f.autocapitalize = 'none'; f.autocorrect = 'off'; f.spellcheck = false;
     if (name) f.name = name; if (ac) f.autocomplete = ac;
@@ -389,16 +399,16 @@
 
   // ------------------------------------------------------------------ the sign-in screen (same layout as the app)
   const login = el('div', null, root);
-  login.id = 'ttr-login'; login.style.display = 'none';
+  login.id = 'tta-login'; login.style.display = 'none';
   const uField = field('Toon name', false, login, 'username', 'username');
   const pField = field('Password', true, login, 'password', 'current-password');
-  const playBtn = el('button', 'ttr-btn on', login); playBtn.textContent = 'PLAY!';
-  const forgot = el('button', 'ttr-link on', login); forgot.textContent = 'Forgot password?';
+  const playBtn = el('button', 'tta-btn on', login); playBtn.textContent = 'PLAY!';
+  const forgot = el('button', 'tta-link on', login); forgot.textContent = 'Forgot password?';
   // (the new-player hint stays up on its own line; sign-in errors and progress go on the line below it instead of replacing it)
   const hint = el('div', null, login, { position: 'absolute', left: '40px', right: '40px', textAlign: 'center', fontWeight: '700', color: '#1a408c' });
   hint.textContent = 'New here? Pick a name and password and tap PLAY!';
-  const lmsg = el('div', null, login); lmsg.id = 'ttr-msg';
-  const credit = el('div', null, login); credit.id = 'ttr-credit';
+  const lmsg = el('div', null, login); lmsg.id = 'tta-msg';
+  const credit = el('div', null, login); credit.id = 'tta-credit';
   credit.textContent = 'Official client for Toontown: Anywhere';
   const chg = pill('Change server', null, null, login, 'light');
   const dis = pill('Discord', 'discord', 'rgb(88,101,242)', login);
@@ -459,7 +469,7 @@
     visualViewport.addEventListener('resize', () => { if (kbMode) loginLayout(); });
     visualViewport.addEventListener('scroll', () => { if (kbMode) loginLayout(); });
   }
-  function loginMessage(m, bad) { lmsg.textContent = m; lmsg.className = bad ? 'bad' : ''; lmsg.id = 'ttr-msg'; }
+  function loginMessage(m, bad) { lmsg.textContent = m; lmsg.className = bad ? 'bad' : ''; lmsg.id = 'tta-msg'; }
   function showLogin() {
     showLoad(false); login.style.display = ''; cardClose();
     uField.value = LS.getItem(prefs.userKey) || '';
@@ -516,13 +526,13 @@
 
   // ------------------------------------------------------------------ cards (server choice, recovery)
   const cardWrap = el('div', null, root);
-  cardWrap.id = 'ttr-cardwrap'; cardWrap.style.display = 'none';
+  cardWrap.id = 'tta-cardwrap'; cardWrap.style.display = 'none';
   function cardClose() { cardWrap.style.display = 'none'; cardWrap.innerHTML = ''; }
   function newCard(h) {
     cardWrap.innerHTML = ''; cardWrap.style.display = '';
     login.style.display = 'none';
     const cw = Math.min(W - 40, 520 * sc), ch = h * sc;
-    const card = el('div', 'ttr-card', cardWrap, { width: cw + 'px', height: ch + 'px', top: Math.max(16, (H - ch) / 2) + 'px' });
+    const card = el('div', 'tta-card', cardWrap, { width: cw + 'px', height: ch + 'px', top: Math.max(16, (H - ch) / 2) + 'px' });
     card.style.marginBottom = '16px';
     return { card, cw, ch, pad: 20 * sc, w: cw - 40 * sc };
   }
@@ -543,14 +553,14 @@
     return b;
   }
   function useServer(mode, res, game) {
-    LS.setItem('ttr_srv_mode', mode);
-    if (mode === 'custom') { LS.setItem('ttr_srv_res', res); LS.setItem('ttr_srv_game', game); }
+    LS.setItem('tta_srv_mode', mode);
+    if (mode === 'custom') { LS.setItem('tta_srv_res', res); LS.setItem('tta_srv_game', game); }
   }
   function showServerCard(canGoBack) {
     showLoad(false);
     const g = newCard(canGoBack ? 430 : 392);
     cText(g.card, 't', 'Choose a server', 12, 26);
-    const def = cButton(g.card, 'Connect to ' + DEFAULT.name, 'ttr-btn', 52, (g.w / sc), 48, g);
+    const def = cButton(g.card, 'Connect to ' + DEFAULT.name, 'tta-btn', 52, (g.w / sc), 48, g);
     Object.assign(def.style, { left: g.pad + 'px', width: g.w + 'px', fontSize: 21 * sc + 'px' });
     cText(g.card, 's', DEFAULT.host, 102, 12);
     cText(g.card, 't', 'or connect to a different server', 128, 16, { fontWeight: 700 });
@@ -558,12 +568,12 @@
     const gf = cField(g.card, 'Game server  (host:port)', false, 202, g);
     if (!prefs.isDefault) { rf.value = prefs.res; gf.value = prefs.game; }
     const warn = cText(g.card, 's', "Only connect to servers you trust. A server supplies the game's code, which runs inside this app.", 250, 11, { color: 'rgb(115,51,26)', padding: '0 ' + g.pad + 'px' });
-    const cbtn = cButton(g.card, 'Connect', 'ttr-btn', 290, 200, 44, g, 'rgb(89,166,255)');
+    const cbtn = cButton(g.card, 'Connect', 'tta-btn', 290, 200, 44, g, 'rgb(89,166,255)');
     Object.assign(cbtn.style, { color: '#fff', fontSize: 22 * sc + 'px', border: '3px solid #1f4da6' });
     const msg = cText(g.card, 's', '', 338, 14, { padding: '0 ' + g.pad + 'px' });
     const setMsg = (t, bad) => { msg.textContent = t; msg.style.color = bad ? '#d91a1a' : '#1a408c'; };
     if (canGoBack) {
-      const bk = cButton(g.card, 'Back', 'ttr-pill gray', 384, 120, 32, g);
+      const bk = cButton(g.card, 'Back', 'tta-pill gray', 384, 120, 32, g);
       bk.addEventListener('click', () => { cardClose(); login.style.display = ''; });
     }
     def.addEventListener('click', () => {
@@ -604,9 +614,9 @@
     const y = reset ? 244 : 196;
     const msg = cText(g.card, 's', '', y + 2, 14, { padding: '0 ' + g.pad + 'px' });
     const setMsg = (t, bad) => { msg.textContent = t; msg.style.color = bad ? '#d91a1a' : '#1a408c'; };
-    const prim = cButton(g.card, reset ? 'Reset password' : 'Save', 'ttr-pill blue', y + 40, 220, 44, g);
+    const prim = cButton(g.card, reset ? 'Reset password' : 'Save', 'tta-pill blue', y + 40, 220, 44, g);
     prim.style.fontSize = 22 * sc + 'px';
-    const sec = cButton(g.card, reset ? 'Cancel' : 'Skip for now', 'ttr-pill gray', y + 92, 160, 32, g);
+    const sec = cButton(g.card, reset ? 'Cancel' : 'Skip for now', 'tta-pill gray', y + 92, 160, 32, g);
     sec.addEventListener('click', () => { cardClose(); done(); });
     prim.addEventListener('click', async () => {
       const n = nick.value.trim(), t = toon.value.trim(), p = npw ? npw.value : '';
@@ -651,17 +661,17 @@
 
   // ------------------------------------------------------------------ in-game controls (same layout as the app)
   const hud = el('div', null, root);
-  hud.id = 'ttr-hud'; hud.style.display = 'none';
-  const joy = el('div', 'pad', hud); joy.id = 'ttr-joy';
-  const knob = el('div', null, joy); knob.id = 'ttr-knob';
-  const jump = el('div', 'pad', hud); jump.id = 'ttr-jump'; jump.textContent = 'JUMP';
-  const cam = el('div', 'pad', hud); cam.id = 'ttr-cam'; cam.textContent = 'CAM';
-  const act = el('div', 'pad', hud); act.id = 'ttr-act'; act.textContent = 'ACTION';
-  const tasks = el('div', 'pad', hud); tasks.id = 'ttr-tasks'; tasks.textContent = 'TASKS';
-  const padl = el('div', 'pad', hud); padl.id = 'ttr-padl'; padl.textContent = '◀';
-  const padr = el('div', 'pad', hud); padr.id = 'ttr-padr'; padr.textContent = '▶';
+  hud.id = 'tta-hud'; hud.style.display = 'none';
+  const joy = el('div', 'pad', hud); joy.id = 'tta-joy';
+  const knob = el('div', null, joy); knob.id = 'tta-knob';
+  const jump = el('div', 'pad', hud); jump.id = 'tta-jump'; jump.textContent = 'JUMP';
+  const cam = el('div', 'pad', hud); cam.id = 'tta-cam'; cam.textContent = 'CAM';
+  const act = el('div', 'pad', hud); act.id = 'tta-act'; act.textContent = 'ACTION';
+  const tasks = el('div', 'pad', hud); tasks.id = 'tta-tasks'; tasks.textContent = 'TASKS';
+  const padl = el('div', 'pad', hud); padl.id = 'tta-padl'; padl.textContent = '◀';
+  const padr = el('div', 'pad', hud); padr.id = 'tta-padr'; padr.textContent = '▶';
   // frames-per-second counter (the page's own animation frames, which is how often the game can draw)
-  const fps = el('div', null, hud); fps.id = 'ttr-fps'; fps.textContent = '-- FPS';
+  const fps = el('div', null, hud); fps.id = 'tta-fps'; fps.textContent = '-- FPS';
   (function () {
     let n = 0, t0 = performance.now();
     function tick(t) {
@@ -724,7 +734,7 @@
   function tasksKey(type) {
     const cv = document.querySelector('canvas.emscripten') || document;
     const k = { key: 'End', code: 'End', keyCode: 35, which: 35, bubbles: true, cancelable: true };
-    try { const ev = new KeyboardEvent(type, k); ev.ttrMade = true; cv.dispatchEvent(ev); } catch (e) { plog('JS| tasks key failed ' + e); }
+    try { const ev = new KeyboardEvent(type, k); ev.ttaMade = true; cv.dispatchEvent(ev); } catch (e) { plog('JS| tasks key failed ' + e); }
   }
   function tasksSet(on) { if (on === tasksOn) return; tasksOn = on; tasks.classList.toggle('on', on); tasksKey(on ? 'keydown' : 'keyup'); }
   tasks.addEventListener('click', (e) => { e.preventDefault(); gameFocus(); tasksSet(!tasksOn); });
@@ -777,9 +787,9 @@
   const RES_CHOICES = [['2', 'Sharp'], ['1.5', 'Balanced'], ['1', 'Fast'], ['0.75', 'Fastest']];
   const lsGet = (k, d) => { try { const v = LS.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
   const lsSet = (k, v) => { try { LS.setItem(k, v); } catch (e) {} };
-  function applyFps() { fps.style.display = lsGet('ttr_fps', '1') === '0' ? 'none' : ''; }
+  function applyFps() { fps.style.display = lsGet('tta_fps', '1') === '0' ? 'none' : ''; }
   applyFps();
-  const setWrap = el('div', null, root); setWrap.id = 'ttr-set'; setWrap.style.display = 'none';
+  const setWrap = el('div', null, root); setWrap.id = 'tta-set'; setWrap.style.display = 'none';
   function showSettings() {
     setWrap.innerHTML = ''; setWrap.style.display = '';
     const card = el('div', 'card', setWrap);
@@ -794,13 +804,13 @@
         b.addEventListener('click', () => { [...g.children].forEach((c) => c.classList.remove('sel')); b.classList.add('sel'); onPick(val); });
       });
     };
-    row('Picture quality', 'Lower is smoother on slower devices', RES_CHOICES, String(lsGet('ttr_res', '') || '2'), (v) => { lsSet('ttr_res', v); relayout(); });
+    row('Picture quality', 'Lower is smoother on slower devices', RES_CHOICES, String(lsGet('tta_res', '') || '2'), (v) => { lsSet('tta_res', v); relayout(); });
     const aaNow = T.aa;
     const note = el('div', 'note', card); note.style.visibility = 'hidden'; note.textContent = 'Smooth edges changes when the game restarts.';
-    row('Smooth edges', 'Softens jagged lines; off is faster', [['1', 'On'], ['0', 'Off']], aaNow, (v) => { lsSet('ttr_aa', v); note.style.visibility = v === aaNow ? 'hidden' : ''; restart.style.display = v === aaNow ? 'none' : ''; });
-    row('Speed counter', 'The FPS number at the top', [['1', 'Show'], ['0', 'Hide']], lsGet('ttr_fps', '1'), (v) => { lsSet('ttr_fps', v); applyFps(); });
-    row('On-screen controls', 'Auto hides them while you play with a keyboard or controller', [['auto', 'Auto'], ['show', 'Show'], ['hide', 'Hide']], lsGet('ttr_touch', 'auto'),
-      (v) => { lsSet('ttr_touch', v); applyTouchUI(); });
+    row('Smooth edges', 'Softens jagged lines; off is faster', [['1', 'On'], ['0', 'Off']], aaNow, (v) => { lsSet('tta_aa', v); note.style.visibility = v === aaNow ? 'hidden' : ''; restart.style.display = v === aaNow ? 'none' : ''; });
+    row('Speed counter', 'The FPS number at the top', [['1', 'Show'], ['0', 'Hide']], lsGet('tta_fps', '1'), (v) => { lsSet('tta_fps', v); applyFps(); });
+    row('On-screen controls', 'Auto hides them while you play with a keyboard or controller', [['auto', 'Auto'], ['show', 'Show'], ['hide', 'Hide']], lsGet('tta_touch', 'auto'),
+      (v) => { lsSet('tta_touch', v); applyTouchUI(); });
     const keysBtn = el('button', 'act', card); keysBtn.textContent = 'Keyboard keys';
     keysBtn.addEventListener('click', showKeys);
     const restart = el('button', 'act', card); restart.textContent = 'Restart game now'; restart.style.display = 'none';
@@ -808,7 +818,7 @@
     const done = el('button', 'act done', card); done.textContent = 'Done';
     done.addEventListener('click', () => { setWrap.style.display = 'none'; setWrap.innerHTML = ''; });
   }
-  const gearBtn = el('button', 'ttr-gear on', hud); gearBtn.textContent = '⚙';
+  const gearBtn = el('button', 'tta-gear on', hud); gearBtn.textContent = '⚙';
   gearBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
   gearBtn.addEventListener('click', (e) => { e.preventDefault(); showSettings(); });
   layouts.push(() => place(gearBtn, W / 2 + 46 * sc, Math.max(SAFE.t, 6), 30 * sc, 28 * sc));
@@ -819,7 +829,7 @@
   // ------------------------------------------------------------------ typed chat: the game's own text box shows the text live;
   // this invisible input only brings up the keyboard and passes every keystroke to the game
   const tin = document.createElement('input');
-  tin.id = 'ttr-textin'; tin.type = 'text'; tin.maxLength = 120; tin.autocomplete = 'off'; tin.autocapitalize = 'sentences'; tin.autocorrect = 'off';
+  tin.id = 'tta-textin'; tin.type = 'text'; tin.maxLength = 120; tin.autocomplete = 'off'; tin.autocapitalize = 'sentences'; tin.autocorrect = 'off';
   tin.setAttribute('enterkeyhint', 'send');
   root.appendChild(tin);
   let textOn = false, askAt = 0;
@@ -891,11 +901,11 @@
     ControlLeft: ['Control', 17], Delete: ['Delete', 46], End: ['End', 35], Home: ['Home', 36], AltLeft: ['Alt', 18], F8: ['F8', 119], F7: ['F7', 118], Tab: ['Tab', 9] };
   const actTarget = {}; GAME_KEYS.forEach(([id, , code]) => { actTarget[id] = code; });
   let keyMap = {};           // the player's key (event code) -> action id
-  try { keyMap = JSON.parse(lsGet('ttr_keys', '{}')) || {}; } catch (e) { keyMap = {}; }
-  const saveKeys = () => lsSet('ttr_keys', JSON.stringify(keyMap));
+  try { keyMap = JSON.parse(lsGet('tta_keys', '{}')) || {}; } catch (e) { keyMap = {}; }
+  const saveKeys = () => lsSet('tta_keys', JSON.stringify(keyMap));
   let kbUsed = false, lastKeyAt = 0, keyCapture = null;
   const heldKeys = {};       // the player's key -> the game key sent for it, until it comes up
-  function touchHidden() { const m = lsGet('ttr_touch', 'auto'); return m === 'hide' || (m === 'auto' && (kbUsed || padUsed)); }
+  function touchHidden() { const m = lsGet('tta_touch', 'auto'); return m === 'hide' || (m === 'auto' && (kbUsed || padUsed)); }
   function applyTouchUI() { T.setUI(uiArgs[0], uiArgs[1], uiArgs[2]); }
   function keyName(code) {
     const named = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', ControlLeft: 'Ctrl', ControlRight: 'Right Ctrl', AltLeft: 'Alt/Option',
@@ -912,12 +922,12 @@
     const ev = new KeyboardEvent(type, { key, code, keyCode: kc, which: kc, repeat: !!(e && e.repeat), bubbles: true, cancelable: true,
       ctrlKey: (code === 'ControlLeft' && down) || !!(e && e.ctrlKey), altKey: (code === 'AltLeft' && down) || !!(e && e.altKey), shiftKey: !!(e && e.shiftKey) });
     try { Object.defineProperty(ev, 'keyCode', { get: () => kc }); Object.defineProperty(ev, 'which', { get: () => kc }); } catch (err) {}
-    ev.ttrMade = true;
+    ev.ttaMade = true;
     const cv = document.querySelector('canvas.emscripten') || document;
     try { cv.dispatchEvent(ev); } catch (err) { plog('JS| key send failed ' + err); }
   }
   function onKey(e) {
-    if (e.ttrMade || !e.isTrusted) return;   // only a real keyboard counts (the TASKS button sends its own End key)
+    if (e.ttaMade || !e.isTrusted) return;   // only a real keyboard counts (the TASKS button sends its own End key)
     if (keyCapture) { e.preventDefault(); e.stopImmediatePropagation(); if (e.type === 'keydown') keyCapture(e); return; }
     if (hud.style.display === 'none' || typing()) return;
     if (e.type === 'keydown' && e.key !== 'Meta') {
@@ -937,7 +947,7 @@
   // The game takes typed letters from keypress, which a cancelled keydown should already stop; some browsers send it anyway.
   // A remapped key must never type its letter (that opens typed chat).
   addEventListener('keypress', (e) => {
-    if (e.ttrMade || keyCapture || typing()) return;
+    if (e.ttaMade || keyCapture || typing()) return;
     if ((e.code && keyMap[e.code]) || (!e.code && Object.keys(heldKeys).some((c) => c === 'Key' + String(e.key).toUpperCase()))) {
       e.preventDefault(); e.stopImmediatePropagation();
     }
@@ -986,7 +996,7 @@
 
   // ------------------------------------------------------------------ portrait: ask for landscape (iOS has no way to lock it)
   const rot = el('div', null, root);
-  rot.id = 'ttr-rotate'; rot.style.display = 'none';
+  rot.id = 'tta-rotate'; rot.style.display = 'none';
   rot.innerHTML = '<div class="ph"></div><div class="tx">Turn your phone sideways to play</div>';
   function checkRotate() {
     const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
@@ -1003,11 +1013,11 @@
   const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
   const qs = new URLSearchParams(location.search);
-  let skipInstall = false; try { skipInstall = sessionStorage.getItem('ttr.skipInstall') === '1'; } catch (e) {}
+  let skipInstall = false; try { skipInstall = sessionStorage.getItem('tta.skipInstall') === '1'; } catch (e) {}
   const isAndroid = /Android/i.test(ua);
   const needInstall = (qs.get('install') === '1') || ((isIOS || isAndroid) && !standalone && !skipInstall && qs.get('install') !== '0');
   let installEvt = null;                       // Chrome on Android offers a one-tap install through this event
-  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; const b = document.getElementById('ttr-installbtn'); if (b) b.style.display = ''; });
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; const b = document.getElementById('tta-installbtn'); if (b) b.style.display = ''; });
   // Android: full screen + landscape lock from the first tap (a normal browser tab cannot lock the rotation any other way)
   function goFull() {
     const d = document.documentElement;
@@ -1019,28 +1029,28 @@
   function keepAwake() { try { if (navigator.wakeLock && !document.hidden) navigator.wakeLock.request('screen').then((l) => { wl = l; }).catch(() => {}); } catch (e) {} }
   document.addEventListener('visibilitychange', () => { if (!document.hidden && hud.style.display !== 'none') keepAwake(); });
   // Open Toontown test build: served from the PC's own test server (port 8002), the files and the game connection are on that same machine
-  if (!prefs.mode && location.port === '8002') { LS.setItem('ttr_srv_mode', 'custom'); LS.setItem('ttr_srv_res', location.origin); LS.setItem('ttr_srv_game', 'ws://' + location.hostname + ':8766'); }
+  if (!prefs.mode && location.port === '8002') { LS.setItem('tta_srv_mode', 'custom'); LS.setItem('tta_srv_res', location.origin); LS.setItem('tta_srv_game', 'ws://' + location.hostname + ':8766'); }
   function begin() { if (!prefs.mode) showServerCard(false); else beginDownload(); }
   if (needInstall) {
     installUp = true; checkRotate();
-    const ins = el('div', null, root); ins.id = 'ttr-install';
+    const ins = el('div', null, root); ins.id = 'tta-install';
     const share = '<svg class="shr" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12M8 7l4-4 4 4M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
     const steps = isAndroid
       ? '<ol><li><i>1</i><span>Open this page in your browser app itself (Chrome works best), not inside another app</span></li>' +
         '<li><i>2</i><span>Tap the &#8942; menu, then &ldquo;Install app&rdquo; (or &ldquo;Add to Home screen&rdquo;)</span></li>' +
         '<li><i>3</i><span>Open TT: Anywhere from your Home screen. If it still shows a bar at the top, install it again from Chrome</span></li></ol>' +
-        '<button class="go" id="ttr-installbtn" style="display:none;text-decoration:none;background:#ffd926;color:#733805;border-radius:14px;padding:10px 22px;box-shadow:0 3px 0 rgba(0,0,0,.35);text-shadow:none">Install app</button>'
+        '<button class="go" id="tta-installbtn" style="display:none;text-decoration:none;background:#ffd926;color:#733805;border-radius:14px;padding:10px 22px;box-shadow:0 3px 0 rgba(0,0,0,.35);text-shadow:none">Install app</button>'
       : '<ol><li><i>1</i><span>Tap the Share button ' + share + ' in Safari (tap &middot;&middot;&middot; first if you do not see it)</span></li>' +
         '<li><i>2</i><span>Tap &ldquo;View More&rdquo; if you see it, then scroll down and tap &ldquo;Add to Home Screen&rdquo;</span></li>' +
         '<li><i>3</i><span>Tap Add, then open TT: Anywhere from your Home Screen</span></li></ol>';
     ins.innerHTML = '<div class="box"><div class="ic">' + share.replace('width="26" height="26"', 'width="30" height="30"') + '</div>' +
       '<div class="h">Add Toontown: Anywhere to your Home Screen</div>' + steps +
       '<button class="go skip">Continue in the browser anyway</button></div>';
-    const ib = ins.querySelector('#ttr-installbtn');
+    const ib = ins.querySelector('#tta-installbtn');
     if (ib) { if (installEvt) ib.style.display = ''; ib.addEventListener('click', () => { if (installEvt) { installEvt.prompt(); installEvt.userChoice.then(() => {}).catch(() => {}); } }); }
     ins.querySelector('.skip').addEventListener('click', () => {
       if (isAndroid) goFull();
-      try { sessionStorage.setItem('ttr.skipInstall', '1'); } catch (e) {}
+      try { sessionStorage.setItem('tta.skipInstall', '1'); } catch (e) {}
       installUp = false; ins.remove(); checkRotate(); begin();
     });
   } else begin();

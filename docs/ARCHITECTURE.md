@@ -14,7 +14,7 @@ container** on a home server, reached from the internet through a Cloudflare tun
 ```
  phone / tablet (browser or home-screen app)
  ┌──────────────────────────────────────────────┐
- │  page shell  (web/ttr-ui.js, ttr-ui.css)     │   sign-in, download, touch controls
+ │  page shell  (web/tta-ui.js, tta-ui.css)     │   sign-in, download, touch controls
  │  game        Open Toontown + otpy, in Python │   Panda3D + CPython in WebAssembly (pygbag)
  │              /Panda3D, running in the browser│
  └───────────────┬───────────────┬──────────────┘
@@ -44,14 +44,14 @@ container** on a home server, reached from the internet through a Cloudflare tun
 
 Two layers run on the phone.
 
-**The page shell** is plain JavaScript and CSS (`web/ttr-ui.js`, `web/ttr-ui.css`, `web/ttr-audio.js`). It owns
+**The page shell** is plain JavaScript and CSS (`web/tta-ui.js`, `web/tta-ui.css`, `web/tta-audio.js`). It owns
 everything outside the game itself:
 
 - the sign-in screen, password recovery, the loading screen and its progress bar;
 - the "turn your phone sideways" and "add to Home Screen" screens (iPhone, iPad and Android);
 - downloading and caching the game files (section 4);
 - the touch controls (thumb stick, jump, camera, book) and the on-screen keyboard handling;
-- sound: it plays the game's sounds through the Web Audio API (`web/ttr-audio.js`), because Panda3D has no audio
+- sound: it plays the game's sounds through the Web Audio API (`web/tta-audio.js`), because Panda3D has no audio
   library in the browser;
 - keeping the game's window the right size on phones with notches and moving toolbars;
 - the optional test-session log (`?log=1`, section 7).

@@ -3,7 +3,7 @@
 #     "panda3d",
 # ]
 # ///
-# Toontown: Anywhere in the browser (local experiment). The page (ttr-ui.js) shows the loading, sign-in and control screens
+# Toontown: Anywhere in the browser (local experiment). The page (tta-ui.js) shows the loading, sign-in and control screens
 # and downloads the game files into the browser's file system; this script runs the real game once the player has signed in.
 import asyncio
 import builtins
@@ -53,7 +53,7 @@ sys.stderr = _Tee(sys.stderr)
 
 print("web: starting, cwd =", os.getcwd(), "python", sys.version.split()[0])
 sys.path.insert(0, os.getcwd())
-TTR = platform.window.ttr
+TTA = platform.window.tta
 
 
 # ---- stand-ins for pieces the browser build does not have (the browser has no native libraries, so small Python versions are provided) ----
@@ -169,10 +169,10 @@ print("web: keep area models in memory:", not _ios)
 try:
     from urllib.parse import parse_qs as _pq0
     _dm = (_pq0(str(platform.window.location.search).lstrip("?")).get("dmul", ["6"]) or ["6"])[0]
-    os.environ["TTR_DEPTH_MUL"] = str(int(_dm))
-    print("web: depth offset multiplier =", os.environ["TTR_DEPTH_MUL"])
+    os.environ["TTA_DEPTH_MUL"] = str(int(_dm))
+    print("web: depth offset multiplier =", os.environ["TTA_DEPTH_MUL"])
 except BaseException:
-    os.environ["TTR_DEPTH_MUL"] = "6"
+    os.environ["TTA_DEPTH_MUL"] = "6"
 # test switches: the page address can carry extra engine settings, e.g. ?prc=texture-minfilter%20linear;another-setting%20value
 try:
     from urllib.parse import parse_qs as _pq
@@ -186,7 +186,7 @@ except BaseException:
     print("web: could not read extra settings", traceback.format_exc())
 # the page's Display settings: smooth edges off asks for a context without multisampling (takes effect when the game starts)
 try:
-    if str(TTR.aa) == "0":
+    if str(TTA.aa) == "0":
         for _line in ("framebuffer-multisample 0", "multisamples 0"):
             loadPrcFileData("", _line)
         print("web: smooth edges off")
@@ -194,8 +194,8 @@ except BaseException:
     pass
 from panda3d.core import WindowProperties
 try:
-    if int(TTR.winW) > 0:
-        loadPrcFileData("", "win-size %d %d" % (int(TTR.winW), int(TTR.winH)))
+    if int(TTA.winW) > 0:
+        loadPrcFileData("", "win-size %d %d" % (int(TTA.winW), int(TTA.winH)))
 except Exception:
     pass
 
@@ -441,7 +441,7 @@ void main() {
 
 def _depth_reset(b):
     try:
-        gpu = str(getattr(TTR, "gpu", "") or "")
+        gpu = str(getattr(TTA, "gpu", "") or "")
     except BaseException:
         gpu = ""
     on = "zfix=1" in _q or ("mali" in gpu.lower() and "zfix=0" not in _q)
@@ -450,7 +450,7 @@ def _depth_reset(b):
         return
     try:
         from panda3d.core import CardMaker, ColorWriteAttrib, DepthTestAttrib, OmniBoundingVolume
-        cm = CardMaker("ttr-depth-reset")
+        cm = CardMaker("tta-depth-reset")
         cm.setFrame(-1, 1, -1, 1)
         card = b.render.attachNewNode(cm.generate())
         card.setShader(_Sh.make(_Sh.SL_GLSL, _ZF_VERT, _ZF_FRAG), 10000)
@@ -563,7 +563,7 @@ except BaseException:
 from direct.showbase.ShowBase import ShowBase
 ShowBase.run = lambda self: None
 
-# sound: the page plays it (see webaudio.py / ttr-audio.js)
+# sound: the page plays it (see webaudio.py / tta-audio.js)
 import webaudio
 webaudio.install(ShowBase)
 _orig_loadSound = _Loader.Loader.loadSound
@@ -665,8 +665,8 @@ def _apply_insets(b, reset):
     try:
         if reset:
             _applied[:] = [0.0, 0.0, 0.0, 0.0]
-        k = 2.0 / (float(TTR.vh) or 1.0)           # screen-height units (aspect2d spans 2.0 over the height) per page pixel
-        want = [float(TTR.safeL) * k, float(TTR.safeR) * k, float(TTR.safeT) * k, float(TTR.safeB) * k]
+        k = 2.0 / (float(TTA.vh) or 1.0)           # screen-height units (aspect2d spans 2.0 over the height) per page pixel
+        want = [float(TTA.safeL) * k, float(TTA.safeR) * k, float(TTA.safeT) * k, float(TTA.safeB) * k]
         dL, dR, dT, dB = [want[i] - _applied[i] for i in range(4)]
         if abs(dL) + abs(dR) + abs(dT) + abs(dB) < 1e-6:
             return
@@ -822,9 +822,9 @@ def _anchor_hud(b):
 
 def _sync_size(b):
     try:
-        w, h = int(TTR.winW), int(TTR.winH)
+        w, h = int(TTA.winW), int(TTA.winH)
         try:
-            TTR.pw, TTR.ph = int(b.win.getXSize()), int(b.win.getYSize())
+            TTA.pw, TTA.ph = int(b.win.getXSize()), int(b.win.getYSize())
         except BaseException:
             pass
         if w > 0 and h > 0 and getattr(b, "win", None) is not None and (b.win.getXSize(), b.win.getYSize()) != (w, h):
@@ -836,9 +836,9 @@ def _sync_size(b):
 
 
 def _run_debug_code():
-    """Developer console: the page can set ttr.pycode to Python source, which runs here once."""
+    """Developer console: the page can set tta.pycode to Python source, which runs here once."""
     try:
-        code = str(TTR.pycode)
+        code = str(TTA.pycode)
     except BaseException:
         return
     if code and code != _last_code[0]:
@@ -850,7 +850,7 @@ def _run_debug_code():
             print(traceback.format_exc())
 
 
-def TTR_mark(msg):
+def TTA_mark(msg):
     try:
         platform.window.console.log("PY| MARK " + msg)
     except Exception:
@@ -858,17 +858,17 @@ def TTR_mark(msg):
 
 
 async def main():
-    TTR.pyReady = True
+    TTA.pyReady = True
     print("web: ready, waiting for the page to download the game files and sign in")
-    while not bool(TTR.go) and not bool(TTR.dbg):
+    while not bool(TTA.go) and not bool(TTA.dbg):
         await asyncio.sleep(0.1)
-    cookie = str(TTR.cookie)
-    webnet.WS_URL = str(TTR.wsUrl)
+    cookie = str(TTA.cookie)
+    webnet.WS_URL = str(TTA.wsUrl)
     os.makedirs("logs", exist_ok=True)
     started = False
     try:
         # Open Toontown: the compiled libotp / libtoontown are replaced by our pure-Python versions
-        TTR_mark("importing otpy")
+        TTA_mark("importing otpy")
         import otpy.install
         otpy.install.install()
         try:
@@ -883,7 +883,7 @@ async def main():
             apply_uber(np)
             boost_decals(np)
         otpy.dnaparser.MODEL_HOOK = _dna_model_hook
-        TTR_mark("otpy installed")
+        TTA_mark("otpy installed")
         from panda3d.core import loadPrcFile
         loadPrcFile("etc/Configrc.prc")
         for line in ("load-display pandagles2", "audio-library-name null", "toontown-auto-run 0", "want-dev #f", "connect-method native",
@@ -892,8 +892,8 @@ async def main():
                      "vertex-buffers 1", "aspect-ratio 0"):      # the game's own config turns vertex buffers OFF, which a browser (WebGL) cannot do
             loadPrcFileData("", line)
         try:
-            if int(TTR.winW) > 0:
-                loadPrcFileData("", "win-size %d %d" % (int(TTR.winW), int(TTR.winH)))
+            if int(TTA.winW) > 0:
+                loadPrcFileData("", "win-size %d %d" % (int(TTA.winW), int(TTA.winH)))
         except Exception:
             pass
         user = cookie.split(":")[0] or "dev"
@@ -949,7 +949,7 @@ async def main():
                 _run_debug_code()
             if frames == 30 and not started:
                 started = True
-                TTR.started()
+                TTA.started()
                 try:
                     _install_perf_probes(b)
                 except BaseException:

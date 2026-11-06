@@ -1,4 +1,4 @@
-"""Connects the page's touch controls (ttr-ui.js) to the game: reads the control state every frame, drives the game through the
+"""Connects the page's touch controls (tta-ui.js) to the game: reads the control state every frame, drives the game through the
 functions in webui_core.py, and tells the page what to show."""
 import platform
 import time
@@ -6,7 +6,7 @@ import traceback
 
 import webui_core as core
 
-T = platform.window.ttr
+T = platform.window.tta
 _state = {"vals": (0, 0, 0, 0, 0, 0, 0, 0), "cam": 0, "ui_at": 0.0, "ui": None, "tx_at": 0.0, "tx_on": False, "tx_in": 0, "tx_sub": 0}
 try:
     core._hook_entries()            # remember the game's text boxes so the page's text bar can fill the focused one

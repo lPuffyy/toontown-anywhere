@@ -1,5 +1,5 @@
 """Sound for the browser build. Panda has no audio library in the browser, so this provides AudioManager / AudioSound look-alikes that the
-game uses as normal; the actual playing is done by the page (ttr-audio.js, Web Audio). The game's own timing questions (is it still playing,
+game uses as normal; the actual playing is done by the page (tta-audio.js, Web Audio). The game's own timing questions (is it still playing,
 how long is it, where is it) are answered here from the clock, so nothing waits on the page."""
 import os
 import platform
@@ -9,7 +9,7 @@ import traceback
 
 from panda3d.core import Filename, VirtualFileSystem, getModelPath
 
-A = platform.window.ttrAudio
+A = platform.window.ttaAudio
 _vfs = VirtualFileSystem.getGlobalPtr()
 _meta = {}                      # game path -> (os path, length in seconds)
 _playing = set()

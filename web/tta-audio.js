@@ -1,8 +1,8 @@
 /* Sound for the browser build: plays what webaudio.py asks for. Short sounds are decoded into Web Audio buffers; long ones (music)
    are streamed through a few page audio elements so they do not take memory. */
 (function () {
-  const A = window.ttrAudio = {};
-  const log = (m) => { try { if (window.ttr && window.ttr.plog) window.ttr.plog('JS| audio ' + m); } catch (e) {} };
+  const A = window.ttaAudio = {};
+  const log = (m) => { try { if (window.tta && window.tta.plog) window.tta.plog('JS| audio ' + m); } catch (e) {} };
   let ctx = null, master = null, unlocked = false, keep = null;
   const bufs = new Map(), pend = new Map(), voices = new Map(), urls = new Map();
   let bufBytes = 0; const CAP = 90 * 1024 * 1024;

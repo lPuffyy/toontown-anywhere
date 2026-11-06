@@ -25,7 +25,7 @@ window.webnet = {
     var line = 'PY| webnet: ' + what + ' visible=' + d.visibilityState + ' (for ' + Math.round((now - n.shownAt) / 1000) + 's)' +
       ' open_for=' + (n.openedAt ? Math.round((now - n.openedAt) / 1000) + 's' : '-') +
       ' last_rx=' + (n.lastRx ? Math.round((now - n.lastRx) / 1000) + 's ago' : '-') + ' online=' + navigator.onLine;
-    try { if (window.ttr && window.ttr.plog) window.ttr.plog(line); else console.log(line); } catch (x) {}
+    try { if (window.tta && window.tta.plog) window.tta.plog(line); else console.log(line); } catch (x) {}
   },
   open: function (url) {
     var n = window.webnet;

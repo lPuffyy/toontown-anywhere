@@ -98,11 +98,11 @@ Anything the **phone** runs (the game's Python, art, or the page's own files) is
 
    Upload only the packs whose size changed, plus `packs.json` and `manifest.json`, to `$ROOT/web/root/`
    (`_packs/<name>.zip` into `$ROOT/web/root/_packs/`). Players download only the packs whose size changed.
-2. **Page files changed** (`ttr-ui.js`, `ttr-ui.css`, `ttr-audio.js`, `index.html`): copy them into `$ROOT/web/_play/`.
+2. **Page files changed** (`tta-ui.js`, `tta-ui.css`, `tta-audio.js`, `index.html`): copy them into `$ROOT/web/_play/`.
    Raise the number after `?v=` on the script and stylesheet links in `index.html`, so browsers fetch the new copy.
 3. **Cloudflare keeps copies of static files.** After a client update, purge these in the Cloudflare dashboard
    (Caching, Configuration, Custom Purge), or choose Purge Everything: `/packs.json`, `/_packs/<changed>.zip`,
-   `/play/`, `/play/index.html`, `/play/ttr-ui.js`, `/play/ttr-ui.css`. A purge is also what makes an **art file you
+   `/play/`, `/play/index.html`, `/play/tta-ui.js`, `/play/tta-ui.css`. A purge is also what makes an **art file you
    removed** (such as a logo) really go away.
 4. Players reload the page once. A phone that still shows the old page needs its site data cleared
    (Safari: Settings, Safari, Advanced, Website Data), or the home-screen app deleted and added again.
@@ -207,7 +207,7 @@ toons stay in the database).
 
 Every phone sends **crash information** to `data/logs/client.log`, quietly: Python tracebacks and error lines, page errors, lost
 connections, one line about the device (browser, screen size) and one line with the sign-in name. At most 400 lines per
-visit; nothing else (no passwords, touches or frame timings). The page decides this (`quietLog` in `web/ttr-ui.js`), so a
+visit; nothing else (no passwords, touches or frame timings). The page decides this (`quietLog` in `web/tta-ui.js`), so a
 change needs only a new page script, with no server restart.
 
 The file stops growing at 30 MB, and each address may send 6,000 lines an hour (see `docker/auth_service.py` in the fork); when the file is

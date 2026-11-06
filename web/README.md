@@ -4,8 +4,8 @@ What runs on the phone. How it fits together is in [../docs/ARCHITECTURE.md](../
 
 | Path | Job |
 |---|---|
-| `ttr-ui.js`, `ttr-ui.css` | The page shell: sign-in, loading and download, touch controls, rotate and install screens, recovery cards, test-session logging |
-| `ttr-audio.js` | Sound through the Web Audio API |
+| `tta-ui.js`, `tta-ui.css` | The page shell: sign-in, loading and download, touch controls, rotate and install screens, recovery cards, test-session logging |
+| `tta-audio.js` | Sound through the Web Audio API |
 | `icon-*.png`, `icons/` | Home Screen icons, and the Discord and Reddit button pictures |
 | `game/` | The Python glue that starts Open Toontown in the browser (`main.py` and helpers) |
 | `make_ot_packs.py` | Builds the download packs and `packs.json` |

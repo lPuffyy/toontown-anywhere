@@ -1,7 +1,7 @@
 # Credits and third-party notices
 
-**Toontown: Anywhere is an unofficial, fan-made project.** It is not affiliated with, endorsed by, or connected to Disney or
-Toontown Rewritten. Toontown is a trademark of Disney. There is no commercial purpose.
+**Toontown: Anywhere is an unofficial, fan-made project.** It is not affiliated with, endorsed by, or connected to Disney.
+Toontown is a trademark of Disney. There is no commercial purpose.
 
 This repository contains **no game files**: no models, textures, sounds or other Disney content.
 

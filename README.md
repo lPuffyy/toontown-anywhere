@@ -3,7 +3,7 @@
 **Play Toontown on iPhone, iPad, Android and PC, free, in your web browser: <https://toontown.puffsco.com/>**
 
 An **unofficial, fan-made** way to play Toontown on your phone: in your browser, as an installable web app for iPhone, iPad
-and Android. It is not affiliated with, endorsed by, or connected to Disney or Toontown Rewritten.
+and Android. It is not affiliated with, endorsed by, or connected to Disney.
 
 The game is built on **[Open Toontown](https://github.com/open-toontown/open-toontown)** (the open-source Toontown
 Online code) with this project's own changes, and it runs on its own server. The browser client is Python running in WebAssembly

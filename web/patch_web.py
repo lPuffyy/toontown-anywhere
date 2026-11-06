@@ -21,11 +21,11 @@ s = re.sub(r'<meta name="viewport" content="height=device-height, initial-scale=
 s = s.replace('<meta name="viewport" content="width=device-width, initial-scale=1.0">',
               '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">')
 open(index, "w", encoding="utf-8").write(s)
-if "ttr-ui.js" not in s:
+if "tta-ui.js" not in s:
     s = s.replace('<meta name="viewport" content="width=device-width, initial-scale=1.0">',
                   '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">', 1)
-    s = s.replace("</head>", '<link rel="stylesheet" href="ttr-ui.css">\n</head>', 1)
-    s = s.replace("</body>", '<script>window.TTR_WS = %r;</script>\n<script src="ttr-icons.js"></script>\n<script src="ttr-audio.js"></script>\n<script src="ttr-ui.js"></script>\n</body>' % ws, 1)
+    s = s.replace("</head>", '<link rel="stylesheet" href="tta-ui.css">\n</head>', 1)
+    s = s.replace("</body>", '<script>window.TTA_WS = %r;</script>\n<script src="tta-icons.js"></script>\n<script src="tta-audio.js"></script>\n<script src="tta-ui.js"></script>\n</body>' % ws, 1)
     open(index, "w", encoding="utf-8").write(s)
 # home-screen app: manifest, icons, iOS app tags
 import json
@@ -55,10 +55,10 @@ if "apple-touch-icon" not in s:
         '<meta name="theme-color" content="#1c4cc4">'))
     s = s.replace("</head>", tags + "</head>", 1)
 open(index, "w", encoding="utf-8").write(s)
-for f in ("ttr-ui.css", "ttr-ui.js", "ttr-audio.js"):
+for f in ("tta-ui.css", "tta-ui.js", "tta-audio.js"):
     shutil.copy(os.path.join(HERE, f), os.path.join(web, f))
 icons = {}
 for name in ("discord", "reddit"):
     icons[name] = "data:image/png;base64," + base64.b64encode(open(os.path.join(HERE, "icons", name + ".png"), "rb").read()).decode()
-open(os.path.join(web, "ttr-icons.js"), "w").write("window.TTR_ICONS = " + repr(icons).replace("'", '"') + ";\n")
+open(os.path.join(web, "tta-icons.js"), "w").write("window.TTA_ICONS = " + repr(icons).replace("'", '"') + ";\n")
 print("patched", index)
