@@ -6,7 +6,7 @@ An **unofficial, fan-made** way to play Toontown on your phone: in your browser,
 and Android. It is not affiliated with, endorsed by, or connected to Disney or Toontown Rewritten.
 
 The game is built on **[Open Toontown](https://github.com/open-toontown/open-toontown)** (the open-source Toontown
-Online code) with our own changes, and it runs on our own server. The browser client is Python running in WebAssembly
+Online code) with this project's own changes, and it runs on its own server. The browser client is Python running in WebAssembly
 ([pygbag](https://github.com/pygame-web/pygbag) with Panda3D).
 
 ## Play
@@ -30,11 +30,11 @@ Good to know:
 
 ## What the game records
 
-To find and fix crashes, the page sends **error and crash information** to our server: Python error messages, page errors, lost
+To find and fix crashes, the page sends **error and crash information** to the game's server: Python error messages, page errors, lost
 connections, the kind of phone and browser, the screen size, and the **sign-in name** (never the password). It does not record
-touches, chat or screenshots. A report is kept only on our own server and is read only by us when a bug is being looked at.
-Opening the page with `?log=1` added to the address turns on a fuller log for that visit, which we ask for when we are
-chasing a specific problem.
+touches, chat or screenshots. A report is kept only on that server and is read only by the developer when a bug is being looked at.
+Opening the page with `?log=1` added to the address turns on a fuller log for that visit, which a player may be asked to use when a
+specific problem is being chased.
 
 ## Community
 
@@ -43,8 +43,8 @@ chasing a specific problem.
 
 ## What is in this repository
 
-This repository holds everything we wrote to run the game, but **no game files**: no models, textures, sounds or
-Disney content. The game's own code, our changes to it and the server's Docker image live in our fork of Open Toontown, [open-toontown-anywhere](https://github.com/lPuffyy/open-toontown-anywhere).
+This repository holds everything written to run the game, but **no game files**: no models, textures, sounds or
+Disney content. The game's own code, the changes to it and the server's Docker image live in the project's fork of Open Toontown, [open-toontown-anywhere](https://github.com/lPuffyy/open-toontown-anywhere).
 
 | Folder | What it is |
 |---|---|
@@ -66,7 +66,7 @@ Live and under active development. Known problems are listed in [docs/CHANGES.md
 
 ## License and notices
 
-Our own code is under the BSD 3-Clause License, see [LICENSE](LICENSE). Open Toontown is under the BSD 3-Clause
+This project's own code is under the BSD 3-Clause License, see [LICENSE](LICENSE). Open Toontown is under the BSD 3-Clause
 License too, and Panda3D under a modified BSD license. Third-party components and credits are listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
