@@ -499,7 +499,11 @@ _orig_loadModel = _Loader.Loader.loadModel
 def _loadModel(self, *a, **k):
     r = _orig_loadModel(self, *a, **k)
     try:
-        is_char = "/char/" in str(a[0] if a else k.get("modelPath", "")).replace(chr(92), "/")
+        path = str(a[0] if a else k.get("modelPath", "")).replace(chr(92), "/").lower()
+        # Characters, and the skies: the sky's cloud cards are drawn first with depth testing off, and Mali's hidden-surface
+        # pass (Immortalis-G925) let a cut-out shader there (it uses discard) win over the walls drawn after it, so clouds
+        # showed through buildings. The sky never writes depth, so plain blending loses nothing and looks like the original.
+        is_char = "/char/" in path or "_sky" in path
         if isinstance(r, _NP):
             fix_transparency(r, not is_char)
             apply_uber(r)
