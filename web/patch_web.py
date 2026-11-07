@@ -55,7 +55,7 @@ if "apple-touch-icon" not in s:
         '<meta name="theme-color" content="#1c4cc4">'))
     s = s.replace("</head>", tags + "</head>", 1)
 open(index, "w", encoding="utf-8").write(s)
-for f in ("tta-ui.css", "tta-ui.js", "tta-audio.js"):
+for f in ("tta-ui.css", "tta-ui.js", "tta-audio.js", "sw.js"):
     shutil.copy(os.path.join(HERE, f), os.path.join(web, f))
 icons = {}
 for name in ("discord", "reddit"):

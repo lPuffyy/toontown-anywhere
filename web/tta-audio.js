@@ -18,6 +18,11 @@
   }
   const SILENT = silentWav(8000);
 
+  // Audio mixing with other apps (iOS 16.4+, ignored elsewhere). "ambient" lets music from other apps keep playing under the game,
+  // but the silent switch then mutes the game as well. "auto" (the default) lets the game take over the audio.
+  A.mixOthers = (on) => { try { if (navigator.audioSession) navigator.audioSession.type = on ? 'ambient' : 'auto'; } catch (e) { log('audioSession failed ' + e); } };
+  try { if (window.localStorage.getItem('tta_mix') === '1') A.mixOthers(true); } catch (e) {}
+
   function context() {
     if (!ctx) {
       const C = window.AudioContext || window.webkitAudioContext;

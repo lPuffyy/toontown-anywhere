@@ -811,12 +811,111 @@
     row('Speed counter', 'The FPS number at the top', [['1', 'Show'], ['0', 'Hide']], lsGet('tta_fps', '1'), (v) => { lsSet('tta_fps', v); applyFps(); });
     row('On-screen controls', 'Auto hides them while you play with a keyboard or controller', [['auto', 'Auto'], ['show', 'Show'], ['hide', 'Hide']], lsGet('tta_touch', 'auto'),
       (v) => { lsSet('tta_touch', v); applyTouchUI(); });
+    row('Other apps’ audio', 'Let music from other apps keep playing. The game then follows the silent switch', [['0', 'Pause'], ['1', 'Keep playing']], lsGet('tta_mix', '0'),
+      (v) => { lsSet('tta_mix', v); try { if (window.ttaAudio && window.ttaAudio.mixOthers) window.ttaAudio.mixOthers(v === '1'); } catch (e) {} });
+    pushRow(card);
     const keysBtn = el('button', 'act', card); keysBtn.textContent = 'Keyboard keys';
     keysBtn.addEventListener('click', showKeys);
     const restart = el('button', 'act', card); restart.textContent = 'Restart game now'; restart.style.display = 'none';
     restart.addEventListener('click', () => location.reload());
     const done = el('button', 'act done', card); done.textContent = 'Done';
     done.addEventListener('click', () => { setWrap.style.display = 'none'; setWrap.innerHTML = ''; });
+  }
+  // ---- event notifications (Web Push): the server sends them from the mod panel; a phone needs the game on its Home Screen (iOS 16.4+)
+  const PUSH_OK = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  // [key, name, what a notification of that kind looks like]; the keys match the mod panel's Events tab
+  const PUSH_TOPICS = [
+    ['invasions', 'Cog invasions', 'A Cog invasion is taking over Toontown. Join the fight!'],
+    ['bingo', 'Bingo night', 'Bingo night starts in 10 minutes in Toon Valley.'],
+    ['beans', 'Extra beans', 'Double jellybeans for the next hour.'],
+    ['events', 'Events', 'Silly Surge is on! Parties, holidays and special events.'],
+    ['players', 'Player count', '42 toons are playing right now. Come say hi!'],
+  ];
+  const topicsGet = () => { try { const v = JSON.parse(lsGet('tta_push_topics', 'null')); if (Array.isArray(v)) return v.filter((k) => PUSH_TOPICS.some((t) => t[0] === k)); } catch (e) {} return PUSH_TOPICS.map((t) => t[0]); };
+  const topicsSet = (a) => lsSet('tta_push_topics', JSON.stringify(a));
+  const keyBytes = (b64) => { const p = (b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'); return Uint8Array.from(atob(p), (c) => c.charCodeAt(0)); };
+  async function pushSub() { const reg = await navigator.serviceWorker.getRegistration(); return reg ? reg.pushManager.getSubscription() : null; }
+  async function pushTell(sub) {   // tells the server this phone's address and which kinds it wants
+    const r = await fetch('/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON(), topics: topicsGet() }) });
+    return r.ok;
+  }
+  async function pushOn() {      // '' when it worked, otherwise what to tell the player
+    const reg = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready;
+    if ((await Notification.requestPermission()) !== 'granted') return 'Notifications are blocked. Allow them for this app in the phone\u2019s Settings, then try again.';
+    const k = await fetch('/push/key'); if (!k.ok) return 'Notifications are not available right now.';
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes((await k.json()).key) });
+    if (!(await pushTell(sub))) { try { await sub.unsubscribe(); } catch (e) {} return 'Could not turn notifications on. Try again later.'; }
+    return '';
+  }
+  async function pushOff() {
+    const sub = await pushSub(); if (!sub) return;
+    try { await fetch('/push/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }); } catch (e) {}
+    await sub.unsubscribe();
+  }
+  const pushSeg = (parent, label, hint, choices, current, onPick) => {
+    const r = el('div', 'row', parent), l = el('div', 'lbl', r); l.textContent = label;
+    if (hint) { const sm = el('small', null, l); sm.textContent = hint; }
+    const g = el('div', 'seg', r);
+    choices.forEach(([val, txt]) => {
+      const bt = el('button', val === current ? 'sel' : '', g); bt.textContent = txt;
+      bt.addEventListener('click', () => { [...g.children].forEach((c) => c.classList.remove('sel')); bt.classList.add('sel'); onPick(val); });
+    });
+  };
+  // the settings gear: one switch for notifications, and under it one for each kind
+  function pushRow(card) {
+    if (!PUSH_OK || (IOS && !STANDALONE)) {
+      const r = el('div', 'row', card), l = el('div', 'lbl', r); l.textContent = 'Event notifications';
+      const sm = el('small', null, l);
+      sm.textContent = IOS && !STANDALONE ? 'To get them, add the game to your Home Screen (Share, then Add to Home Screen) and open it from there' : 'This browser cannot show notifications';
+      return;
+    }
+    const box = el('div', null, card), note = el('div', 'note', card); note.style.visibility = 'hidden';
+    const draw = (on) => {
+      box.innerHTML = '';
+      pushSeg(box, 'Event notifications', 'Hear about what is happening, even when the game is closed', [['0', 'Off'], ['1', 'On']], on ? '1' : '0', async (v) => {
+        note.style.visibility = 'hidden';
+        try { const msg = v === '1' ? await pushOn() : (await pushOff(), ''); if (msg) { note.textContent = msg; note.style.visibility = ''; draw(false); } else draw(v === '1'); }
+        catch (e) { note.textContent = 'That did not work. Try again.'; note.style.visibility = ''; draw(on); }
+      });
+      if (!on) return;
+      PUSH_TOPICS.forEach(([key, name, eg]) => {
+        pushSeg(box, name, eg, [['1', 'On'], ['0', 'Off']], topicsGet().includes(key) ? '1' : '0', async (v) => {
+          const now = topicsGet().filter((k) => k !== key); if (v === '1') now.push(key); topicsSet(now);
+          try { const sub = await pushSub(); if (sub) await pushTell(sub); } catch (e) {}
+        });
+      });
+    };
+    draw(false);
+    pushSub().then((sub) => { if (sub && Notification.permission === 'granted') draw(true); }).catch(() => {});
+  }
+  // when the game opens: ask once, with examples of what would be sent
+  function showPushAsk() {
+    setWrap.innerHTML = ''; setWrap.style.display = '';
+    const card = el('div', 'card', setWrap);
+    const h = el('h2', null, card); h.textContent = 'Stay in the loop';
+    const tip = el('div', 'tip', card); tip.textContent = 'Get a notification when something fun is happening in Toontown, even when the game is closed. You will hear about things like:';
+    PUSH_TOPICS.forEach(([, name, eg]) => {
+      const r = el('div', 'row', card), l = el('div', 'lbl', r); l.textContent = name;
+      const sm = el('small', null, l); sm.textContent = '\u201C' + eg + '\u201D';
+    });
+    const note = el('div', 'note', card); note.style.visibility = 'hidden';
+    const close = () => { lsSet('tta_push_ask', '1'); setWrap.style.display = 'none'; setWrap.innerHTML = ''; };
+    const yes = el('button', 'act', card); yes.textContent = 'Turn on notifications';
+    yes.addEventListener('click', async () => {
+      yes.disabled = true; note.style.visibility = 'hidden';
+      try { topicsSet(PUSH_TOPICS.map((t) => t[0])); const msg = await pushOn(); if (msg) { note.textContent = msg; note.style.visibility = ''; yes.disabled = false; } else close(); }
+      catch (e) { note.textContent = 'That did not work. Try again.'; note.style.visibility = ''; yes.disabled = false; }
+    });
+    const no = el('button', 'act done', card); no.textContent = 'Not now'; no.addEventListener('click', close);
+    const fine = el('div', 'tip', card); fine.style.paddingTop = '8px'; fine.textContent = 'Pick which kinds you want, or turn them off, any time under the \u2699 settings.';
+  }
+  if (PUSH_OK && !(IOS && !STANDALONE) && lsGet('tta_push_ask', '') !== '1') {
+    setTimeout(async () => {
+      try { if (Notification.permission !== 'default' || setWrap.style.display !== 'none' || (await pushSub())) return; } catch (e) { return; }
+      showPushAsk();
+    }, 2500);
   }
   const gearBtn = el('button', 'tta-gear on', hud); gearBtn.textContent = '⚙';
   gearBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
