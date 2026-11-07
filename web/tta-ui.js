@@ -793,7 +793,8 @@
   function showSettings() {
     setWrap.innerHTML = ''; setWrap.style.display = '';
     const card = el('div', 'card', setWrap);
-    const h = el('h2', null, card); h.textContent = 'Display';
+    const h = el('h2', null, card); h.textContent = 'Settings';
+    const sec = (t) => { const x = el('h3', 'sec', card); x.textContent = t; };
     const row = (label, hint, choices, current, onPick) => {
       const r = el('div', 'row', card);
       const l = el('div', 'lbl', r); l.textContent = label;
@@ -804,18 +805,22 @@
         b.addEventListener('click', () => { [...g.children].forEach((c) => c.classList.remove('sel')); b.classList.add('sel'); onPick(val); });
       });
     };
+    sec('Display');
     row('Picture quality', 'Lower is smoother on slower devices', RES_CHOICES, String(lsGet('tta_res', '') || '2'), (v) => { lsSet('tta_res', v); relayout(); });
     const aaNow = T.aa;
-    const note = el('div', 'note', card); note.style.visibility = 'hidden'; note.textContent = 'Smooth edges changes when the game restarts.';
     row('Smooth edges', 'Softens jagged lines; off is faster', [['1', 'On'], ['0', 'Off']], aaNow, (v) => { lsSet('tta_aa', v); note.style.visibility = v === aaNow ? 'hidden' : ''; restart.style.display = v === aaNow ? 'none' : ''; });
+    const note = el('div', 'note', card); note.style.visibility = 'hidden'; note.textContent = 'Smooth edges changes when the game restarts.';
     row('Speed counter', 'The FPS number at the top', [['1', 'Show'], ['0', 'Hide']], lsGet('tta_fps', '1'), (v) => { lsSet('tta_fps', v); applyFps(); });
-    row('On-screen controls', 'Auto hides them while you play with a keyboard or controller', [['auto', 'Auto'], ['show', 'Show'], ['hide', 'Hide']], lsGet('tta_touch', 'auto'),
-      (v) => { lsSet('tta_touch', v); applyTouchUI(); });
+    sec('Sound');
     row('Other apps’ audio', 'Let music from other apps keep playing. The game then follows the silent switch', [['0', 'Pause'], ['1', 'Keep playing']], lsGet('tta_mix', '0'),
       (v) => { lsSet('tta_mix', v); try { if (window.ttaAudio && window.ttaAudio.mixOthers) window.ttaAudio.mixOthers(v === '1'); } catch (e) {} });
-    pushRow(card);
+    sec('Controls');
+    row('On-screen controls', 'Auto hides them while you play with a keyboard or controller', [['auto', 'Auto'], ['show', 'Show'], ['hide', 'Hide']], lsGet('tta_touch', 'auto'),
+      (v) => { lsSet('tta_touch', v); applyTouchUI(); });
     const keysBtn = el('button', 'act', card); keysBtn.textContent = 'Keyboard keys';
     keysBtn.addEventListener('click', showKeys);
+    sec('Notifications');
+    pushRow(card);
     const restart = el('button', 'act', card); restart.textContent = 'Restart game now'; restart.style.display = 'none';
     restart.addEventListener('click', () => location.reload());
     const done = el('button', 'act done', card); done.textContent = 'Done';
@@ -881,7 +886,7 @@
       });
       if (!on) return;
       PUSH_TOPICS.forEach(([key, name, eg]) => {
-        pushSeg(box, name, eg, [['1', 'On'], ['0', 'Off']], topicsGet().includes(key) ? '1' : '0', async (v) => {
+        pushSeg(box, name, eg, [['0', 'Off'], ['1', 'On']], topicsGet().includes(key) ? '1' : '0', async (v) => {
           const now = topicsGet().filter((k) => k !== key); if (v === '1') now.push(key); topicsSet(now);
           try { const sub = await pushSub(); if (sub) await pushTell(sub); } catch (e) {}
         });
@@ -921,7 +926,7 @@
   gearBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
   gearBtn.addEventListener('click', (e) => { e.preventDefault(); showSettings(); });
   layouts.push(() => place(gearBtn, W / 2 + 46 * sc, Math.max(SAFE.t, 6), 30 * sc, 28 * sc));
-  const dsp = pill('Display', null, null, login, 'light');
+  const dsp = pill('Settings', null, null, login, 'light');
   dsp.addEventListener('click', showSettings);
   layouts.push(() => { const ph = 30 * sc; place(dsp, W - 126 * sc - 14 - SAFE.r, Math.max(SAFE.t, 6) + 8 + ph + 8, 126 * sc, ph); dsp.style.visibility = kbMode ? 'hidden' : ''; });
 
