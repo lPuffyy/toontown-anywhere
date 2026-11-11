@@ -1572,7 +1572,7 @@ static NSString *SettingValue(NSString *rid) {
     [vc.view addSubview:hot];
     UIButton *cog = [UIButton buttonWithType:UIButtonTypeCustom];
     CGFloat cs = 30 * sc;
-    cog.frame = CGRectMake(b.size.width - safe.right - cs - 10 * sc, MAX(safe.top, 6), cs, cs);   // top-right corner: clear of the Pick-a-Toon title
+    cog.frame = CGRectMake(MAX(safe.left, 6) + 150 * sc, MAX(safe.top, 6), cs, cs);   // top-left, beside the two chat buttons: clear of the friends button and of the Pick-a-Toon title
     cog.backgroundColor = [UIColor colorWithRed:0.10 green:0.26 blue:0.62 alpha:0.62];
     cog.layer.cornerRadius = cs / 2;
     cog.layer.borderWidth = 1.5;

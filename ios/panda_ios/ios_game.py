@@ -440,43 +440,6 @@ def _fix_two_channel_textures():
                 print("LA convert failed", key, traceback.format_exc().splitlines()[-1], flush=True)
 
 
-_pet_dumps = [0]
-
-
-def _dump_pets(b):
-    """Diagnostics for Doodles that draw wrongly on the phone: what each part of every Doodle in view looks like to the engine
-    (found, stashed, hidden, its texture and colour). Printed to the app's log, a few times per session."""
-    if _pet_dumps[0] >= 4:
-        return
-    try:
-        pets = [o for o in list(b.cr.doId2do.values()) if o.__class__.__name__ == "DistributedPet"]
-    except BaseException:
-        return
-    if not pets:
-        return
-    _pet_dumps[0] += 1
-    from toontown.pets.PetDNA import HeadParts, EarParts, NoseParts, TailParts
-    for pet in pets[:2]:
-        print("PETDUMP pet", getattr(pet, "doId", "?"), "style", getattr(pet, "style", None), "hidden", pet.isHidden(), "stashed", pet.isStashed(), flush=True)
-        try:
-            for name in ["body", "leftFoot", "rightFoot", "eyeWhites", "rightPupil"] + list(HeadParts) + list(EarParts) + list(NoseParts) + list(TailParts):
-                np = pet.find("**/" + name)
-                if np.isEmpty():
-                    np = pet.find("**/" + name + ";+s")
-                    where = "stashed-only"
-                else:
-                    where = "visible-find"
-                if np.isEmpty():
-                    print("PETDUMP", name, "NOT FOUND", flush=True)
-                    continue
-                tex = np.findTexture("*")
-                print("PETDUMP", name, where, "stashed", np.isStashed(), "hidden", np.isHidden(), "color", np.getColor() if np.hasColor() else None,
-                      "tex", (tex.getName(), tex.getNumComponents(), tex.getXSize(), tex.getYSize()) if tex else None, flush=True)
-            print("PETDUMP @@ lookups:", [(n, not pet.find("**/@@" + n).isEmpty()) for n in list(HeadParts) + list(EarParts)[:2] + list(TailParts)[:2]], flush=True)
-        except BaseException:
-            print("PETDUMP failed", traceback.format_exc(), flush=True)
-
-
 def step():
     import builtins
     b = getattr(builtins, "base", None)
@@ -498,8 +461,6 @@ def step():
                     pass
             if _frames[0] % 16 == 0:
                 _fix_two_channel_textures()
-            if _frames[0] % 240 == 0:
-                _dump_pets(b)
             b.taskMgr.step()
         except SystemExit:
             raise
