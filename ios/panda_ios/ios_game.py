@@ -347,7 +347,7 @@ def _drop_backdrop():
 def _end_startup():
     """The game has started: show the 2D layer again and give the loading screen its drawing back, except for the FIRST loading screen after
     sign-in, which flickered on the phone: that one is skipped and the cloud picture stays up through it (the loading screens between areas
-    are fine). The picture is also dropped after a while, in case no loading screen comes."""
+    are fine). The picture is always dropped soon (8 s after startup, 4 s after that loading screen begins): it is drawn over the 3D world, so it must never stay."""
     import builtins
     b = getattr(builtins, "base", None)
     try:
@@ -359,6 +359,11 @@ def _end_startup():
         def begin(self, rng, label, gui, tip_category):
             if not _first_block["seen"]:
                 _first_block["active"] = True
+                try:
+                    import builtins
+                    builtins.base.taskMgr.doMethodLater(4.0, lambda task: (_drop_backdrop(), task.done)[1], "tta-drop-backdrop-2")
+                except BaseException:
+                    pass
                 return None
             return orig["begin"](self, rng, label, gui, tip_category)
 
@@ -381,7 +386,7 @@ def _end_startup():
             orig["abort"](self)
         cls.begin, cls.end, cls.tick, cls.abort = begin, end, tick, abort
         if b is not None:
-            b.taskMgr.doMethodLater(30.0, lambda task: (_drop_backdrop(), task.done)[1], "tta-drop-backdrop")
+            b.taskMgr.doMethodLater(8.0, lambda task: (_drop_backdrop(), task.done)[1], "tta-drop-backdrop")
     except BaseException:
         print("ios_game: could not end the startup", traceback.format_exc(), flush=True)
 
