@@ -16,17 +16,23 @@ updates on GitHub too.
 The game's own code and files (the packs) are **not** part of these releases: they update from the game server's `packs.json`, so most
 updates never need a new release of the app.
 
-## Making a release (Windows today)
+## Making a release (every platform from one tag)
 
-1. Raise `__version__` in `native/tta_native/__init__.py`, commit and push.
-2. Tag the same number and push the tag: `git tag v0.3.0` then `git push origin v0.3.0`.
-3. `.github/workflows/native-release.yml` builds the app and the setup program on a Windows runner, checks that the tag matches the version,
-   checks that the signing key matches the public key built into the app, signs `windows.json`, and creates the release with
-   `TTAnywhere-Setup-<version>.exe`, `TTAnywhere-Setup.exe` (a name that never changes, for the download button),
-   `TTAnywhere-<version>-windows.zip`, `windows.json` and `windows.json.sig`.
-4. Installed apps pick it up the next time they start.
+1. Raise `__version__` in `native/tta_native/__init__.py` (the one version number for every platform), commit and push.
+2. Tag the same number and push the tag: `git tag v1.3.0` then `git push origin v1.3.0`.
+3. `.github/workflows/native-release.yml` starts a draft release and builds **all platforms** from that commit:
+   - **Windows** (Windows runner): `TTAnywhere-Setup-<version>.exe`, `TTAnywhere-Setup.exe` (a name that never changes, for the download button),
+     `TTAnywhere-<version>-windows.zip`, and the signed update list `windows.json` + `windows.json.sig` (signed with the `TTA_UPDATE_KEY` secret).
+   - **iOS** (macOS runner, through `ios-app.yml`, using the Panda3D stage release named in the repository variable `PANDA_STAGE_RELEASE`):
+     `TTAnywhere-<version>.ipa`, `icon.png` and `altstore.json` (the SideStore / AltStore source).
+4. When every build has passed, the draft is published and becomes the latest release. If one build fails nothing is published: fix it and run the
+   workflow again for the same tag. Installed apps pick the release up the next time they start.
 
-"Run workflow" in the Actions tab builds without releasing and keeps the files for 7 days, for a trial.
+"Run workflow" in the Actions tab builds everything as a trial, with no release (the Windows files are kept for 7 days).
+
+iOS players add `https://github.com/lPuffyy/toontown-anywhere/releases/latest/download/altstore.json` to SideStore or AltStore once; it always
+describes the newest release. When the Panda3D iOS code (`ios/panda_ios/patch_sources.py`) changes, run `ios-panda-stage` and put the new
+release tag in the `PANDA_STAGE_RELEASE` variable.
 
 ### One-time setup
 

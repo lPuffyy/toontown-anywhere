@@ -75,6 +75,12 @@ cat > "$APP/Info.plist" <<'PLIST'
 </dict></plist>
 PLIST
 
+# version and build number come from the release (APP_VERSION, APP_BUILD); a trial build keeps the defaults
+if [ -n "${APP_VERSION:-}" ]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" "$APP/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${APP_BUILD:-1}" "$APP/Info.plist"
+fi
+
 # app icon (drawn with Pillow on the runner)
 python3 -m pip install --quiet pillow > /dev/null 2>&1 || pip3 install --quiet pillow > /dev/null 2>&1
 python3 "$W/ios/panda_ios/make_icon.py" "$APP" || echo "icon generation failed (app will use the default icon)"

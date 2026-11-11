@@ -1,8 +1,9 @@
-name: Release the native app
+name: Release the native apps
 
-# Push a tag like v0.2.0 (it must match __version__ in native/tta_native/__init__.py) and this builds the Windows app and its setup
-# program, signs the update list, and publishes everything as a GitHub release. Installed apps read the newest release's windows.json
-# from GitHub and update themselves. "Run workflow" by hand only builds and keeps the files for 7 days (no release).
+# Push a tag like v1.2.0 (it must match __version__ in native/tta_native/__init__.py) and this builds EVERY platform from that one commit
+# (Windows app and setup program, iPhone and iPad app; Android and Linux join the same way), signs the Windows update list, and publishes
+# one GitHub release holding all the files. Installed apps read the newest release from GitHub and update themselves. "Run workflow" by
+# hand builds everything as a trial (no release).
 on:
   push:
     tags: ['v*']
@@ -10,9 +11,49 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
+  # One tag builds every platform and publishes one release. The release is a draft until every build has finished, so the platforms can
+  # never be out of step: a failed build leaves the draft unpublished (fix it, then run the workflow again for the same tag).
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: native
+      - name: Read the app version, and make sure the tag matches it
+        id: v
+        run: |
+          VERSION=$(python3 -c "import re;print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('native/tta_native/__init__.py').read()).group(1))")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "The tag $GITHUB_REF_NAME does not match the app version $VERSION"; exit 1
+          fi
+      - name: Start the draft release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+            gh release create "v${{ steps.v.outputs.version }}" --draft --title "Toontown: Anywhere ${{ steps.v.outputs.version }}" \
+              --notes "Windows: download TTAnywhere-Setup.exe (not code-signed yet, so SmartScreen may warn: More info, then Run anyway). iPhone and iPad: add the source https://github.com/${{ github.repository }}/releases/latest/download/altstore.json to SideStore or AltStore. Installed apps update themselves."
+          fi
+
+  ios:
+    needs: prepare
+    uses: ./.github/workflows/ios-app.yml
+    with:
+      resource_server: ${{ vars.GAME_SERVER_URL || 'https://toontown.puffsco.com' }}
+      stage_release: ${{ vars.PANDA_STAGE_RELEASE }}
+      version: ${{ needs.prepare.outputs.version }}
+      build: ${{ github.run_number }}
+      release_tag: ${{ github.ref_type == 'tag' && format('v{0}', needs.prepare.outputs.version) || '' }}
+
   windows:
+    needs: prepare
     runs-on: windows-latest
     defaults:
       run:
@@ -61,14 +102,18 @@ jobs:
           path: native/release/*
           retention-days: 7
 
-      - name: Publish the GitHub release
+      - name: Add the Windows files to the release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view "v$VERSION" >/dev/null 2>&1; then
-            gh release upload "v$VERSION" native/release/* --clobber
-          else
-            gh release create "v$VERSION" native/release/* --title "Toontown: Anywhere native client $VERSION" \
-              --notes "Windows: download TTAnywhere-Setup.exe. Installed apps update themselves from this release."
-          fi
+        run: gh release upload "v$VERSION" native/release/* --clobber
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: [prepare, windows, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release (every platform built)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "v${{ needs.prepare.outputs.version }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest

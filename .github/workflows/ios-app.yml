@@ -1,6 +1,27 @@
 name: ios-app
 on:
-  workflow_dispatch:
+  workflow_call:                       # the release workflow (native-release.yml) builds the iOS app through this, so every platform is built from one tag
+    inputs:
+      resource_server:
+        type: string
+        required: true
+      stage_release:
+        type: string
+        required: false
+        default: ""
+      version:
+        type: string
+        required: false
+        default: ""
+      build:
+        type: string
+        required: false
+        default: "1"
+      release_tag:
+        type: string
+        required: false
+        default: ""
+  workflow_dispatch:                   # a trial build by hand: no release
     inputs:
       resource_server:
         description: "URL of the Toontown: Anywhere server the app downloads the game from, e.g. https://toontown.puffsco.com"
@@ -64,7 +85,9 @@ jobs:
       - name: Assemble
         env:
           APP_RESOURCE_SERVER: ${{ inputs.resource_server }}
-          APP_GAME_SERVER: ${{ inputs.game_server }}
+          APP_GAME_SERVER: ${{ inputs.game_server || '-' }}
+          APP_VERSION: ${{ inputs.version }}
+          APP_BUILD: ${{ inputs.build }}
         run: |
           PYXC="$GITHUB_WORKSPACE/pysup/Python.xcframework/ios-arm64"
           PYINC=$(dirname "$(find "$PYXC" -name Python.h | head -1)")
@@ -75,7 +98,21 @@ jobs:
         with:
           name: TTAnywhere-ipa
           path: out/TTAnywhere.ipa
+      - name: Attach the IPA and the SideStore / AltStore source to the release
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          cp out/TTAnywhere.ipa "TTAnywhere-$VERSION.ipa"
+          python3 -m pip install --quiet pillow
+          python3 ios/panda_ios/make_icon.py icon-out
+          cp icon-out/AppIcon-1024.png icon.png
+          python3 ios/panda_ios/make_source.py "$GITHUB_REPOSITORY" "$TAG" "$VERSION" "TTAnywhere-$VERSION.ipa" icon.png altstore.json
+          gh release upload "$TAG" "TTAnywhere-$VERSION.ipa" icon.png altstore.json --clobber
       - name: Keep the IPA as a release asset (does not count against artifact storage)
+        if: ${{ inputs.release_tag == '' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
