@@ -70,6 +70,8 @@ def start(server, user, password, data_root):
     if os.environ.get("TTA_HIDDEN"):                  # testing: a real window (the game needs a mouse), parked off the screen, no sound
         loadPrcFileData("", "win-origin -3000 0")
         loadPrcFileData("", "audio-library-name null")
+    if os.environ.get("TTA_AUTO_AVATAR"):             # testing: pick this toon slot (0-5) on the Pick a Toon screen by itself
+        loadPrcFileData("", "auto-avatar-choice " + os.environ["TTA_AUTO_AVATAR"])
     # the server runs in normal mode, so the game must too (dev mode asks the server for things a normal server refuses)
     try:
         from direct.showbase import ShowBaseGlobal
@@ -99,13 +101,30 @@ def start(server, user, password, data_root):
 
     builtins.game = _Game()
 
-    hook = os.environ.get("TTA_TEST_SHOT")           # testing: save a picture of the game after N seconds, then quit ("path.png,seconds")
-    if hook:
-        path, secs = hook.rsplit(",", 1)
-        from direct.showbase.ShowBase import ShowBase
-        orig_run = ShowBase.run
+    # first run: a 16:9 window (the game's own default is 800x600); the in-game Options page changes it from there
+    useropt = os.path.join(game_dir, "useropt.json")
+    if not os.path.exists(useropt):
+        try:
+            import json
+            with open(useropt, "w", encoding="utf8") as f:
+                json.dump({"windowed-mode": True, "resolution": [1280, 720]}, f)
+        except OSError:
+            pass
 
-        def run(self):
+    # things added around the running game (F11 full screen, widescreen HUD, controller): installed just before its main loop starts
+    from direct.showbase.ShowBase import ShowBase
+    orig_run = ShowBase.run
+    hook = os.environ.get("TTA_TEST_SHOT")           # testing: save a picture of the game after N seconds, then quit ("path.png,seconds")
+
+    def run(self):
+        try:
+            from . import hooks
+            hooks.install(self)
+        except BaseException:
+            print("native: extras not installed", traceback.format_exc())
+        if hook:
+            path, secs = hook.rsplit(",", 1)
+
             def shot(task):
                 self.win.saveScreenshot(Filename.fromOsSpecific(path))
                 print("native: test screenshot saved", path)
@@ -113,8 +132,8 @@ def start(server, user, password, data_root):
                     os._exit(0)
                 return task.done
             self.taskMgr.doMethodLater(float(secs), shot, "tta-test-shot")
-            orig_run(self)
-        ShowBase.run = run
+        orig_run(self)
+    ShowBase.run = run
 
     import runpy
     try:

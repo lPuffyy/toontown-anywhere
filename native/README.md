@@ -35,19 +35,45 @@ Useful switches:
 
 Everything the game prints is also written to `%LOCALAPPDATA%\TTAnywhere\logs\client.log`.
 
+## Controls and window
+
+- Keyboard and mouse as in the original game. **F11** (or Alt+Enter) switches full screen. The first start opens a 1280x720 window; the
+  in-game Options page changes the resolution afterwards. The side HUD buttons are moved to the window's edges on wide windows.
+- **Controllers** (`gamepad.py`, uses the same control code as the browser's touch buttons, `controls.py`): left stick or D-pad walks,
+  A jumps, B is the action button, X changes the camera, Y or Start opens the sticker book, shoulder buttons are the tug-of-war pads.
+
+## Build and update the Windows app
+
+```
+.venv\Scripts\pip install pyinstaller
+.venv\Scripts\python build_windows.py          ->  dist\TTAnywhere\TTAnywhere.exe  and  dist\TTAnywhere-<version>-windows.zip (about 60 MB)
+```
+
+The app carries only Python, Panda3D and the launcher (the whole standard library is included, because the downloaded game code imports it).
+The game code and files are downloaded on first start. Updating the **app itself** (`shell_update.py`):
+
+1. `python tools/sign_tool.py keygen KEYFILE` once. Keep KEYFILE out of the repo and backed up in two places; put the printed public key in
+   `tta_native/updatekey.py` (the one in the repo is a test key).
+2. Raise `__version__` in `tta_native/__init__.py`, build, then `python tools/sign_tool.py publish KEYFILE dist\TTAnywhere-X.Y.Z-windows.zip OUTDIR`.
+3. Upload OUTDIR's three files to `<server>/native/` (`windows.json`, `windows.json.sig`, the zip).
+
+At start the app downloads `windows.json` and its signature, checks the signature with the built-in public key, and if the version is newer
+downloads the zip, checks its size and SHA-256, unpacks it beside the app and swaps the files in after it closes (`robocopy`), then
+restarts. An altered list or zip is refused. The app folder must be writable (not Program Files). `min_version` in the list is for forcing an
+update later (not enforced yet).
+
 ## Verified so far (2026-11-11, Windows, Python 3.13, panda3d 1.10.16)
 
 Download and install of all 15 packs (393 MB) from the dev server; the launcher screens render like the web app; sign-in against the
-server; the game starts, connects over WebSocket and reaches **Pick a Toon**. Not tried yet: making a toon, entering the world,
-sound, controls, full-screen.
+server; the game starts, connects over WebSocket, picks a toon and **enters Toontown Central** in a 16:9 window with the HUD at the edges.
+The packaged app does the same. A 0.1.0 app updated itself to a signed 0.1.1. Not tried yet: sound, controller and F11 on real hardware, making a toon.
 
 ## Known gaps (next)
 
-- Window size: the game's own display options take over once it starts (800x600); the launcher's 1280x720 is not carried over. Needs a
-  settings screen (window size, full screen) and the widescreen HUD anchoring the web version does (`_anchor_hud` in `web/game/main.py`).
-- Controls: keyboard and mouse only so far; no controller support (Steam Deck needs it).
+- Sound is untested, and so are controllers and F11 on real hardware (written to Panda's documented input API, not tried with a pad).
 - The launcher is a separate step from the game window (the launcher window closes and the game opens its own).
-- Packaging: no installer yet (PyInstaller or Briefcase), and no self-update of the app itself; the game files do update. The update
-  design is in the project notes: signed pack list, minimum app version, then a launcher that replaces its own files.
+- No installer yet (a zip you unpack; Inno Setup would add Start menu entries), no icon, and the executable is not code-signed
+  (Windows SmartScreen will warn). Steam Deck, Linux and Mac builds use the same code and still need to be built and tried.
+- `min_version` forcing is not enforced; there is no "what's new" screen.
 - The server still accepts a bare user name as the play token (also true for the browser version): the sign-in step is not yet tied to the
   game connection.

@@ -71,9 +71,20 @@ class Launcher:
         self.updater = Updater(self.server, self.root, log=print)
         scr = LoadingScreen(self.base, self.style)
         self._set_screen(scr)
-        self.updater.start()
+        from .shell_update import ShellUpdater
+        shell = ShellUpdater(self.server, self.root, log=print)         # a newer app first (rare), then the game files
+        shell.start()
+        started = [False]
 
         def poll(task):
+            if not shell.state["finished"]:
+                scr.update(shell.state)
+                return task.cont
+            if shell.state["restart"]:
+                shell.launch_and_exit()
+            if not started[0]:
+                started[0] = True
+                self.updater.start()
             st = self.updater.state
             scr.update(st)
             if st.get("finished"):
@@ -210,7 +221,21 @@ def main(argv=None):
     ap.add_argument("--server", help="server address (default %s)" % DEFAULT_SERVER)
     ap.add_argument("--selftest-ui", metavar="DIR", help="draw each launcher screen offscreen into DIR as pictures, then quit")
     ap.add_argument("--autologin", metavar="USER:PASSWORD", help="testing: skip the launcher screens (files are still checked) and start the game")
+    ap.add_argument("--check-update", action="store_true", help="testing: check for a newer app, install it and quit")
     args = ap.parse_args(argv)
+    if args.check_update:
+        import time
+        from .shell_update import ShellUpdater
+        os.makedirs(os.path.join(data_dir(), "logs"), exist_ok=True)
+        sys.stdout = sys.stderr = open(os.path.join(data_dir(), "logs", "update.log"), "w", buffering=1)
+        su = ShellUpdater((args.server or DEFAULT_SERVER).rstrip("/"), data_dir())
+        su.start()
+        while not su.state["finished"]:
+            time.sleep(0.5)
+        print("native: update state:", su.state)
+        if su.state["restart"]:
+            su.launch_and_exit()
+        return 0
     if args.autologin:
         server = (args.server or DEFAULT_SERVER).rstrip("/")
         root = data_dir()
