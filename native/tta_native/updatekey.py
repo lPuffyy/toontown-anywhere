@@ -1,3 +1,3 @@
 """The public half of the release signing key: the app only trusts update lists signed by the matching private key.
-(Test key for now. Make a real one with tools/sign_tool.py keygen before the first public release, and keep the private key out of the repo.)"""
-PUBLIC_KEY_HEX = "2692b4ed30afc74ae1de0b54a22e54238f65f8828cb4328a624d1c15d3fe8505"
+(The release key. Its private half is the repository secret TTA_UPDATE_KEY and a backup file kept outside the repo; never commit it.)"""
+PUBLIC_KEY_HEX = "7f19a76fe5bd05b700545164589ff5e34bfda512e9e1d44d4e3ca14e2ec388ed"
