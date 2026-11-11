@@ -624,8 +624,13 @@
     const setMsg = (t, bad) => { msg.textContent = t; msg.style.color = bad ? '#d91a1a' : '#1a408c'; };
     const prim = cButton(g.card, reset ? 'Reset password' : 'Save', 'tta-pill blue', y + 40, 220, 44, g);
     prim.style.fontSize = 22 * sc + 'px';
+    // The prompt comes back at every sign-in until answers are saved. The first two times it can be skipped; after that it has to be
+    // filled in (a player with no answers cannot reset their own password, and moderators have to do it by hand).
+    let skips = 0; try { skips = +LS.getItem('tta.recskips') || 0; } catch (e) { skips = 0; }
+    const mustSet = !reset && skips >= 2;
     const sec = cButton(g.card, reset ? 'Cancel' : 'Skip for now', 'tta-pill gray', y + 92, 160, 32, g);
-    sec.addEventListener('click', () => { cardClose(); done(); });
+    if (mustSet) sec.style.display = 'none';
+    sec.addEventListener('click', () => { if (!reset) { try { LS.setItem('tta.recskips', String(skips + 1)); } catch (e) {} } cardClose(); done(); });
     prim.addEventListener('click', async () => {
       const n = nick.value.trim(), t = toon.value.trim(), p = npw ? npw.value : '';
       if (!n || !t || (reset && !p)) { setMsg('Fill in every box.', true); return; }
