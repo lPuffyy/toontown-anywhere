@@ -107,6 +107,7 @@ class CConnectionRepository:
         self._out = []          # framed bytes waiting for the socket to open
         self._inbuf = b""
         self._started = False
+        self._hello_sent = False    # the server takes CLIENT_HELLO once per connection; a second one gets the player thrown out (error 108, then 106)
 
     # ---- simple settings ----
     def getDcFile(self):
@@ -191,6 +192,7 @@ class CConnectionRepository:
         self._bundle_msgs = []
         self._simulated_disconnect = False
         self._inbuf = b""
+        self._hello_sent = False
         self._started = True
         return True        # the socket opens in the background; sends wait until it is open
 
@@ -235,6 +237,11 @@ class CConnectionRepository:
         if str(_wn.state) in ("closed", "idle"):
             return False           # the connection is gone: do not queue for the next one
         payload = bytes(dg.getMessage())
+        if len(payload) >= 2 and struct.unpack("<H", payload[:2])[0] == 1:      # CLIENT_HELLO
+            if self._hello_sent:
+                _log("dropped a second CLIENT_HELLO on this connection")        # the account-creation and login screens can both send one
+                return True
+            self._hello_sent = True
         if self._tcp_header_size == 2:
             frame = struct.pack("<H", len(payload)) + payload
         elif self._tcp_header_size == 4:

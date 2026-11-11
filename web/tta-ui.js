@@ -96,7 +96,7 @@
     if (LOGGING) { try { navigator.sendBeacon('/__log', m); } catch (e) {} return; }
     if (m.indexOf('JS| env') !== 0) { quietLog(m); return; }
     // the real site: only the screen-fact lines, a few per visit, as a plain request the web server's log records
-    if (m.indexOf('JS| env') !== 0 || dn >= 12) return;
+    if (m.indexOf('JS| env') !== 0 || dn >= 40) return;
     dn++; try { new Image().src = '/__d?' + encodeURIComponent(m) + '&r=' + Date.now(); } catch (e) {}
   }
   T.plog = plog;
@@ -122,14 +122,22 @@
   }
   function relayout() {
     if (kbHold) return;
-    measure(); layouts.forEach((f) => f());
+    measure(); fitTitle(); layouts.forEach((f) => f());      // (the title first: the sign-in layout then shrinks and lifts it to clear the fields on a short screen)
     // Open Toontown test build: draw at the page's own pixel size by default (a phone's full screen resolution is too slow); ?res=1.5 or ?res=2 for sharper
     let cap = 2; try { cap = parseFloat(new URLSearchParams(location.search).get('res') || localStorage.getItem('tta_res') || '2') || 2; } catch (e) { cap = 2; }
     cap = Math.max(0.5, Math.min(cap, 2));
     const dpr = Math.min(window.devicePixelRatio || 1, cap);
-    T.winW = Math.round(W * dpr); T.winH = Math.round(H * dpr);
-    fitTitle();
-    T.safeL = SAFE.l; T.safeR = SAFE.r; T.safeT = SAFE.t; T.safeB = SAFE.b; T.vh = H;      // the game keeps its on-screen items inside these
+    // A tablet opened from the Home Screen reports a window a little shorter than its screen (iPad landscape: 796 of 820), so the game
+    // stopped short and a bar showed along the bottom. There is no browser bar in that mode, so draw to the screen's full height there.
+    let FH = H;
+    try {
+      const home = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+      if (home && Math.min(W, H) >= 600 && outerWidth === innerWidth && outerHeight > innerHeight && outerHeight - innerHeight <= 100) FH = outerHeight;
+    } catch (e) { FH = H; }
+    if (FH !== H) document.documentElement.style.setProperty('--fh', FH + 'px');      // only the tablet case: everything else keeps the 100dvh canvas
+    else document.documentElement.style.removeProperty('--fh');
+    T.winW = Math.round(W * dpr); T.winH = Math.round(FH * dpr);
+    T.safeL = SAFE.l; T.safeR = SAFE.r; T.safeT = SAFE.t; T.safeB = SAFE.b; T.vh = FH;      // the game keeps its on-screen items inside these
   }
   function fitTitle() {
     if (typeof title === 'undefined') return;
@@ -1178,7 +1186,7 @@
     } catch (e) { plog('JS| env failed ' + e); }
   }
   setTimeout(() => envLog('load'), 1500); setTimeout(() => envLog('+10s'), 10000); setTimeout(() => envLog('+40s'), 40000); setTimeout(() => envLog('+90s'), 90000); setTimeout(() => envLog('+180s'), 180000);
-  addEventListener('resize', () => setTimeout(() => envLog('resize'), 300));
+  addEventListener('resize', () => { setTimeout(() => envLog('resize'), 300); setTimeout(() => envLog('resize+3s'), 3000); });
   // Touch on the game itself: the game only understands the mouse, and a finger that slides (aiming a fishing cast, dragging in a
   // minigame) never produces mouse movement in a phone browser. Turn a touch on the game into mouse move / press / release.
   // The game's menus only react to a press on a button it has already seen the pointer arrive on, so the press is sent a moment

@@ -9,10 +9,13 @@
   --sar: env(safe-area-inset-right, 0px);
 }
 html, body, #tta, #tta * { touch-action: manipulation; }   /* no double-tap zoom */
+html, body, canvas.emscripten { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }   /* holding a mouse button on the game must not select the page */
+input, textarea { -webkit-user-select: text; user-select: text; }
 html, body { margin: 0; padding: 0; height: 100%; background: #489cf0; overflow: hidden; overscroll-behavior: none; }
 #transfer, #infobox, #crt, #dlg, #pyconsole, #html, #box { display: none !important; }
 canvas.emscripten { touch-action: none; position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; margin: 0 !important; z-index: 5 !important; }
-@supports (height: 100dvh) { canvas.emscripten { width: 100dvw !important; height: 100dvh !important; } }   /* the visible area, not the one with the browser bars hidden (Android Chrome, Safari tabs) */
+@supports (height: 100dvh) { canvas.emscripten { width: 100dvw !important; height: 100dvh !important; } }
+canvas.emscripten { height: var(--fh, 100dvh) !important; }   /* the page sets --fh: a Home Screen tablet is drawn to its screen's full height */   /* the visible area, not the one with the browser bars hidden (Android Chrome, Safari tabs) */
 #canvas3d { display: none !important; }
 
 #tta { position: fixed; inset: 0; z-index: 100; pointer-events: none; font-family: var(--mf); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
