@@ -227,8 +227,8 @@ def launch(docs, frameworks, game_server, cookie, app_dir):
         pass
     from direct.showbase.ShowBase import ShowBase
     hud.install(ShowBase, lambda: tuple(list(_screen_insets()) + [max(1.0, _screen["h"])]))
-    # No loading screens and no startup splash in this app (the Disney logo, the version text and the loading bars flickered and are not
-    # wanted): everything the game draws in 2D while it starts is hidden until launch() has finished, and the loading screen never draws.
+    # No startup splash in this app (the Disney logo, the version text and the loading bar are not wanted): everything the game draws in 2D
+    # while it starts is hidden until launch() has finished (the cloud picture is drawn instead), and the loading screen is off for that time.
     try:
         from toontown.toontowngui import ToontownLoadingScreen as _tls
         _cls = _tls.ToontownLoadingScreen
@@ -254,6 +254,7 @@ def launch(docs, frameworks, game_server, cookie, app_dir):
             w.set_clear_depth_active(True)
             w.set_clear_stencil_active(True)
             self.aspect2d.hide()                  # (shown again when launch() has finished)
+            _make_backdrop(self, docs, frameworks)
         except BaseException:
             print("ios_game: early clear failed", traceback.format_exc(), flush=True)
         return res
@@ -295,14 +296,56 @@ def launch(docs, frameworks, game_server, cookie, app_dir):
 _loading_saved = {}
 
 
+_backdrop = []
+
+
+def _make_backdrop(base_obj, docs_dir, frameworks_dir):
+    """While the game starts, draw the start screen's cloud picture across the whole window so the frames the game presents look the same as
+    the start screen behind them (black frames flickering over it did not)."""
+    try:
+        from panda3d.core import CardMaker, Filename, TextureStage, TexturePool
+        path = None
+        for cand in (os.path.join(docs_dir, "ui", "background.jpg"), os.path.join(os.path.dirname(frameworks_dir), "ui_bundled", "background.jpg")):
+            if os.path.exists(cand):
+                path = cand
+                break
+        if path is None:
+            return
+        tex = TexturePool.load_texture(Filename.from_os_specific(path))
+        if tex is None:
+            return
+        win = base_obj.win
+        asp = float(win.get_x_size()) / max(1.0, float(win.get_y_size()))
+        img = float(tex.get_x_size()) / max(1.0, float(tex.get_y_size()))
+        su, sv = (1.0, img / asp) if asp > img else (asp / img, 1.0)           # fill the window, cropping what does not fit
+        cm = CardMaker("tta-backdrop")
+        cm.set_frame(-1, 1, -1, 1)
+        card = base_obj.render2d.attach_new_node(cm.generate())
+        card.set_texture(tex)
+        ts = TextureStage.get_default()
+        card.set_tex_scale(ts, su, sv)
+        card.set_tex_offset(ts, (1.0 - su) / 2.0, (1.0 - sv) / 2.0)
+        card.set_bin("background", 0)
+        card.set_depth_test(False)
+        card.set_depth_write(False)
+        _backdrop.append(card)
+    except BaseException:
+        print("ios_game: startup backdrop failed", traceback.format_exc(), flush=True)
+
+
 def _end_startup():
-    """The game has started: show the 2D layer again. The loading screens stay off in this app (they flickered on the phone): while the game
-    loads an area it keeps showing its last picture."""
+    """The game has started: take the backdrop away, show the 2D layer again and give the loading screen its drawing back (it is used between
+    areas, and does not flicker there)."""
     import builtins
     b = getattr(builtins, "base", None)
     try:
+        while _backdrop:
+            _backdrop.pop().remove_node()
         if b is not None:
             b.aspect2d.show()
+        cls = _loading_saved.get("cls")
+        for n, f in (_loading_saved.get("methods") or {}).items():
+            setattr(cls, n, f)
     except BaseException:
         print("ios_game: could not end the startup", traceback.format_exc(), flush=True)
 
