@@ -78,6 +78,29 @@ Download and install of all 15 packs (393 MB) from the dev server; the launcher 
 server; the game starts, connects over WebSocket, picks a toon and **enters Toontown Central** in a 16:9 window with the HUD at the edges.
 The packaged app does the same. A 0.1.0 app updated itself to a signed 0.1.1. Not tried yet: sound, controller and F11 on real hardware, making a toon.
 
+## Display test (any screen shape)
+
+The game fills the whole window at any shape (`aspect-ratio 0`), and its on-screen buttons are placed by `hud.py` (shared with the web app and the
+iOS app): hung from the left and right edges, kept inside the safe area (camera cut-out, rounded corners, home bar). The Windows app can pretend to
+have any screen and safe area for a check: `TTA_TEST_SIZE=852x393 TTA_TEST_INSETS=59,59,0,21 TTA_TEST_SHOT="out.png,52" TTA_HIDDEN=1 TTA_AUTO_AVATAR=0
+python -m tta_native --autologin USER:PASSWORD` (size in pixels, insets `left,right,top,bottom`). Checked on 2026-11-11 at nine shapes, each with the real
+game in Toontown Central, and the buttons stayed inside the safe area at all of them:
+
+| Shape | Size | Safe area (L,R,T,B) |
+|---|---|---|
+| iPhone SE | 667x375 | 0,0,0,0 |
+| iPhone 13 mini | 812x375 | 44,44,0,21 |
+| iPhone 15 | 852x393 | 59,59,0,21 |
+| iPhone 16 Pro Max | 956x440 | 62,62,0,21 |
+| iPad mini | 1133x744 | 0,0,24,20 |
+| iPad Pro 13 | 1376x1032 | 0,0,24,20 |
+| Foldable, opened (about 1.42:1, from a tester's screenshot) | 1426x1003 | 0,0,24,20 |
+| Stage Manager style window | 900x700 | 0,0,24,20 |
+| Extra wide phone | 1000x420 | 70,70,0,21 |
+
+What this does not cover: how each phone's operating system reports its real safe area and resizes the window (the phone apps pass UIKit's or
+Android's values to `display.set_provider`); that needs a run on the devices.
+
 ## Known gaps (next)
 
 - Sound is untested, and so are controllers and F11 on real hardware (written to Panda's documented input API, not tried with a pad).

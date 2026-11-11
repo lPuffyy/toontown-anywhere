@@ -84,6 +84,9 @@ def start(server, user, password, data_root):
     except BaseException:
         print("native: could not turn dev mode off", traceback.format_exc())
 
+    from . import display, hud
+    from direct.showbase.ShowBase import ShowBase as _SB
+    hud.install(_SB, display.insets)          # the game's screen-edge items stay inside the safe area (none on a desktop)
     netlayer.install()
     import otpy.install
     otpy.install.install()
@@ -110,6 +113,14 @@ def start(server, user, password, data_root):
     from . import window
     native_settings = Settings()
     full, size = window.saved_state(native_settings)
+    ts = os.environ.get("TTA_TEST_SIZE")            # testing: open at this size (and as a window), e.g. "852x393"
+    if ts:
+        full, size = False, tuple(int(n) for n in ts.split("x"))
+    ti = os.environ.get("TTA_TEST_INSETS")          # testing: pretend the screen has this safe area in pixels, "left,right,top,bottom"
+    if ti:
+        from . import display as _display
+        _vals = tuple(float(n) for n in ti.split(","))
+        _display.set_provider(lambda: _vals)
     dw = window.desktop_size()
     try:
         import json

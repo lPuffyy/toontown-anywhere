@@ -3,34 +3,7 @@ and controller support. install(base) is called once the game's window exists, j
 import builtins
 import traceback
 
-_A43 = 4.0 / 3.0
-
-
-def anchor_hud(b):
-    """The game lays its screen-edge buttons (laff meter, book, friends...) out for a 4:3 screen with absolute positions. On a wider window
-    they would float in from the edges, so hang the ones near the side edges from the left / right edge anchors instead, keeping their
-    distance from the edge. (Same as _anchor_hud in the browser version.)"""
-    try:
-        if getattr(builtins, "localAvatar", None) is None:
-            return          # not in the game yet: menu screens (pick a toon, make a toon) are laid out as whole 4:3 pictures and must stay together
-        left, right = b.a2dLeftCenter, b.a2dRightCenter
-        for c in list(b.aspect2d.getChildren()):
-            name = c.getName()
-            if name.startswith(("a2d", "pixel")) or c.getTag("anch"):
-                continue
-            pos = c.getPos()
-            if abs(pos.getX()) < 0.8:
-                continue
-            s = c.getSort()
-            if pos.getX() < 0:
-                c.reparentTo(left, s)
-                c.setPos(pos.getX() + _A43, pos.getY(), pos.getZ())
-            else:
-                c.reparentTo(right, s)
-                c.setPos(pos.getX() - _A43, pos.getY(), pos.getZ())
-            c.setTag("anch", "1")
-    except BaseException:
-        print("native: HUD anchoring failed", traceback.format_exc())
+from . import hud
 
 
 def install(base, settings=None):
@@ -59,7 +32,7 @@ def install(base, settings=None):
         print("native: settings not installed", traceback.format_exc())
 
     def anchor(task):
-        anchor_hud(base)
+        hud.anchor_hud(base)
         return task.again
     base.taskMgr.doMethodLater(0.4, anchor, "tta-anchor-hud")
     try:

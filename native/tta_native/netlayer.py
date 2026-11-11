@@ -11,6 +11,7 @@ from panda3d.core import Datagram, DatagramIterator, ClockObject
 import panda3d.direct as _direct
 
 WS_URL = "ws://localhost:8766"      # set by the page before the game starts
+CA_FILE = None                       # a certificate list to check the server with (iOS has no system list Python can use)
 CLIENT_OBJECT_SET_FIELD = 120
 STATESERVER_OBJECT_SET_FIELD = 2020
 
@@ -64,7 +65,8 @@ class _NativeWS:
 
         ws = websocket.WebSocketApp(url, on_open=on_open, on_message=on_message, on_close=on_close, on_error=on_error)
         self._ws = ws
-        threading.Thread(target=lambda: ws.run_forever(ping_interval=25, ping_timeout=15), daemon=True).start()
+        sslopt = {"ca_certs": CA_FILE} if CA_FILE else None
+        threading.Thread(target=lambda: ws.run_forever(ping_interval=25, ping_timeout=15, sslopt=sslopt), daemon=True).start()
 
     def send(self, b64):
         ws = self._ws

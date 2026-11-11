@@ -651,46 +651,9 @@ _DOM.DirectOptionMenu.__init__ = _dom_init
 
 
 # Keep the game's own on-screen items (chat buttons, laff meter, book, FPS) inside the phone's safe area (notch, rounded corners,
-# home bar). The game places them on Panda's screen-edge anchors, so we nudge the anchors inward by the safe-area sizes.
-_orig_adjust = ShowBase.adjustWindowAspectRatio
-_ANCHORS = (("a2dTopLeft", 1, -1, 1, 0), ("a2dTopRight", -1, -1, 0, 0), ("a2dBottomLeft", 1, 1, 1, 0), ("a2dBottomRight", -1, 1, 0, 0),
-            ("a2dTopCenter", 0, -1, 0, 0), ("a2dBottomCenter", 0, 1, 0, 0), ("a2dLeftCenter", 1, 0, 0, 0), ("a2dRightCenter", -1, 0, 0, 0))
-
-
-_applied = [0.0, 0.0, 0.0, 0.0]        # insets already added to the anchors (they are reset whenever the window's aspect ratio changes)
-
-
-def _apply_insets(b, reset):
-    """Move the anchors by (wanted insets - already applied ones). Panda only rewrites the anchors when the aspect ratio changes,
-    so adding the full insets on every call (e.g. each window-focus event) would push everything further in."""
-    try:
-        if reset:
-            _applied[:] = [0.0, 0.0, 0.0, 0.0]
-        k = 2.0 / (float(TTA.vh) or 1.0)           # screen-height units (aspect2d spans 2.0 over the height) per page pixel
-        want = [float(TTA.safeL) * k, float(TTA.safeR) * k, float(TTA.safeT) * k, float(TTA.safeB) * k]
-        dL, dR, dT, dB = [want[i] - _applied[i] for i in range(4)]
-        if abs(dL) + abs(dR) + abs(dT) + abs(dB) < 1e-6:
-            return
-        for base_name, sx, sz, _a, _b in _ANCHORS:
-            for suffix in ("", "Ns"):
-                n = getattr(b, base_name + suffix, None)
-                if n is None:
-                    continue
-                dx = dL if sx > 0 else (-dR if sx < 0 else 0.0)
-                dz = dB if sz > 0 else (-dT if sz < 0 else 0.0)
-                n.setPos(n.getX() + dx, n.getY(), n.getZ() + dz)
-        _applied[:] = want
-    except BaseException:
-        print("web: safe-area adjust failed", traceback.format_exc())
-
-
-def _adjust(self, aspectRatio):
-    old = getattr(self, "_ShowBase__oldAspectRatio", None)
-    _orig_adjust(self, aspectRatio)
-    _apply_insets(self, getattr(self, "_ShowBase__oldAspectRatio", None) != old)
-
-
-ShowBase.adjustWindowAspectRatio = _adjust
+# home bar). The layout code is shared with the native apps (hud.py); the page tells it how big the safe area is.
+import hud
+hud.install(ShowBase, lambda: (float(TTA.safeL), float(TTA.safeR), float(TTA.safeT), float(TTA.safeB), float(TTA.vh)))
 
 
 def _install_smooth_walk():
@@ -795,30 +758,8 @@ def _install_perf_probes(b):
 
 
 def _anchor_hud(b):
-    """The game lays its screen-edge buttons (laff meter, book, friends...) out for a 4:3 screen with absolute positions. On a wide phone they
-    would float in from the edges (and sit under the notch), so hang the ones near the side edges from the left / right edge anchors instead,
-    keeping their distance from the edge; the page's safe-area margins then move them clear of the notch."""
-    try:
-        if getattr(builtins, "localAvatar", None) is None:
-            return          # not in the game yet: menu screens (pick a toon, make a toon) are laid out as whole 4:3 pictures and must stay together
-        left, right = b.a2dLeftCenter, b.a2dRightCenter
-        for c in list(b.aspect2d.getChildren()):
-            name = c.getName()
-            if name.startswith(("a2d", "pixel")) or c.getTag("anch"):
-                continue
-            pos = c.getPos()
-            if abs(pos.getX()) < 0.8:
-                continue
-            s = c.getSort()
-            if pos.getX() < 0:
-                c.reparentTo(left, s)
-                c.setPos(pos.getX() + _A43, pos.getY(), pos.getZ())
-            else:
-                c.reparentTo(right, s)
-                c.setPos(pos.getX() - _A43, pos.getY(), pos.getZ())
-            c.setTag("anch", "1")
-    except BaseException:
-        print("web: HUD anchoring failed", traceback.format_exc())
+    """The game lays its screen-edge buttons out for a 4:3 screen; hud.py hangs the ones near the sides from the screen's edges."""
+    hud.anchor_hud(b)
 
 
 def _sync_size(b):

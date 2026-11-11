@@ -65,6 +65,7 @@ compiled to WebAssembly, drawing with WebGL. Our glue code is in `web/game/`:
 | `webnet.py` | The game's network connection over WebSocket (a browser cannot open a plain TCP socket). |
 | `webaudio.py` | `AudioManager` and `AudioSound` look-alikes that pass sound requests to the shell. |
 | `webui.py`, `webui_core.py` | Touch controls and phone-sized versions of some game screens. |
+| `hud.py` | Where the game's on-screen buttons sit on any screen: hung from the screen's edges, kept inside the safe area. Shared with every native app (copied into `native/tta_native/hud.py` by `native/build_windows.py`; the glue build must include this file). |
 | `xmlshim.py` | A small stand-in for `xml.sax`, which the browser's Python build lacks; it reads the game's DNA files. |
 
 `web/patch_web.py` takes the page that pygbag builds and adds the shell, the Home Screen manifest and icons.

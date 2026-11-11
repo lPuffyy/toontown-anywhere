@@ -48,6 +48,20 @@ def sync_shared():
         with open(spec_dst, "w", encoding="utf8", newline=chr(10)) as f:
             f.write(spec_text)
         print("copied settings-spec.json from shared/")
+    hud_src = os.path.join(HERE, "..", "web", "game", "hud.py")
+    hud_dst = os.path.join(HERE, "tta_native", "hud.py")
+    with open(hud_src, encoding="utf8", newline="") as f:
+        hud_text = f.read().replace(chr(13) + chr(10), chr(10))
+    hud_cur = ""
+    if os.path.exists(hud_dst):
+        with open(hud_dst, encoding="utf8", newline="") as f:
+            hud_cur = f.read().replace(chr(13) + chr(10), chr(10))
+    if hud_cur != hud_text:
+        if "--check-shared" in sys.argv:
+            sys.exit("native/tta_native/hud.py is out of date: run build_windows.py to copy it from web/game/hud.py")
+        with open(hud_dst, "w", encoding="utf8", newline=chr(10)) as f:
+            f.write(hud_text)
+        print("copied hud.py from web/game/")
     cur = ""
     if os.path.exists(dst):
         with open(dst, encoding="utf8", newline="") as f:
