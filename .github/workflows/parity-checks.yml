@@ -1,0 +1,19 @@
+name: Web and native parity checks
+
+# The web app and the native apps share code and one settings description; these checks fail if their copies drift apart.
+on:
+  push:
+  pull_request:
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: The native copy of the browser's control and chat code is current
+        run: python native/build_windows.py --check-shared
+      - name: The settings spec is the same in the web app, the native app and shared/
+        run: python native/tools/check_spec.py

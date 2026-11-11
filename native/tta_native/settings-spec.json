@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "about": "The one description of the settings cog and the keyboard keys card. The web app and every native app build these screens from it (served at /_ui/settings-spec.json; each app also carries this same text as a fallback). A row shows on a platform when its platforms list includes it ('web': the browser app on any device, 'desktop': the Windows, Linux and Mac apps, 'android' and 'ios': the native phone apps). Each app implements the row ids.",
+  "title": "Settings",
+  "sections": [
+    {
+      "id": "display",
+      "title": "Display",
+      "rows": [
+        {"id": "window_mode", "label": "Window", "hint": "Full screen or a window (F11 does the same)", "platforms": ["desktop"],
+         "choices": [["window", "Window"], ["full", "Full screen"]], "default": "window"},
+        {"id": "window_size", "label": "Window size", "hint": "Used while it is a window", "platforms": ["desktop"],
+         "choices": [["1280x720", "1280x720"], ["1600x900", "1600x900"], ["1920x1080", "1920x1080"], ["2560x1440", "2560x1440"]], "default": "1280x720"},
+        {"id": "picture_quality", "label": "Picture quality", "hint": "Lower is smoother on slower devices", "platforms": ["web", "android", "ios"],
+         "choices": [["2", "Sharp"], ["1.5", "Balanced"], ["1", "Fast"], ["0.75", "Fastest"]], "default": "2"},
+        {"id": "smooth_edges", "label": "Smooth edges", "hint": "Softens jagged lines; off is faster",
+         "choices": [["1", "On"], ["0", "Off"]], "default": "1", "restart_note": "Smooth edges changes when the game restarts."},
+        {"id": "fps", "label": "Speed counter", "hint": "The FPS number at the top",
+         "choices": [["1", "Show"], ["0", "Hide"]], "default": "1"}
+      ]
+    },
+    {
+      "id": "sound",
+      "title": "Sound",
+      "rows": [
+        {"id": "mix_others", "label": "Other apps\u2019 audio", "hint": "Let music from other apps keep playing. The game then follows the silent switch",
+         "platforms": ["web", "ios", "android"], "choices": [["0", "Pause"], ["1", "Keep playing"]], "default": "0"}
+      ]
+    },
+    {
+      "id": "controls",
+      "title": "Controls",
+      "rows": [
+        {"id": "touch_ui", "label": "On-screen controls", "hint": "Auto hides them while you play with a keyboard or controller",
+         "platforms": ["web", "android", "ios"], "choices": [["auto", "Auto"], ["show", "Show"], ["hide", "Hide"]], "default": "auto"},
+        {"id": "keys", "type": "page", "label": "Keyboard keys", "platforms": ["web", "desktop"]}
+      ]
+    },
+    {
+      "id": "notifications",
+      "title": "Notifications",
+      "rows": [
+        {"id": "push", "type": "push", "platforms": ["web"]}
+      ]
+    }
+  ],
+  "keys": {
+    "title": "Keyboard keys",
+    "tip": "Tap an action, then press the key you want for it. The game's own keys keep working too.",
+    "waiting": "Press a key... (Esc cancels)",
+    "reset": "Use the game's keys",
+    "wasd": "Use WASD and Space",
+    "wasd_map": {"w": "fwd", "s": "back", "a": "left", "d": "right", "space": "jump"},
+    "actions": [
+      {"id": "fwd", "label": "Walk forward", "game_key": "arrow_up", "web_code": "ArrowUp"},
+      {"id": "back", "label": "Walk back", "game_key": "arrow_down", "web_code": "ArrowDown"},
+      {"id": "left", "label": "Turn left", "game_key": "arrow_left", "web_code": "ArrowLeft"},
+      {"id": "right", "label": "Turn right", "game_key": "arrow_right", "web_code": "ArrowRight"},
+      {"id": "jump", "label": "Jump", "game_key": "control", "web_code": "ControlLeft"},
+      {"id": "pie", "label": "Throw pie", "game_key": "delete", "web_code": "Delete"},
+      {"id": "tasks", "label": "Tasks", "game_key": "end", "web_code": "End"},
+      {"id": "gags", "label": "Gags", "game_key": "home", "web_code": "Home"},
+      {"id": "map", "label": "Map", "game_key": "alt", "web_code": "AltLeft"},
+      {"id": "book", "label": "Shticker Book", "game_key": "f8", "web_code": "F8"},
+      {"id": "friends", "label": "Friends", "game_key": "f7", "web_code": "F7"},
+      {"id": "camera", "label": "Camera view", "game_key": "tab", "web_code": "Tab"}
+    ]
+  }
+}

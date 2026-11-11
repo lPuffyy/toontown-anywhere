@@ -43,6 +43,7 @@ class _Tee:
 def start(server, user, password, data_root):
     from panda3d.core import loadPrcFile, loadPrcFileData, Filename
     from .app import ws_url
+    from .settings import Settings
     game_dir = os.path.join(data_root, "game")
     os.makedirs(os.path.join(data_root, "logs"), exist_ok=True)
     log_path = os.path.join(data_root, "logs", "client.log")
@@ -65,8 +66,11 @@ def start(server, user, password, data_root):
     for line in ("window-title " + TITLE, "load-display pandagl", "audio-library-name p3openal_audio", "toontown-auto-run 1", "want-dev #f",
                  "connect-method native", "notify-level warning", "dna-path resources", "default-model-extension .bam",
                  "interpolate-frames 1", "aspect-ratio 0", "win-size 1280 720", "sync-video 1", "dna-ram-cache-hood-models #t",
-                 "garbage-collect-states-rate 0.05", "framebuffer-multisample 1", "multisamples 4"):
+                 "garbage-collect-states-rate 0.05"):
         loadPrcFileData("", line)
+    smooth = str(Settings().get("smooth_edges", "1")) != "0"          # the settings cog's "Smooth edges" (takes effect at the next start)
+    loadPrcFileData("", "framebuffer-multisample %d" % (1 if smooth else 0))
+    loadPrcFileData("", "multisamples %d" % (4 if smooth else 0))
     if os.environ.get("TTA_HIDDEN"):                  # testing: a real window (the game needs a mouse), parked off the screen, no sound
         loadPrcFileData("", "win-origin -3000 0")
         loadPrcFileData("", "audio-library-name null")
@@ -104,7 +108,6 @@ def start(server, user, password, data_root):
     # open the way the player left it (a 16:9 window the first time; the game's own default is 800x600). The game reads its own options file
     # first, so that is where the mode and size go; the in-game Options page and F11 keep both in step afterwards.
     from . import window
-    from .settings import Settings
     native_settings = Settings()
     full, size = window.saved_state(native_settings)
     dw = window.desktop_size()
@@ -165,6 +168,42 @@ def start(server, user, password, data_root):
                 print("native: back in a window: fullscreen=%s size=%dx%d" % (p.getFullscreen(), p.getXSize(), p.getYSize()))
                 os._exit(0)
             self.taskMgr.doMethodLater(float(fsecs), go_full, "tta-test-fs")
+        st_test = os.environ.get("TTA_TEST_SETTINGS")       # testing: open the settings cog's screens, try a remapped key, save pictures ("folder,seconds")
+        if st_test:
+            folder, ssecs = st_test.rsplit(",", 1)
+
+            def shot_to(name):
+                self.win.saveScreenshot(Filename.fromOsSpecific(os.path.join(folder, name)))
+
+            def st_open(task):
+                self.tta_settings_ui.open()
+                self.taskMgr.doMethodLater(1.0, st_main, "tta-test-st-main")
+                return task.done
+
+            def st_main(task):
+                shot_to("settings-main.png")
+                self.tta_settings_ui.show_keys()
+                self.taskMgr.doMethodLater(1.0, st_keys, "tta-test-st-keys")
+                return task.done
+
+            def st_keys(task):
+                shot_to("settings-keys.png")
+                ui, km = self.tta_settings_ui, self.tta_keymap
+                from panda3d.core import KeyboardButton
+                from . import controls
+                ui._capture("fwd")
+                self.messenger.send("tta-btn-down", [KeyboardButton.ascii_key("i")])
+                print("native: settings test: i now means:", km.map.get("i"), "| saved:", Settings().get("keys"))
+                ui.close()
+                ist = controls._input_state()
+                self.messenger.send("tta-btn-down", [KeyboardButton.ascii_key("i")])
+                print("native: settings test: pressing i -> forward is set:", ist.isSet("forward"))
+                self.messenger.send("tta-btn-up", [KeyboardButton.ascii_key("i")])
+                print("native: settings test: released -> forward is set:", ist.isSet("forward"))
+                km.reset()
+                print("native: settings test: after reset, map:", km.map)
+                os._exit(0)
+            self.taskMgr.doMethodLater(float(ssecs), st_open, "tta-test-st")
         chat_test = os.environ.get("TTA_TEST_CHAT")         # testing: open typed chat, put non-plain text in the box, report what the box holds ("seconds")
         if chat_test:
             def open_chat(task):

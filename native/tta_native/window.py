@@ -65,6 +65,21 @@ class FullScreen:
     def toggle(self):
         self.set_full(not self.is_full())
 
+    def set_window_size(self, w, h):
+        """The size the window has (used now if it is a window, and the next time it becomes one)."""
+        self.window_size = (int(w), int(h))
+        self.settings.data["window_size"] = list(self.window_size)
+        self.settings.save()
+        if not self.is_full():
+            props = WindowProperties()
+            props.setSize(int(w), int(h))
+            self.base.win.requestProperties(props)
+        if self.on_change:
+            try:
+                self.on_change(self.is_full(), self.window_size)
+            except Exception:
+                pass
+
     def set_full(self, full):
         b = self.base
         cur = b.win.getProperties()

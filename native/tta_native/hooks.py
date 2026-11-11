@@ -50,6 +50,13 @@ def install(base, settings=None):
             pass
     fs = FullScreen(base, settings, on_change=remember)
     base.tta_fullscreen = fs
+    try:
+        import os
+        from . import settings_ui
+        from .settings import data_dir
+        settings_ui.install(base, settings, fs, os.path.join(data_dir(), "ui"))
+    except BaseException:
+        print("native: settings not installed", traceback.format_exc())
 
     def anchor(task):
         anchor_hud(base)

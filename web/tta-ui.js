@@ -797,7 +797,10 @@
   });
 
   // ------------------------------------------------------------------ display settings (sign-in screen and in game)
-  const RES_CHOICES = [['2', 'Sharp'], ['1.5', 'Balanced'], ['1', 'Fast'], ['0.75', 'Fastest']];
+  // The settings cog and the keyboard keys card are described by one spec shared with the native apps (shared/settings-spec.json,
+  // served at /_ui/settings-spec.json). This is the same text, used when the spec cannot be fetched; tools/check_spec.py keeps them equal.
+  const SPEC_DEFAULT = {"version":1,"about":"The one description of the settings cog and the keyboard keys card. The web app and every native app build these screens from it (served at /_ui/settings-spec.json; each app also carries this same text as a fallback). A row shows on a platform when its platforms list includes it ('web': the browser app on any device, 'desktop': the Windows, Linux and Mac apps, 'android' and 'ios': the native phone apps). Each app implements the row ids.","title":"Settings","sections":[{"id":"display","title":"Display","rows":[{"id":"window_mode","label":"Window","hint":"Full screen or a window (F11 does the same)","platforms":["desktop"],"choices":[["window","Window"],["full","Full screen"]],"default":"window"},{"id":"window_size","label":"Window size","hint":"Used while it is a window","platforms":["desktop"],"choices":[["1280x720","1280x720"],["1600x900","1600x900"],["1920x1080","1920x1080"],["2560x1440","2560x1440"]],"default":"1280x720"},{"id":"picture_quality","label":"Picture quality","hint":"Lower is smoother on slower devices","platforms":["web","android","ios"],"choices":[["2","Sharp"],["1.5","Balanced"],["1","Fast"],["0.75","Fastest"]],"default":"2"},{"id":"smooth_edges","label":"Smooth edges","hint":"Softens jagged lines; off is faster","choices":[["1","On"],["0","Off"]],"default":"1","restart_note":"Smooth edges changes when the game restarts."},{"id":"fps","label":"Speed counter","hint":"The FPS number at the top","choices":[["1","Show"],["0","Hide"]],"default":"1"}]},{"id":"sound","title":"Sound","rows":[{"id":"mix_others","label":"Other apps\u2019 audio","hint":"Let music from other apps keep playing. The game then follows the silent switch","platforms":["web","ios","android"],"choices":[["0","Pause"],["1","Keep playing"]],"default":"0"}]},{"id":"controls","title":"Controls","rows":[{"id":"touch_ui","label":"On-screen controls","hint":"Auto hides them while you play with a keyboard or controller","platforms":["web","android","ios"],"choices":[["auto","Auto"],["show","Show"],["hide","Hide"]],"default":"auto"},{"id":"keys","type":"page","label":"Keyboard keys","platforms":["web","desktop"]}]},{"id":"notifications","title":"Notifications","rows":[{"id":"push","type":"push","platforms":["web"]}]}],"keys":{"title":"Keyboard keys","tip":"Tap an action, then press the key you want for it. The game's own keys keep working too.","waiting":"Press a key... (Esc cancels)","reset":"Use the game's keys","wasd":"Use WASD and Space","wasd_map":{"w":"fwd","s":"back","a":"left","d":"right","space":"jump"},"actions":[{"id":"fwd","label":"Walk forward","game_key":"arrow_up","web_code":"ArrowUp"},{"id":"back","label":"Walk back","game_key":"arrow_down","web_code":"ArrowDown"},{"id":"left","label":"Turn left","game_key":"arrow_left","web_code":"ArrowLeft"},{"id":"right","label":"Turn right","game_key":"arrow_right","web_code":"ArrowRight"},{"id":"jump","label":"Jump","game_key":"control","web_code":"ControlLeft"},{"id":"pie","label":"Throw pie","game_key":"delete","web_code":"Delete"},{"id":"tasks","label":"Tasks","game_key":"end","web_code":"End"},{"id":"gags","label":"Gags","game_key":"home","web_code":"Home"},{"id":"map","label":"Map","game_key":"alt","web_code":"AltLeft"},{"id":"book","label":"Shticker Book","game_key":"f8","web_code":"F8"},{"id":"friends","label":"Friends","game_key":"f7","web_code":"F7"},{"id":"camera","label":"Camera view","game_key":"tab","web_code":"Tab"}]}};
+  let SPEC = SPEC_DEFAULT;
   const lsGet = (k, d) => { try { const v = LS.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
   const lsSet = (k, v) => { try { LS.setItem(k, v); } catch (e) {} };
   function applyFps() { fps.style.display = lsGet('tta_fps', '1') === '0' ? 'none' : ''; }
@@ -806,7 +809,7 @@
   function showSettings() {
     setWrap.innerHTML = ''; setWrap.style.display = '';
     const card = el('div', 'card', setWrap);
-    const h = el('h2', null, card); h.textContent = 'Settings';
+    const h = el('h2', null, card); h.textContent = SPEC.title || 'Settings';
     const sec = (t) => { const x = el('h3', 'sec', card); x.textContent = t; };
     const row = (label, hint, choices, current, onPick) => {
       const r = el('div', 'row', card);
@@ -818,23 +821,33 @@
         b.addEventListener('click', () => { [...g.children].forEach((c) => c.classList.remove('sel')); b.classList.add('sel'); onPick(val); });
       });
     };
-    sec('Display');
-    row('Picture quality', 'Lower is smoother on slower devices', RES_CHOICES, String(lsGet('tta_res', '') || '2'), (v) => { lsSet('tta_res', v); relayout(); });
+    const mine = (r) => !r.platforms || r.platforms.indexOf('web') >= 0;
     const aaNow = T.aa;
-    row('Smooth edges', 'Softens jagged lines; off is faster', [['1', 'On'], ['0', 'Off']], aaNow, (v) => { lsSet('tta_aa', v); note.style.visibility = v === aaNow ? 'hidden' : ''; restart.style.display = v === aaNow ? 'none' : ''; });
-    const note = el('div', 'note', card); note.style.visibility = 'hidden'; note.textContent = 'Smooth edges changes when the game restarts.';
-    row('Speed counter', 'The FPS number at the top', [['1', 'Show'], ['0', 'Hide']], lsGet('tta_fps', '1'), (v) => { lsSet('tta_fps', v); applyFps(); });
-    sec('Sound');
-    row('Other apps’ audio', 'Let music from other apps keep playing. The game then follows the silent switch', [['0', 'Pause'], ['1', 'Keep playing']], lsGet('tta_mix', '0'),
-      (v) => { lsSet('tta_mix', v); try { if (window.ttaAudio && window.ttaAudio.mixOthers) window.ttaAudio.mixOthers(v === '1'); } catch (e) {} });
-    sec('Controls');
-    row('On-screen controls', 'Auto hides them while you play with a keyboard or controller', [['auto', 'Auto'], ['show', 'Show'], ['hide', 'Hide']], lsGet('tta_touch', 'auto'),
-      (v) => { lsSet('tta_touch', v); applyTouchUI(); });
-    const keysBtn = el('button', 'act', card); keysBtn.textContent = 'Keyboard keys';
-    keysBtn.addEventListener('click', showKeys);
-    sec('Notifications');
-    pushRow(card);
-    const restart = el('button', 'act', card); restart.textContent = 'Restart game now'; restart.style.display = 'none';
+    let note = null, restart = null;
+    const BEHAVIOUR = {        // row id -> [current value, what choosing a value does]; a row this app has no behaviour for is left out
+      picture_quality: [() => String(lsGet('tta_res', '') || '2'), (v) => { lsSet('tta_res', v); relayout(); }],
+      smooth_edges: [() => aaNow, (v) => { lsSet('tta_aa', v); if (note) note.style.visibility = v === aaNow ? 'hidden' : ''; if (restart) restart.style.display = v === aaNow ? 'none' : ''; }],
+      fps: [() => lsGet('tta_fps', '1'), (v) => { lsSet('tta_fps', v); applyFps(); }],
+      mix_others: [() => lsGet('tta_mix', '0'), (v) => { lsSet('tta_mix', v); try { if (window.ttaAudio && window.ttaAudio.mixOthers) window.ttaAudio.mixOthers(v === '1'); } catch (e) {} }],
+      touch_ui: [() => lsGet('tta_touch', 'auto'), (v) => { lsSet('tta_touch', v); applyTouchUI(); }],
+    };
+    (SPEC.sections || []).forEach((sc) => {
+      const rows = (sc.rows || []).filter(mine);
+      if (!rows.length) return;
+      sec(sc.title);
+      rows.forEach((r) => {
+        if (r.type === 'push') { pushRow(card); return; }
+        if (r.type === 'page') {
+          if (r.id === 'keys') { const keysBtn = el('button', 'act', card); keysBtn.textContent = r.label; keysBtn.addEventListener('click', showKeys); }
+          return;
+        }
+        const b = BEHAVIOUR[r.id];
+        if (!b) return;
+        row(r.label, r.hint, r.choices, b[0](), b[1]);
+        if (r.restart_note) { note = el('div', 'note', card); note.style.visibility = 'hidden'; note.textContent = r.restart_note; }
+      });
+    });
+    restart = el('button', 'act', card); restart.textContent = 'Restart game now'; restart.style.display = 'none';
     restart.addEventListener('click', () => location.reload());
     const done = el('button', 'act done', card); done.textContent = 'Done';
     done.addEventListener('click', () => { setWrap.style.display = 'none'; setWrap.innerHTML = ''; });
@@ -1010,13 +1023,22 @@
   // one is used, and keys can be remapped. A page cannot ask what keyboard is attached, so a real key press outside typed chat is the sign;
   // a finger on the screen after a quiet spell brings the controls back. A remapped key is swallowed and the game's own key is sent instead,
   // so the game's keys keep working too.
-  const GAME_KEYS = [        // [id, label, the game's key]
-    ['fwd', 'Walk forward', 'ArrowUp'], ['back', 'Walk back', 'ArrowDown'], ['left', 'Turn left', 'ArrowLeft'], ['right', 'Turn right', 'ArrowRight'],
-    ['jump', 'Jump', 'ControlLeft'], ['pie', 'Throw pie', 'Delete'], ['tasks', 'Tasks', 'End'], ['gags', 'Gags', 'Home'],
-    ['map', 'Map', 'AltLeft'], ['book', 'Shticker Book', 'F8'], ['friends', 'Friends', 'F7'], ['camera', 'Camera view', 'Tab']];
+  let GAME_KEYS = [], actTarget = {};        // GAME_KEYS: [id, label, the game's key code], from the spec's key actions
+  function applyKeySpec() {
+    GAME_KEYS = ((SPEC.keys && SPEC.keys.actions) || []).map((a) => [a.id, a.label, a.web_code]);
+    actTarget = {}; GAME_KEYS.forEach(([id, , code]) => { actTarget[id] = code; });
+  }
+  applyKeySpec();
+  (async () => {            // the newest spec from the server, if it can be reached (the embedded copy is used until then and if it cannot)
+    try {
+      const r = await fetch(prefs.base + '/_ui/settings-spec.json', { cache: 'no-cache' });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (j && j.version === 1 && Array.isArray(j.sections) && j.keys && Array.isArray(j.keys.actions)) { SPEC = j; applyKeySpec(); }
+    } catch (e) {}
+  })();
   const KEYINFO = { ArrowUp: ['ArrowUp', 38], ArrowDown: ['ArrowDown', 40], ArrowLeft: ['ArrowLeft', 37], ArrowRight: ['ArrowRight', 39],
     ControlLeft: ['Control', 17], Delete: ['Delete', 46], End: ['End', 35], Home: ['Home', 36], AltLeft: ['Alt', 18], F8: ['F8', 119], F7: ['F7', 118], Tab: ['Tab', 9] };
-  const actTarget = {}; GAME_KEYS.forEach(([id, , code]) => { actTarget[id] = code; });
   let keyMap = {};           // the player's key (event code) -> action id
   try { keyMap = JSON.parse(lsGet('tta_keys', '{}')) || {}; } catch (e) { keyMap = {}; }
   const saveKeys = () => lsSet('tta_keys', JSON.stringify(keyMap));
@@ -1034,6 +1056,7 @@
   // the focus after a message is sent, so it only counts while the game's text box is open (textOn).
   function typing() { const a = document.activeElement; return textOn || (a && a !== tin && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')); }
   function sendKey(type, code, e) {
+    if (!KEYINFO[code]) return;
     const [key, kc] = KEYINFO[code];
     const down = type === 'keydown';
     const ev = new KeyboardEvent(type, { key, code, keyCode: kc, which: kc, repeat: !!(e && e.repeat), bubbles: true, cancelable: true,
@@ -1074,12 +1097,17 @@
   addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'touch' && (kbUsed || padUsed) && Date.now() - lastKeyAt > 20000) { kbUsed = padUsed = false; plog('JS| touch again: controls back'); applyTouchUI(); }
   }, true);
+  function wasdMap() {        // the spec names keys the way the native apps do ('w', 'space'); the page uses event codes ('KeyW', 'Space')
+    const out = {};
+    Object.entries((SPEC.keys && SPEC.keys.wasd_map) || {}).forEach(([k, id]) => { out[k.length === 1 ? 'Key' + k.toUpperCase() : k === 'space' ? 'Space' : k] = id; });
+    return out;
+  }
   function showKeys() {
     keyCapture = null;
     setWrap.innerHTML = ''; setWrap.style.display = '';
     const card = el('div', 'card', setWrap);
-    const h = el('h2', null, card); h.textContent = 'Keyboard keys';
-    const tip = el('div', 'tip', card); tip.textContent = 'Tap an action, then press the key you want for it. The game\'s own keys keep working too.';
+    const h = el('h2', null, card); h.textContent = SPEC.keys.title || 'Keyboard keys';
+    const tip = el('div', 'tip', card); tip.textContent = SPEC.keys.tip || '';
     GAME_KEYS.forEach(([id, label, code]) => {
       const r = el('div', 'row', card);
       const l = el('div', 'lbl', r); l.textContent = label;
@@ -1091,7 +1119,7 @@
       if (mine.length) b.classList.add('sel');
       b.addEventListener('click', () => {
         [...card.querySelectorAll('.seg button.wait')].forEach((x) => x.classList.remove('wait'));
-        b.classList.add('wait'); b.textContent = 'Press a key... (Esc cancels)';
+        b.classList.add('wait'); b.textContent = SPEC.keys.waiting || 'Press a key... (Esc cancels)';
         keyCapture = (e) => {
           keyCapture = null;
           if (e.code && e.code !== 'Escape') {
@@ -1103,10 +1131,10 @@
         };
       });
     });
-    const reset = el('button', 'act', card); reset.textContent = 'Use the game\'s keys';
+    const reset = el('button', 'act', card); reset.textContent = SPEC.keys.reset || 'Use the game\'s keys';
     reset.addEventListener('click', () => { keyMap = {}; saveKeys(); showKeys(); });
-    const wasd = el('button', 'act', card); wasd.textContent = 'Use WASD and Space';
-    wasd.addEventListener('click', () => { keyMap = { KeyW: 'fwd', KeyS: 'back', KeyA: 'left', KeyD: 'right', Space: 'jump' }; saveKeys(); showKeys(); });
+    const wasd = el('button', 'act', card); wasd.textContent = SPEC.keys.wasd || 'Use WASD and Space';
+    wasd.addEventListener('click', () => { keyMap = wasdMap(); saveKeys(); showKeys(); });
     const back = el('button', 'act done', card); back.textContent = 'Back';
     back.addEventListener('click', () => { keyCapture = null; showSettings(); });
   }

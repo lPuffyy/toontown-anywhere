@@ -21,8 +21,9 @@ class Launcher:
         self.server = (server or self.settings.get("server") or DEFAULT_SERVER).rstrip("/")
         self.root = data_dir()
         from . import window
+        smooth = str(self.settings.get("smooth_edges", "1")) != "0"
         for line in ["window-title " + TITLE, "audio-library-name null", "notify-level warning", "sync-video 1",
-                     "framebuffer-multisample 1", "multisamples 4"] + ([] if offscreen else window.prc_lines(self.settings)):
+                     "framebuffer-multisample %d" % (1 if smooth else 0), "multisamples %d" % (4 if smooth else 0)] + ([] if offscreen else window.prc_lines(self.settings)):
             loadPrcFileData("", line)
         if offscreen:
             loadPrcFileData("", "win-size 1280 720")

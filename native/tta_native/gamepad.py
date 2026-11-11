@@ -5,7 +5,7 @@ import traceback
 
 from panda3d.core import InputDevice
 
-from . import controls
+from . import controls, inputs
 
 DEAD = 0.35
 
@@ -39,7 +39,7 @@ class Pad:
         if device in self.devices:
             self.devices.remove(device)
             self.base.detachInputDevice(device)
-            controls.ui_move(False, False, False, False)
+            inputs.set_all("pad", False, False, False, False)
             print("native: controller removed:", device.name)
 
     # ---- buttons
@@ -86,7 +86,7 @@ class Pad:
         state = (y > DEAD or self.dpad[0], y < -DEAD or self.dpad[1], x < -DEAD or self.dpad[2], x > DEAD or self.dpad[3])
         if state != self.last:
             self.last = state
-            controls.ui_move(*state)
+            inputs.set_all("pad", *state)
         return task.cont
 
 

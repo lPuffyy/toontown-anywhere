@@ -11,7 +11,7 @@ import zipfile
 
 CODE_PACK = "_code"
 CODE_DIRS = ("toontown", "otp", "otpy", "etc", "pytz")      # replaced as a whole when the code pack changes (so removed files go too)
-UI_FILES = ("ToonDisplay.ttf", "background.jpg", "logo.png")
+UI_FILES = ("ToonDisplay.ttf", "background.jpg", "logo.png", "settings-spec.json")
 
 
 def http_get(url, timeout=30, binary=True):

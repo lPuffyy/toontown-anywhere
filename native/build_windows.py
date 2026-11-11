@@ -34,6 +34,20 @@ def sync_shared():
     new = ('"""Game-control logic shared with the browser version (generated from web/game/webui_core.py by build_windows.py; do not edit):\n'
            "drives the game's own input states and camera calls. The native client's controller support and chat helpers use it the way\n"
            'the web page\'s touch controls do."""') + text[len(head):]
+    spec_src = os.path.join(HERE, "..", "shared", "settings-spec.json")
+    spec_dst = os.path.join(HERE, "tta_native", "settings-spec.json")
+    with open(spec_src, encoding="utf8", newline="") as f:
+        spec_text = f.read().replace(chr(13) + chr(10), chr(10))
+    spec_cur = ""
+    if os.path.exists(spec_dst):
+        with open(spec_dst, encoding="utf8", newline="") as f:
+            spec_cur = f.read().replace(chr(13) + chr(10), chr(10))
+    if spec_cur != spec_text:
+        if "--check-shared" in sys.argv:
+            sys.exit("native/tta_native/settings-spec.json is out of date: run build_windows.py to copy it from shared/settings-spec.json")
+        with open(spec_dst, "w", encoding="utf8", newline=chr(10)) as f:
+            f.write(spec_text)
+        print("copied settings-spec.json from shared/")
     cur = ""
     if os.path.exists(dst):
         with open(dst, encoding="utf8", newline="") as f:
@@ -53,7 +67,7 @@ def main():
         return
     import PyInstaller.__main__ as pi
     args = [os.path.join(HERE, "run_tta.py"), "--name", "TTAnywhere", "--noconfirm", "--clean", "--onedir",
-            "--noconsole", "--paths", HERE, "--collect-all", "panda3d", "--collect-all", "direct", "--collect-submodules", "websocket",
+            "--noconsole", "--paths", HERE, "--add-data", os.path.join(HERE, "tta_native", "settings-spec.json") + os.pathsep + "tta_native", "--collect-all", "panda3d", "--collect-all", "direct", "--collect-submodules", "websocket",
             "--distpath", os.path.join(HERE, "dist"), "--workpath", os.path.join(HERE, "build"), "--specpath", os.path.join(HERE, "build")]
     for n in stdlib_modules():
         args += ["--hidden-import", n]
