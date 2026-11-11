@@ -333,19 +333,55 @@ def _make_backdrop(base_obj, docs_dir, frameworks_dir):
         print("ios_game: startup backdrop failed", traceback.format_exc(), flush=True)
 
 
-def _end_startup():
-    """The game has started: take the backdrop away, show the 2D layer again and give the loading screen its drawing back (it is used between
-    areas, and does not flicker there)."""
-    import builtins
-    b = getattr(builtins, "base", None)
+_first_block = {"seen": False, "active": False}
+
+
+def _drop_backdrop():
     try:
         while _backdrop:
             _backdrop.pop().remove_node()
+    except BaseException:
+        print("ios_game: could not drop the backdrop", traceback.format_exc(), flush=True)
+
+
+def _end_startup():
+    """The game has started: show the 2D layer again and give the loading screen its drawing back, except for the FIRST loading screen after
+    sign-in, which flickered on the phone: that one is skipped and the cloud picture stays up through it (the loading screens between areas
+    are fine). The picture is also dropped after a while, in case no loading screen comes."""
+    import builtins
+    b = getattr(builtins, "base", None)
+    try:
         if b is not None:
             b.aspect2d.show()
         cls = _loading_saved.get("cls")
-        for n, f in (_loading_saved.get("methods") or {}).items():
-            setattr(cls, n, f)
+        orig = _loading_saved.get("methods") or {}
+
+        def begin(self, rng, label, gui, tip_category):
+            if not _first_block["seen"]:
+                _first_block["active"] = True
+                return None
+            return orig["begin"](self, rng, label, gui, tip_category)
+
+        def end(self):
+            if _first_block["active"]:
+                _first_block.update(active=False, seen=True)
+                _drop_backdrop()
+                return (0, 0)
+            return orig["end"](self)
+
+        def tick(self):
+            if not _first_block["active"]:
+                orig["tick"](self)
+
+        def abort(self):
+            if _first_block["active"]:
+                _first_block.update(active=False, seen=True)
+                _drop_backdrop()
+                return
+            orig["abort"](self)
+        cls.begin, cls.end, cls.tick, cls.abort = begin, end, tick, abort
+        if b is not None:
+            b.taskMgr.doMethodLater(30.0, lambda task: (_drop_backdrop(), task.done)[1], "tta-drop-backdrop")
     except BaseException:
         print("ios_game: could not end the startup", traceback.format_exc(), flush=True)
 
