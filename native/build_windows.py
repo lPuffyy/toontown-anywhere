@@ -46,6 +46,23 @@ def main():
                 full = os.path.join(root, fn)
                 z.write(full, os.path.join("TTAnywhere", os.path.relpath(full, out)))
     print("built", out, "and", zpath, "%.0f MB" % (os.path.getsize(zpath) / 1048576))
+    build_installer(zpath)
+
+
+def build_installer(zpath):
+    """TTAnywhere-Setup-<version>.exe: one file that installs the app zip for the current user (see installer.py)."""
+    import PyInstaller.__main__ as pi
+    stage = os.path.join(HERE, "build", "installer-data")
+    os.makedirs(stage, exist_ok=True)
+    shutil.copyfile(zpath, os.path.join(stage, "app.zip"))
+    args = [os.path.join(HERE, "installer.py"), "--name", "TTAnywhere-Setup-%s" % __version__, "--noconfirm", "--onefile", "--noconsole",
+            "--add-data", os.path.join(stage, "app.zip") + os.pathsep + ".", "--distpath", os.path.join(HERE, "dist"),
+            "--workpath", os.path.join(HERE, "build", "installer"), "--specpath", os.path.join(HERE, "build")]
+    icon = os.path.join(HERE, "tta.ico")
+    if os.path.exists(icon):
+        args += ["--icon", icon]
+    pi.run(args)
+    print("built", os.path.join(HERE, "dist", "TTAnywhere-Setup-%s.exe" % __version__))
 
 
 if __name__ == "__main__":

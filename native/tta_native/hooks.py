@@ -1,9 +1,7 @@
-"""Things the native client adds around the running game: F11 full screen, the widescreen HUD anchoring the browser version also does,
+"""Things the native client adds around the running game: F11 full screen (window.py), the widescreen HUD anchoring the browser version also does,
 and controller support. install(base) is called once the game's window exists, just before its main loop starts."""
 import builtins
 import traceback
-
-from panda3d.core import WindowProperties
 
 _A43 = 4.0 / 3.0
 
@@ -35,32 +33,23 @@ def anchor_hud(b):
         print("native: HUD anchoring failed", traceback.format_exc())
 
 
-class FullScreen:
-    """F11 switches between a window and full screen at the desktop's size, remembering the window's size."""
+def install(base, settings=None):
+    from .settings import Settings
+    from .window import FullScreen
+    settings = settings or Settings()
 
-    def __init__(self, base):
-        self.base = base
-        self.window_size = (1280, 720)
-        base.accept("f11", self.toggle)
-        base.accept("alt-enter", self.toggle)
-
-    def toggle(self):
-        b = self.base
-        cur = b.win.getProperties()
-        props = WindowProperties()
-        if cur.getFullscreen():
-            props.setFullscreen(False)
-            props.setSize(*self.window_size)
-            props.setOrigin(-2, -2)
-        else:
-            self.window_size = (cur.getXSize(), cur.getYSize())
-            props.setSize(b.pipe.getDisplayWidth(), b.pipe.getDisplayHeight())
-            props.setFullscreen(True)
-        b.win.requestProperties(props)
-
-
-def install(base):
-    FullScreen(base)
+    def remember(full, size):
+        """Also tell the game's own options, so its next start (which reads them first) opens the same way."""
+        try:
+            from .window import desktop_size
+            opts = base.settings
+            opts.updateSetting("windowed-mode", not full)
+            opts.updateSetting("resolution", list(desktop_size() or size) if full else list(size))
+            opts.writeSettings()
+        except Exception:
+            pass
+    fs = FullScreen(base, settings, on_change=remember)
+    base.tta_fullscreen = fs
 
     def anchor(task):
         anchor_hud(base)

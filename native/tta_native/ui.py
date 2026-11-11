@@ -279,6 +279,7 @@ class LoginScreen(Screen):
         self.hint = text_line(self.root, style, "New here? Pick a name and password and tap PLAY!", (0, 0, -0.50), 0.052, fg=INK)
         self.msg = text_line(self.root, style, "", (0, 0, -0.60), 0.055, fg=ERROR, wordwrap=34)
         self.credit = text_line(self.root, style, "Official client for Toontown: Anywhere", (0, 0, -0.93), 0.045, fg=INK)
+        self.f11 = text_line(self.root, style, "F11: full screen", (0, 0, -0.93), 0.04, fg=INK, align=TextNode.ARight)
         self.server_btn = pill(self.root, style, "Change server", (0, 0, 0), (0.42, 0.085), (0.96, 0.98, 1, 0.97), OUTLINE, 3, OUTLINE, 0.045, command=on_server)
         self.discord = pill(self.root, style, "Discord", (0, 0, 0), (0.40, 0.085), DISCORD, (1, 1, 1, 1), 3, (1, 1, 1, 1), 0.05,
                             command=lambda: webbrowser.open("https://discord.gg/NxdkuR2aCp"))
@@ -291,6 +292,7 @@ class LoginScreen(Screen):
         """Corner buttons stay in the corners at any window shape."""
         a = self.base.getAspectRatio()
         self.server_btn.setPos(a - 0.26, 0, 0.93)
+        self.f11.setPos(a - 0.04, 0, -0.95)
         self.discord.setPos(-a + 0.26, 0, -0.66)
         self.reddit.setPos(-a + 0.26, 0, -0.78)
 

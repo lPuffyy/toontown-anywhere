@@ -101,15 +101,31 @@ def start(server, user, password, data_root):
 
     builtins.game = _Game()
 
-    # first run: a 16:9 window (the game's own default is 800x600); the in-game Options page changes it from there
-    useropt = os.path.join(game_dir, "useropt.json")
-    if not os.path.exists(useropt):
-        try:
-            import json
-            with open(useropt, "w", encoding="utf8") as f:
-                json.dump({"windowed-mode": True, "resolution": [1280, 720]}, f)
-        except OSError:
-            pass
+    # open the way the player left it (a 16:9 window the first time; the game's own default is 800x600). The game reads its own options file
+    # first, so that is where the mode and size go; the in-game Options page and F11 keep both in step afterwards.
+    from . import window
+    from .settings import Settings
+    native_settings = Settings()
+    full, size = window.saved_state(native_settings)
+    dw = window.desktop_size()
+    try:
+        import json
+        useropt = os.path.join(game_dir, "useropt.json")
+        opts = {}
+        if os.path.exists(useropt):
+            try:
+                with open(useropt, encoding="utf8") as f:
+                    opts = json.load(f)
+            except (OSError, ValueError):
+                opts = {}
+        have_choice = "fullscreen" in native_settings.data or "windowed-mode" not in opts
+        if have_choice:
+            opts["windowed-mode"] = not (full and dw)
+            opts["resolution"] = list(dw if (full and dw) else size)
+        with open(useropt, "w", encoding="utf8") as f:
+            json.dump(opts, f, indent=4)
+    except OSError:
+        pass
 
     # things added around the running game (F11 full screen, widescreen HUD, controller): installed just before its main loop starts
     from direct.showbase.ShowBase import ShowBase
@@ -119,9 +135,36 @@ def start(server, user, password, data_root):
     def run(self):
         try:
             from . import hooks
-            hooks.install(self)
+            hooks.install(self, native_settings)
         except BaseException:
             print("native: extras not installed", traceback.format_exc())
+        fs_test = os.environ.get("TTA_TEST_FULLSCREEN")     # testing: after N seconds go full screen, save a picture, go back, report ("path.png,seconds")
+        if fs_test:
+            fpath, fsecs = fs_test.rsplit(",", 1)
+
+            def go_full(task):
+                self.tta_fullscreen.set_full(True)
+                self.taskMgr.doMethodLater(6.0, report, "tta-test-fs-report")
+                return task.done
+
+            def report(task):
+                p = self.win.getProperties()
+                print("native: full screen test: fullscreen=%s size=%dx%d desktop=%s a2dRight=%.3f" % (
+                    p.getFullscreen(), p.getXSize(), p.getYSize(), window.desktop_size(), self.a2dRight))
+                self.win.saveScreenshot(Filename.fromOsSpecific(fpath))
+                self.taskMgr.doMethodLater(2.0, back, "tta-test-fs-back")
+                return task.done
+
+            def back(task):
+                self.tta_fullscreen.set_full(False)
+                self.taskMgr.doMethodLater(3.0, done, "tta-test-fs-done")
+                return task.done
+
+            def done(task):
+                p = self.win.getProperties()
+                print("native: back in a window: fullscreen=%s size=%dx%d" % (p.getFullscreen(), p.getXSize(), p.getYSize()))
+                os._exit(0)
+            self.taskMgr.doMethodLater(float(fsecs), go_full, "tta-test-fs")
         if hook:
             path, secs = hook.rsplit(",", 1)
 

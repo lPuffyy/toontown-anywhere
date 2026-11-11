@@ -1,0 +1,74 @@
+name: Release the native app
+
+# Push a tag like v0.2.0 (it must match __version__ in native/tta_native/__init__.py) and this builds the Windows app and its setup
+# program, signs the update list, and publishes everything as a GitHub release. Installed apps read the newest release's windows.json
+# from GitHub and update themselves. "Run workflow" by hand only builds and keeps the files for 7 days (no release).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install the build tools
+        run: python -m pip install -r native/requirements.txt pyinstaller pillow
+
+      - name: Read the app version, and make sure the tag matches it
+        run: |
+          VERSION=$(python -c "import re;print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('native/tta_native/__init__.py').read()).group(1))")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "The tag $GITHUB_REF_NAME does not match the app version $VERSION"; exit 1
+          fi
+
+      - name: Build the app and the setup program
+        working-directory: native
+        run: python build_windows.py
+
+      - name: Sign the update list
+        working-directory: native
+        env:
+          TTA_UPDATE_KEY: ${{ secrets.TTA_UPDATE_KEY }}
+        run: |
+          if [ -z "$TTA_UPDATE_KEY" ]; then echo "Add the repository secret TTA_UPDATE_KEY (the private signing key, hex)"; exit 1; fi
+          printf '%s' "$TTA_UPDATE_KEY" > "$RUNNER_TEMP/update.key"
+          python tools/sign_tool.py check "$RUNNER_TEMP/update.key"
+          python tools/sign_tool.py publish "$RUNNER_TEMP/update.key" "dist/TTAnywhere-$VERSION-windows.zip" release \
+            --url "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/TTAnywhere-$VERSION-windows.zip"
+          rm -f "$RUNNER_TEMP/update.key"
+          cp "dist/TTAnywhere-Setup-$VERSION.exe" release/
+          cp "dist/TTAnywhere-Setup-$VERSION.exe" release/TTAnywhere-Setup.exe     # a name that never changes, for the download button
+
+      - name: Keep the files (manual runs)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-files
+          path: native/release/*
+          retention-days: 7
+
+      - name: Publish the GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" native/release/* --clobber
+          else
+            gh release create "v$VERSION" native/release/* --title "Toontown: Anywhere native client $VERSION" \
+              --notes "Windows: download TTAnywhere-Setup.exe. Installed apps update themselves from this release."
+          fi

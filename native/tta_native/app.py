@@ -20,14 +20,18 @@ class Launcher:
         self.settings = Settings()
         self.server = (server or self.settings.get("server") or DEFAULT_SERVER).rstrip("/")
         self.root = data_dir()
-        for line in ("window-title " + TITLE, "win-size 1280 720", "audio-library-name null", "notify-level warning", "sync-video 1",
-                     "framebuffer-multisample 1", "multisamples 4"):
+        from . import window
+        for line in ["window-title " + TITLE, "audio-library-name null", "notify-level warning", "sync-video 1",
+                     "framebuffer-multisample 1", "multisamples 4"] + ([] if offscreen else window.prc_lines(self.settings)):
             loadPrcFileData("", line)
+        if offscreen:
+            loadPrcFileData("", "win-size 1280 720")
         if offscreen:
             loadPrcFileData("", "window-type offscreen")
         from direct.showbase.ShowBase import ShowBase
         self.base = ShowBase()
         self.base.disableMouse()
+        self.fullscreen = window.FullScreen(self.base, self.settings)
         self.updater = Updater(self.server, self.root, log=print)
         self.updater.fetch_ui()                          # the lettering font and sky picture, so the first screen already looks right
         from .ui import Backdrop, Style
@@ -222,7 +226,12 @@ def main(argv=None):
     ap.add_argument("--selftest-ui", metavar="DIR", help="draw each launcher screen offscreen into DIR as pictures, then quit")
     ap.add_argument("--autologin", metavar="USER:PASSWORD", help="testing: skip the launcher screens (files are still checked) and start the game")
     ap.add_argument("--check-update", action="store_true", help="testing: check for a newer app, install it and quit")
+    ap.add_argument("--uninstall", action="store_true", help="remove the installed app (used by Windows' app list)")
+    ap.add_argument("--silent", action="store_true", help="with --uninstall: no questions, keep the downloaded game files")
     args = ap.parse_args(argv)
+    if args.uninstall:
+        from . import uninstall
+        return uninstall.run(silent=args.silent)
     if args.check_update:
         import time
         from .shell_update import ShellUpdater

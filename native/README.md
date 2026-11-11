@@ -42,6 +42,16 @@ Everything the game prints is also written to `%LOCALAPPDATA%\TTAnywhere\logs\cl
 - **Controllers** (`gamepad.py`, uses the same control code as the browser's touch buttons, `controls.py`): left stick or D-pad walks,
   A jumps, B is the action button, X changes the camera, Y or Start opens the sticker book, shoulder buttons are the tug-of-war pads.
 
+## Install
+
+Players get the app from GitHub: `https://github.com/lPuffyy/toontown-anywhere/releases/latest/download/TTAnywhere-Setup.exe`. Setup installs for
+the current user (no administrator needed) into `%LOCALAPPDATA%\Programs\TTAnywhere`, adds Start menu and desktop shortcuts and an entry in
+Windows' app list; Uninstall there (or `TTAnywhere.exe --uninstall`) removes the app and asks whether to keep the downloaded game files.
+Setup options for scripts: `--silent --dir FOLDER --no-shortcuts --no-launch --desktop-shortcut`. Releases and updates all go through
+GitHub: see [RELEASING.md](RELEASING.md).
+
+F11 (or Alt+Enter) switches full screen in both the launcher and the game; the choice and window size are remembered.
+
 ## Build and update the Windows app
 
 ```
@@ -55,9 +65,9 @@ The game code and files are downloaded on first start. Updating the **app itself
 1. `python tools/sign_tool.py keygen KEYFILE` once. Keep KEYFILE out of the repo and backed up in two places; put the printed public key in
    `tta_native/updatekey.py` (the one in the repo is a test key).
 2. Raise `__version__` in `tta_native/__init__.py`, build, then `python tools/sign_tool.py publish KEYFILE dist\TTAnywhere-X.Y.Z-windows.zip OUTDIR`.
-3. Upload OUTDIR's three files to `<server>/native/` (`windows.json`, `windows.json.sig`, the zip).
+3. Normally the GitHub workflow does all of this on a tag (see RELEASING.md); by hand, attach OUTDIR's files to a GitHub release.
 
-At start the app downloads `windows.json` and its signature, checks the signature with the built-in public key, and if the version is newer
+At start the app downloads `windows.json` and its signature from the newest GitHub release, checks the signature with the built-in public key, and if the version is newer
 downloads the zip, checks its size and SHA-256, unpacks it beside the app and swaps the files in after it closes (`robocopy`), then
 restarts. An altered list or zip is refused. The app folder must be writable (not Program Files). `min_version` in the list is for forcing an
 update later (not enforced yet).
@@ -72,8 +82,8 @@ The packaged app does the same. A 0.1.0 app updated itself to a signed 0.1.1. No
 
 - Sound is untested, and so are controllers and F11 on real hardware (written to Panda's documented input API, not tried with a pad).
 - The launcher is a separate step from the game window (the launcher window closes and the game opens its own).
-- No installer yet (a zip you unpack; Inno Setup would add Start menu entries), no icon, and the executable is not code-signed
-  (Windows SmartScreen will warn). Steam Deck, Linux and Mac builds use the same code and still need to be built and tried.
+- The executable is not code-signed: SmartScreen will warn, and Windows Defender flagged one build as a generic trojan guess
+  (false alarm; see RELEASING.md). Steam Deck, Linux and Mac builds use the same code and still need to be built and tried.
 - `min_version` forcing is not enforced; there is no "what's new" screen.
 - The server still accepts a bare user name as the play token (also true for the browser version): the sign-in step is not yet tied to the
   game connection.

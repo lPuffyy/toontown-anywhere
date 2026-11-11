@@ -1,6 +1,7 @@
 """Updates of the app itself (the launcher, Python and Panda3D): rare, because the game's code and files update on their own through the
-packs. The server publishes native/windows.json (version, file, size, sha256) and native/windows.json.sig, an Ed25519 signature made with
-the release key; the public half is built into the app (updatekey.py). Nothing is installed unless the signature and the file's hash match."""
+packs. Releases are published on GitHub: every release carries windows.json (version, file, url, size, sha256) and windows.json.sig, an
+Ed25519 signature made with the release key; the public half is built into the app (updatekey.py). The app reads the newest release's list
+from GitHub's "latest release" address. Nothing is installed unless the signature and the file's hash match."""
 import hashlib
 import json
 import os
@@ -14,6 +15,14 @@ from . import __version__
 from .updatekey import PUBLIC_KEY_HEX
 
 PLATFORM_FILE = "windows.json"
+# the newest published (not draft, not pre-release) GitHub release; its files are found under this address
+DEFAULT_UPDATE_BASE = "https://github.com/lPuffyy/toontown-anywhere/releases/latest/download/"
+
+
+def update_base():
+    """Where the update list lives: GitHub's latest release, or TTA_UPDATE_BASE (testing against another address)."""
+    base = os.environ.get("TTA_UPDATE_BASE") or DEFAULT_UPDATE_BASE
+    return base if base.endswith("/") else base + "/"
 
 
 def parse_version(v):
@@ -48,9 +57,9 @@ def verify(data, sig_hex, public_hex=PUBLIC_KEY_HEX):
         return False
 
 
-def fetch_manifest(server):
-    """-> the signed manifest dict, or None (no manifest, or the signature does not match)."""
-    base = server.rstrip("/") + "/native/"
+def fetch_manifest(base=None):
+    """-> the signed manifest dict; raises if it cannot be read or the signature does not match."""
+    base = base or update_base()
     data = _get(base + PLATFORM_FILE)
     sig = _get(base + PLATFORM_FILE + ".sig").decode("ascii", "replace")
     if not verify(data, sig):
@@ -83,14 +92,18 @@ class ShellUpdater:
         s = self.state
         if not frozen() and not os.environ.get("TTA_FORCE_SHELL_UPDATE"):
             return                              # running from source: nothing to replace
-        m = fetch_manifest(self.server)
+        base = update_base()
+        m = fetch_manifest(base)
         if parse_version(m["version"]) <= parse_version(__version__):
             return
         s.update(phase="download", text="Updating the app to %s..." % m["version"], total_bytes=int(m["size"]))
         os.makedirs(os.path.join(self.root, "update"), exist_ok=True)
         zpath = os.path.join(self.root, "update", m["file"])
         h = hashlib.sha256()
-        req = urllib.request.Request(self.server + "/native/" + m["file"], headers={"User-Agent": "TTAnywhere-native"})
+        url = m.get("url") or (base + m["file"])          # the list says where the file is (a GitHub release asset)
+        if not url.startswith("https://") and not base.startswith("http://"):
+            raise ValueError("the update address is not secure")
+        req = urllib.request.Request(url, headers={"User-Agent": "TTAnywhere-native"})
         with urllib.request.urlopen(req, timeout=60) as r, open(zpath, "wb") as f:
             while True:
                 chunk = r.read(256 * 1024)
