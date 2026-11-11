@@ -227,8 +227,8 @@ def launch(docs, frameworks, game_server, cookie, app_dir):
         pass
     from direct.showbase.ShowBase import ShowBase
     hud.install(ShowBase, lambda: tuple(list(_screen_insets()) + [max(1.0, _screen["h"])]))
-    # No startup splash in this app (the Disney logo, the version text and the loading bar flickered and are not wanted): everything the
-    # game draws in 2D while it starts is hidden until launch() has finished, and the loading screen is switched off for that time.
+    # No loading screens and no startup splash in this app (the Disney logo, the version text and the loading bars flickered and are not
+    # wanted): everything the game draws in 2D while it starts is hidden until launch() has finished, and the loading screen never draws.
     try:
         from toontown.toontowngui import ToontownLoadingScreen as _tls
         _cls = _tls.ToontownLoadingScreen
@@ -296,15 +296,13 @@ _loading_saved = {}
 
 
 def _end_startup():
-    """The game has started: show the 2D layer again and give the loading screen its drawing back (it is used between areas)."""
+    """The game has started: show the 2D layer again. The loading screens stay off in this app (they flickered on the phone): while the game
+    loads an area it keeps showing its last picture."""
     import builtins
     b = getattr(builtins, "base", None)
     try:
         if b is not None:
             b.aspect2d.show()
-        cls = _loading_saved.get("cls")
-        for n, f in (_loading_saved.get("methods") or {}).items():
-            setattr(cls, n, f)
     except BaseException:
         print("ios_game: could not end the startup", traceback.format_exc(), flush=True)
 
@@ -363,6 +361,43 @@ def _fix_two_channel_textures():
                 print("LA convert failed", key, traceback.format_exc().splitlines()[-1], flush=True)
 
 
+_pet_dumps = [0]
+
+
+def _dump_pets(b):
+    """Diagnostics for Doodles that draw wrongly on the phone: what each part of every Doodle in view looks like to the engine
+    (found, stashed, hidden, its texture and colour). Printed to the app's log, a few times per session."""
+    if _pet_dumps[0] >= 4:
+        return
+    try:
+        pets = [o for o in list(b.cr.doId2do.values()) if o.__class__.__name__ == "DistributedPet"]
+    except BaseException:
+        return
+    if not pets:
+        return
+    _pet_dumps[0] += 1
+    from toontown.pets.PetDNA import HeadParts, EarParts, NoseParts, TailParts
+    for pet in pets[:2]:
+        print("PETDUMP pet", getattr(pet, "doId", "?"), "style", getattr(pet, "style", None), "hidden", pet.isHidden(), "stashed", pet.isStashed(), flush=True)
+        try:
+            for name in ["body", "leftFoot", "rightFoot", "eyeWhites", "rightPupil"] + list(HeadParts) + list(EarParts) + list(NoseParts) + list(TailParts):
+                np = pet.find("**/" + name)
+                if np.isEmpty():
+                    np = pet.find("**/" + name + ";+s")
+                    where = "stashed-only"
+                else:
+                    where = "visible-find"
+                if np.isEmpty():
+                    print("PETDUMP", name, "NOT FOUND", flush=True)
+                    continue
+                tex = np.findTexture("*")
+                print("PETDUMP", name, where, "stashed", np.isStashed(), "hidden", np.isHidden(), "color", np.getColor() if np.hasColor() else None,
+                      "tex", (tex.getName(), tex.getNumComponents(), tex.getXSize(), tex.getYSize()) if tex else None, flush=True)
+            print("PETDUMP @@ lookups:", [(n, not pet.find("**/@@" + n).isEmpty()) for n in list(HeadParts) + list(EarParts)[:2] + list(TailParts)[:2]], flush=True)
+        except BaseException:
+            print("PETDUMP failed", traceback.format_exc(), flush=True)
+
+
 def step():
     import builtins
     b = getattr(builtins, "base", None)
@@ -384,6 +419,8 @@ def step():
                     pass
             if _frames[0] % 16 == 0:
                 _fix_two_channel_textures()
+            if _frames[0] % 240 == 0:
+                _dump_pets(b)
             b.taskMgr.step()
         except SystemExit:
             raise
