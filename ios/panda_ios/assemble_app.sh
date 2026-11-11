@@ -40,21 +40,21 @@ cp "$W/LICENSE" "$APP/LICENSE.txt"
 cp "$W/ios/panda_ios/THIRD_PARTY_NOTICES.md" "$APP/THIRD_PARTY_NOTICES.md"
 
 # The game's Python code and resources are NOT bundled: the app downloads them from the server on first launch.
-# Server addresses come from the build (env TTR_RESOURCE_SERVER, TTR_GAME_SERVER) into a header the app compiles in.
+# Server addresses come from the build (env APP_RESOURCE_SERVER, APP_GAME_SERVER) into a header the app compiles in.
 mkdir -p "$W/out/gen"
-cat > "$W/out/gen/ttr_config.h" <<CFG
-#define RESOURCE_SERVER @"${TTR_RESOURCE_SERVER:-http://127.0.0.1:7380}"
-#define GAME_SERVER @"${TTR_GAME_SERVER:-127.0.0.1:7298}"
+cat > "$W/out/gen/app_config.h" <<CFG
+#define RESOURCE_SERVER @"${APP_RESOURCE_SERVER:-http://127.0.0.1:7380}"
+#define GAME_SERVER @"${APP_GAME_SERVER:-127.0.0.1:7298}"
 CFG
-echo '#define APP_FLAVOR_TTA 1' >> "$W/out/gen/ttr_config.h"
-cat "$W/out/gen/ttr_config.h"
+echo '#define APP_FLAVOR_TTA 1' >> "$W/out/gen/app_config.h"
+cat "$W/out/gen/app_config.h"
 
 cat > "$APP/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleExecutable</key><string>TTAnywhere</string>
-<key>CFBundleIdentifier</key><string>com.ttr.pandatest</string>
+<key>CFBundleIdentifier</key><string>com.puffsco.toontownanywhere</string>
 <key>CFBundleName</key><string>Toontown: Anywhere</string>
 <key>CFBundleDisplayName</key><string>TT: Anywhere</string>
 <key>CFBundleIcons</key><dict><key>CFBundlePrimaryIcon</key><dict><key>CFBundleIconFiles</key><array><string>AppIcon60x60</string></array><key>CFBundleIconName</key><string>AppIcon</string></dict></dict>

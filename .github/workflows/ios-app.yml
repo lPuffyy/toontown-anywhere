@@ -63,8 +63,8 @@ jobs:
           mkdir -p panda3d && unzip -q panda-ios-stage.zip -d panda3d
       - name: Assemble
         env:
-          TTR_RESOURCE_SERVER: ${{ inputs.resource_server }}
-          TTR_GAME_SERVER: ${{ inputs.game_server }}
+          APP_RESOURCE_SERVER: ${{ inputs.resource_server }}
+          APP_GAME_SERVER: ${{ inputs.game_server }}
         run: |
           PYXC="$GITHUB_WORKSPACE/pysup/Python.xcframework/ios-arm64"
           PYINC=$(dirname "$(find "$PYXC" -name Python.h | head -1)")

@@ -1,4 +1,4 @@
-// Toontown for iPhone: native shell around the real TTR-Offline client (Panda3D + embedded Python).
+// Toontown: Anywhere for iPhone and iPad: native shell around the game client (Panda3D + embedded Python).
 //  - branded loading screen with download progress
 //  - starts the game, then overlays touch controls (joystick, jump)
 //  - 5 taps in the top-left corner toggles the developer log overlay
@@ -11,7 +11,7 @@
 #import <CoreText/CoreText.h>
 #include <Python.h>
 
-#import "ttr_config.h"   // RESOURCE_SERVER and GAME_SERVER, generated at build time
+#import "app_config.h"   // RESOURCE_SERVER and GAME_SERVER, generated at build time
 
 // ---------------------------------------------------------------------------------------------
 // Python helpers (the main thread must not hold the GIL while idle so the download thread can run)
@@ -463,7 +463,7 @@ static UIImage *LinkIcon(NSString *b64, CGFloat height) {
 
 // ----- sign in -------------------------------------------------------------------------------
 
-static NSString *const kService = @"com.ttr.mobile";
+static NSString *const kService = @"com.puffsco.toontownanywhere";
 
 static NSString *ServerId(NSString *res, NSString *game) {
     NSData *d = [[NSString stringWithFormat:@"%@|%@", res.lowercaseString, game.lowercaseString] dataUsingEncoding:NSUTF8StringEncoding];
@@ -478,13 +478,13 @@ static NSString *ServerId(NSString *res, NSString *game) {
 // carry on untouched); any other server gets its own folder, saved name and keychain entry.
 - (BOOL)loadServerChoice {
     NSUserDefaults *u = [NSUserDefaults standardUserDefaults];
-    NSString *mode = [u stringForKey:@"ttr_srv_mode"];
+    NSString *mode = [u stringForKey:@"tta_srv_mode"];
     if (!mode) {
         // installs from before the picker already hold the default server's files: keep using it
         if ([[NSFileManager defaultManager] fileExistsAtPath:[[self docsPath] stringByAppendingPathComponent:@"resources"]]) mode = @"default";
         else return NO;
     }
-    NSString *res = [u stringForKey:@"ttr_srv_res"], *game = [u stringForKey:@"ttr_srv_game"];
+    NSString *res = [u stringForKey:@"tta_srv_res"], *game = [u stringForKey:@"tta_srv_game"];
     if ([mode isEqualToString:@"custom"] && res.length && game.length) {
         self.serverRes = res;
         self.serverGame = game;
@@ -509,7 +509,7 @@ static NSString *ServerId(NSString *res, NSString *game) {
 }
 
 - (NSString *)userKey {
-    return self.serverIsDefault ? @"ttr_user" : [@"ttr_user_" stringByAppendingString:ServerId(self.serverRes, self.serverGame)];
+    return self.serverIsDefault ? @"tta_user" : [@"tta_user_" stringByAppendingString:ServerId(self.serverRes, self.serverGame)];
 }
 
 - (NSString *)keychainPassword {
@@ -588,13 +588,9 @@ static NSString *ServerId(NSString *res, NSString *game) {
     self.loginError.font = ToonFont(17 * sc);
     self.loginError.textColor = [UIColor colorWithRed:0.1 green:0.25 blue:0.55 alpha:1];
     self.loginError.text = @"New here? Pick a name and password and tap PLAY!";
-    // credit (the app is an unofficial client for TTR-Offline; see THIRD_PARTY_NOTICES in the app bundle)
+    // credit
     UILabel *credit = [[UILabel alloc] initWithFrame:CGRectMake(20, b.size.height - 22 * sc - MAX(self.window.safeAreaInsets.bottom, 4), b.size.width - 40, 18 * sc)];
-#ifdef APP_FLAVOR_TTA
     credit.text = @"Official client for Toontown: Anywhere";
-#else
-    credit.text = @"Unofficial client for TTR-Offline • Based on TTR-Offline by RegDogg (Apache 2.0)";
-#endif
     credit.textAlignment = NSTextAlignmentCenter;
     credit.font = [UIFont systemFontOfSize:11 * sc weight:UIFontWeightSemibold];
     credit.textColor = [UIColor colorWithRed:0.08 green:0.2 blue:0.45 alpha:0.9];
@@ -1131,10 +1127,10 @@ static NSString *HexOf(NSString *s) {
 - (void)chooseServerRes:(NSString *)res game:(NSString *)game isDefault:(BOOL)isDef {
     BOOL same = self.serverRes && [self.serverRes isEqualToString:res] && [self.serverGame isEqualToString:game] && self.loginWindow;
     NSUserDefaults *u = [NSUserDefaults standardUserDefaults];
-    [u setObject:isDef ? @"default" : @"custom" forKey:@"ttr_srv_mode"];
+    [u setObject:isDef ? @"default" : @"custom" forKey:@"tta_srv_mode"];
     if (!isDef) {
-        [u setObject:res forKey:@"ttr_srv_res"];
-        [u setObject:game forKey:@"ttr_srv_game"];
+        [u setObject:res forKey:@"tta_srv_res"];
+        [u setObject:game forKey:@"tta_srv_game"];
     }
     [self closeServerWindow];
     if (same) {
@@ -1251,7 +1247,7 @@ static NSString *HexOf(NSString *s) {
 }
 
 // Tells the game the size of its screen and the safe area (camera cut-out, rounded corners, home bar, a fold), in pixels. The game keeps its
-// on-screen items inside the safe area and lays out for the new shape. Does nothing for the older TTR flavour, whose ios_game has no set_screen.
+// on-screen items inside the safe area and lays out for the new shape. 
 // When the size or safe area changes while playing (rotation, fold, Stage Manager), the touch controls are laid out again as well.
 - (void)pushScreenMetrics:(BOOL)force {
     UIScreen *scr = [UIScreen mainScreen];
@@ -1658,7 +1654,7 @@ static NSString *SettingValue(NSString *rid) {
 }
 
 - (void)setupLog {
-    NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"ttr_log.txt"];
+    NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"tta_log.txt"];
     freopen(logPath.UTF8String, "a", stdout);
     freopen(logPath.UTF8String, "a", stderr);
     setvbuf(stdout, NULL, _IOLBF, 0);
@@ -1670,7 +1666,7 @@ static NSString *SettingValue(NSString *rid) {
         self.logWindow.hidden = !self.logWindow.hidden;
         return;
     }
-    NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"ttr_log.txt"];
+    NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"tta_log.txt"];
     self.logWindow = [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, [UIScreen mainScreen].bounds.size.width, 330)];
     self.logWindow.windowLevel = UIWindowLevelAlert + 10;
     self.logWindow.userInteractionEnabled = NO;
