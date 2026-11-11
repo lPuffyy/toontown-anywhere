@@ -228,7 +228,7 @@ def launch(docs, frameworks, game_server, cookie, app_dir):
     from direct.showbase.ShowBase import ShowBase
     hud.install(ShowBase, lambda: tuple(list(_screen_insets()) + [max(1.0, _screen["h"])]))
     # No startup splash in this app (the Disney logo, the version text and the loading bar are not wanted): everything the game draws in 2D
-    # while it starts is hidden until launch() has finished (the cloud picture is drawn instead), and the loading screen is off for that time.
+    # while it starts is hidden until launch() has finished and the loading screen is off for that time.
     try:
         from toontown.toontowngui import ToontownLoadingScreen as _tls
         _cls = _tls.ToontownLoadingScreen
@@ -254,7 +254,6 @@ def launch(docs, frameworks, game_server, cookie, app_dir):
             w.set_clear_depth_active(True)
             w.set_clear_stencil_active(True)
             self.aspect2d.hide()                  # (shown again when launch() has finished)
-            _make_backdrop(self, docs, frameworks)
         except BaseException:
             print("ios_game: early clear failed", traceback.format_exc(), flush=True)
         return res
@@ -359,11 +358,6 @@ def _end_startup():
         def begin(self, rng, label, gui, tip_category):
             if not _first_block["seen"]:
                 _first_block["active"] = True
-                try:
-                    import builtins
-                    builtins.base.taskMgr.doMethodLater(4.0, lambda task: (_drop_backdrop(), task.done)[1], "tta-drop-backdrop-2")
-                except BaseException:
-                    pass
                 return None
             return orig["begin"](self, rng, label, gui, tip_category)
 
@@ -385,8 +379,7 @@ def _end_startup():
                 return
             orig["abort"](self)
         cls.begin, cls.end, cls.tick, cls.abort = begin, end, tick, abort
-        if b is not None:
-            b.taskMgr.doMethodLater(8.0, lambda task: (_drop_backdrop(), task.done)[1], "tta-drop-backdrop")
+        _drop_backdrop()                      # (nothing is drawn over the game any more; this only clears a leftover from older builds)
     except BaseException:
         print("ios_game: could not end the startup", traceback.format_exc(), flush=True)
 
