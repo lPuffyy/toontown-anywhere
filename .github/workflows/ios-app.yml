@@ -73,11 +73,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         continue-on-error: true            # (the account's artifact storage can be full: the release upload below does not depend on it)
         with:
-          name: TTRPanda-ipa
-          path: out/TTRPanda.ipa
+          name: TTAnywhere-ipa
+          path: out/TTAnywhere.ipa
       - name: Keep the IPA as a release asset (does not count against artifact storage)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="ipa-${GITHUB_RUN_ID}"
-          gh release create "$TAG" out/TTRPanda.ipa --title "iOS app build $GITHUB_RUN_ID" --notes "Unsigned IPA from run $GITHUB_RUN_ID." --prerelease
+          gh release create "$TAG" out/TTAnywhere.ipa --title "iOS app build $GITHUB_RUN_ID" --notes "Unsigned IPA from run $GITHUB_RUN_ID." --prerelease

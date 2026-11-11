@@ -3,7 +3,7 @@
 set -u
 W="$1"; PYXC="$2"; PYINC="$3"
 SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-APP="$W/out/TTRPanda.app"
+APP="$W/out/TTAnywhere.app"
 rm -rf "$W/out"; mkdir -p "$APP/Frameworks" "$APP/python/lib/python3.10" "$APP/app/panda3d"
 
 cp -R "$PYXC/Python.framework" "$APP/Frameworks/"
@@ -53,7 +53,7 @@ cat > "$APP/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleExecutable</key><string>TTRPanda</string>
+<key>CFBundleExecutable</key><string>TTAnywhere</string>
 <key>CFBundleIdentifier</key><string>com.ttr.pandatest</string>
 <key>CFBundleName</key><string>Toontown: Anywhere</string>
 <key>CFBundleDisplayName</key><string>TT: Anywhere</string>
@@ -81,8 +81,8 @@ python3 "$W/ios/panda_ios/make_icon.py" "$APP" || echo "icon generation failed (
 
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=15.0 -fobjc-arc -Wno-deprecated-declarations \
   -I "$PYINC" -I "$W/out/gen" "$W/ios/panda_ios/main.m" -F "$PYXC" -framework Python -framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics -framework CoreText -framework Security -framework AVFoundation -framework OpenAL \
-  -Wl,-rpath,@executable_path/Frameworks -o "$APP/TTRPanda" 2>&1 | head -30
-[ -x "$APP/TTRPanda" ] || { echo "FATAL: main executable was not built"; exit 1; }
+  -Wl,-rpath,@executable_path/Frameworks -o "$APP/TTAnywhere" 2>&1 | head -30
+[ -x "$APP/TTAnywhere" ] || { echo "FATAL: main executable was not built"; exit 1; }
 ls -la "$APP" | head -20
 du -sh "$APP"
-mkdir -p "$W/out/Payload" && cp -R "$APP" "$W/out/Payload/" && (cd "$W/out" && zip -qr TTRPanda.ipa Payload) && ls -la "$W/out/TTRPanda.ipa"
+mkdir -p "$W/out/Payload" && cp -R "$APP" "$W/out/Payload/" && (cd "$W/out" && zip -qr TTAnywhere.ipa Payload) && ls -la "$W/out/TTAnywhere.ipa"

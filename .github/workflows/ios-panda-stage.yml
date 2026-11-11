@@ -59,8 +59,8 @@ jobs:
         continue-on-error: true
         if: always()
         with:
-          name: TTRPanda-ipa
-          path: out/TTRPanda.ipa
+          name: TTAnywhere-ipa
+          path: out/TTAnywhere.ipa
           if-no-files-found: warn
       - name: Stage build outputs for quick re-assembly
         if: always()

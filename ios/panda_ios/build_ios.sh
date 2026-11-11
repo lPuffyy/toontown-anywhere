@@ -94,5 +94,5 @@ echo "::endgroup::"
 
 echo "::group::app shell + IPA"
 bash "$W/ios/panda_ios/assemble_app.sh" "$W" "$PYXC" "$PYINC" 2>&1 | tee "$W/assemble.log" | tail -60
-[ -f "$W/out/TTRPanda.ipa" ] || { echo "FATAL: no IPA produced"; exit 1; }
+[ -f "$W/out/TTAnywhere.ipa" ] || { echo "FATAL: no IPA produced"; exit 1; }
 echo "::endgroup::"
