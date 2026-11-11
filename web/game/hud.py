@@ -67,6 +67,40 @@ def refresh(b):
     apply_insets(b, False)
 
 
+_logged = [0]
+
+
+def ensure(b):
+    """Belt and braces: put every screen-edge anchor exactly where the window's shape and the safe area say it belongs (absolute, not relative
+    to what Panda did last), whenever it is not there. Cheap enough to call a few times a second."""
+    try:
+        if _provider[0] is None:
+            return
+        left, right, top, bottom, height = _provider[0]()
+        k = 2.0 / (float(height) or 1.0)
+        L, R, T, B = float(left) * k, float(right) * k, float(top) * k, float(bottom) * k
+        asp = float(b.getAspectRatio())
+        fixed = 0
+        for base_name, sx, sz in ANCHORS:
+            for suffix in ("", "Ns"):
+                n = getattr(b, base_name + suffix, None)
+                if n is None:
+                    continue
+                x = (-asp + L) if sx > 0 else ((asp - R) if sx < 0 else 0.0)
+                z = (-1.0 + B) if sz > 0 else ((1.0 - T) if sz < 0 else 0.0)
+                if suffix == "Ns":
+                    x, z = (-asp + L) if sx > 0 else ((asp - R) if sx < 0 else 0.0), z
+                if abs(n.getX() - x) > 1e-3 or abs(n.getZ() - z) > 1e-3:
+                    n.setPos(x, n.getY(), z)
+                    fixed += 1
+        _applied[:] = [L, R, T, B]
+        if fixed and _logged[0] < 6:
+            _logged[0] += 1
+            print("hud.ensure: moved %d anchors; aspect %.3f insets(px) l=%s r=%s t=%s b=%s h=%s" % (fixed, asp, left, right, top, bottom, height), flush=True)
+    except BaseException:
+        print("hud: ensure failed", traceback.format_exc())
+
+
 def anchor_hud(b):
     """Hang the items that sit near the left / right edge of the 4:3 layout from the edge anchors, keeping their distance from the edge."""
     try:
