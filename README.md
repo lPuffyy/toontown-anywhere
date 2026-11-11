@@ -49,6 +49,7 @@ Disney content. The game's own code, the changes to it and the server's Docker i
 | Folder | What it is |
 |---|---|
 | [`web/`](web) | The browser client: the page's screens (sign-in, loading, controls), the Python glue that runs Open Toontown in the browser, and the scripts that build the download packs and the page. |
+| [`native/`](native) | The native desktop client (Python and stock Panda3D, no WebAssembly): launcher screens, game-file updates, sign-in and the game over a WebSocket. Windows first. |
 | [`ops/`](ops) | Small services that run beside the game server in their own containers: the Discord server-status message and the read-only bug-report collector. |
 | [`tools/`](tools) | Migration of the old Toontown: Anywhere accounts, and small operations scripts. |
 | [`docs/`](docs) | The full write-up of the system. |
