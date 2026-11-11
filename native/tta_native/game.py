@@ -165,6 +165,29 @@ def start(server, user, password, data_root):
                 print("native: back in a window: fullscreen=%s size=%dx%d" % (p.getFullscreen(), p.getXSize(), p.getYSize()))
                 os._exit(0)
             self.taskMgr.doMethodLater(float(fsecs), go_full, "tta-test-fs")
+        chat_test = os.environ.get("TTA_TEST_CHAT")         # testing: open typed chat, put non-plain text in the box, report what the box holds ("seconds")
+        if chat_test:
+            def open_chat(task):
+                import builtins
+                builtins.localAvatar.chatMgr.fsm.request("whiteListOpenChat")
+                self.taskMgr.doMethodLater(1.0, type_text, "tta-test-chat-type")
+                return task.done
+
+            def type_text(task):
+                from . import controls
+                e = controls._focused_entry()
+                print("native: chat test: focused chat box found:", e is not None)
+                if e is not None:
+                    e.enterText("it’s café 😀 ok — fine…")
+                self.taskMgr.doMethodLater(1.0, report_chat, "tta-test-chat-report")
+                return task.done
+
+            def report_chat(task):
+                from . import controls
+                e = controls._focused_entry()
+                print("native: chat test: box now holds:", repr(e.get()) if e is not None else None)
+                os._exit(0)
+            self.taskMgr.doMethodLater(float(chat_test), open_chat, "tta-test-chat")
         if hook:
             path, secs = hook.rsplit(",", 1)
 

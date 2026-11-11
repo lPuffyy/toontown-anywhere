@@ -56,6 +56,11 @@ def install(base, settings=None):
         return task.again
     base.taskMgr.doMethodLater(0.4, anchor, "tta-anchor-hud")
     try:
+        from . import chat
+        chat.install(base)
+    except BaseException:
+        print("native: chat helpers not installed", traceback.format_exc())
+    try:
         from . import gamepad
         gamepad.install(base)
     except BaseException:

@@ -23,7 +23,34 @@ def stdlib_modules():
     return names
 
 
+def sync_shared():
+    """native/tta_native/controls.py is the browser's web/game/webui_core.py (the game-control and chat-helper logic both clients share);
+    it is regenerated from it here so the native copy can never drift. `python build_windows.py --check-shared` only checks (for CI)."""
+    src = os.path.join(HERE, "..", "web", "game", "webui_core.py")
+    dst = os.path.join(HERE, "tta_native", "controls.py")
+    with open(src, encoding="utf8", newline="") as f:
+        text = f.read().replace(chr(13) + chr(10), chr(10))
+    head = text.split(chr(10), 1)[0]
+    new = ('"""Game-control logic shared with the browser version (generated from web/game/webui_core.py by build_windows.py; do not edit):\n'
+           "drives the game's own input states and camera calls. The native client's controller support and chat helpers use it the way\n"
+           'the web page\'s touch controls do."""') + text[len(head):]
+    cur = ""
+    if os.path.exists(dst):
+        with open(dst, encoding="utf8", newline="") as f:
+            cur = f.read().replace(chr(13) + chr(10), chr(10))
+    if cur != new:
+        if "--check-shared" in sys.argv:
+            sys.exit("native/tta_native/controls.py is out of date: run build_windows.py to regenerate it from web/game/webui_core.py")
+        with open(dst, "w", encoding="utf8", newline=chr(10)) as f:
+            f.write(new)
+        print("regenerated controls.py from webui_core.py")
+
+
 def main():
+    sync_shared()
+    if "--check-shared" in sys.argv:
+        print("controls.py matches webui_core.py")
+        return
     import PyInstaller.__main__ as pi
     args = [os.path.join(HERE, "run_tta.py"), "--name", "TTAnywhere", "--noconfirm", "--clean", "--onedir",
             "--noconsole", "--paths", HERE, "--collect-all", "panda3d", "--collect-all", "direct", "--collect-submodules", "websocket",

@@ -1,5 +1,6 @@
-"""Game-control logic shared with the browser version (copied from web/game/webui_core.py, which has no browser-only code): drives the
-game's own input states and camera calls. The native client's controller support uses it the way the web page's touch controls do."""
+"""Game-control logic shared with the browser version (generated from web/game/webui_core.py by build_windows.py; do not edit):
+drives the game's own input states and camera calls. The native client's controller support and chat helpers use it the way
+the web page's touch controls do."""
 import os
 import sys
 import time
