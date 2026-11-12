@@ -165,3 +165,23 @@ def safe_area(s):
 
 
 edit("panda/src/iphonedisplay/iPhoneGraphicsWindow.mm", safe_area)
+
+
+# ---- UIScene lifecycle (required by the iOS 27 SDK): Panda's own window belongs to the app's window scene ----
+def pipe_scene(s):
+    old = "  _window = [ [ UIWindow alloc ] initWithFrame: screenBounds ];"
+    new = ("  UIWindowScene *tta_scene = nil;" + NL +
+           "  for (UIScene *sc in [[UIApplication sharedApplication] connectedScenes]) {" + NL +
+           "    if ([sc isKindOfClass:[UIWindowScene class]]) { tta_scene = (UIWindowScene *)sc; break; }" + NL +
+           "  }" + NL +
+           "  if (tta_scene != nil) {" + NL +
+           "    screenBounds = tta_scene.coordinateSpace.bounds;" + NL +
+           "    _window = [ [ UIWindow alloc ] initWithWindowScene: tta_scene ];" + NL +
+           "    _window.frame = screenBounds;" + NL +
+           "  } else {" + NL +
+           "    _window = [ [ UIWindow alloc ] initWithFrame: screenBounds ];" + NL +
+           "  }")
+    return s.replace(old, new, 1)
+
+
+edit("panda/src/iphonedisplay/iPhoneGraphicsPipe.mm", pipe_scene)
