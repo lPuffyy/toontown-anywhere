@@ -91,10 +91,9 @@ xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=1
   -I "$PYINC" -I "$W/out/gen" "$W/ios/panda_ios/main.m" -F "$PYXC" -framework Python -framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics -framework CoreText -framework Security -framework AVFoundation -framework OpenAL \
   -Wl,-rpath,@executable_path/Frameworks -o "$APP/TTAnywhere" 2>&1 | head -30
 # iPhone Duo decides between its letterboxed compatibility mode and the full display by the SDK version
-# the app was built with (27.1 or later = full display). The xcode-27 runner has the real SDK (27.1), and the full display left the game's buttons at
-# the right edge of the Duo without taps, so the app is marked as built with an older SDK (APP_SDK_MARK, default 26.0) to get the compatibility window
-# every earlier build had. Set APP_SDK_MARK=27.1, or to an empty value, to get the full display (or the real SDK) back.
-SDK_MARK="${APP_SDK_MARK-26.0}"
+# the app was built with (27.1 or later = full display). The xcode-27 runner has the real SDK (27.1), so by default there is no mark and the Duo
+# gets the full display. APP_SDK_MARK=26.0 marks the app as built with an older SDK to get the compatibility window back.
+SDK_MARK="${APP_SDK_MARK-}"
 if [ -n "$SDK_MARK" ] && [ -x "$APP/TTAnywhere" ]; then
   xcrun vtool -set-build-version ios 15.0 "$SDK_MARK" -replace -output "$APP/TTAnywhere.marked" "$APP/TTAnywhere" \
     && mv "$APP/TTAnywhere.marked" "$APP/TTAnywhere" && chmod +x "$APP/TTAnywhere" || echo "WARNING: could not mark the SDK version"

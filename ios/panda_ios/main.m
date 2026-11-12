@@ -216,6 +216,18 @@ static UIEdgeInsets TTAInsets(UIEdgeInsets s, CGRect b) {
     }
     return s;
 }
+
+// The view controller of the app's windows. On a two-screen phone in full-display mode iOS watches the right edge for a swipe that reveals a side
+// bar, and holds back or swallows taps there (the game's buttons at the right edge did nothing); asking iOS to defer its edge gestures on that side
+// gives the app the touches first.
+@interface TTAViewController : UIViewController
+@end
+@implementation TTAViewController
+- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
+    if (gScene != nil && gScene.screen.bounds.size.width > [UIScreen mainScreen].bounds.size.width + 1.0) return UIRectEdgeRight;
+    return UIRectEdgeNone;
+}
+@end
 static CGRect SceneBounds(void) {
     if (gScene) { CGRect r = gScene.coordinateSpace.bounds; if (r.size.width > 0) return r; }
     return [UIScreen mainScreen].bounds;
@@ -1686,7 +1698,7 @@ static NSString *SettingValue(NSString *rid) {
     self.controls = NewWindow([PassThroughWindow class], b);
     self.controls.windowLevel = UIWindowLevelAlert;
     self.controls.backgroundColor = [UIColor clearColor];
-    UIViewController *vc = [UIViewController new];
+    UIViewController *vc = [TTAViewController new];
     vc.view.backgroundColor = [UIColor clearColor];
     self.controls.rootViewController = vc;
 
@@ -1770,6 +1782,10 @@ static NSString *SettingValue(NSString *rid) {
         self.hotspots = YES;
     }
     self.controls.hidden = NO;
+    // the key window's controller is the one iOS asks about edge gestures: the game's own window has none, so this one is key (it passes every tap it does not use on)
+    [self.controls makeKeyWindow];
+    [vc setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
+    fprintf(stderr, "EDGES deferring=%lu key=%d\n", (unsigned long)vc.preferredScreenEdgesDeferringSystemGestures, self.controls.isKeyWindow);
 }
 
 - (void)kbChanged:(UITextField *)f {
@@ -1908,7 +1924,7 @@ static NSString *SettingValue(NSString *rid) {
     if (self.window) return;
     gScene = scene;
     self.window = NewWindow([UIWindow class], SceneBounds());
-    UIViewController *vc = [UIViewController new];
+    UIViewController *vc = [TTAViewController new];
     vc.view = [self buildSplash:SceneBounds()];
     self.window.rootViewController = vc;
     [self.window makeKeyAndVisible];
