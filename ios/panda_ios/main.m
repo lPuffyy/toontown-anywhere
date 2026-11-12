@@ -210,7 +210,7 @@ static UIEdgeInsets TTAInsets(UIEdgeInsets s, CGRect b) {
     // Two-screen phone in full-display mode: the earlier (compatibility mode) builds put the whole game inside a window as wide as the main screen,
     // centred on the big one, and everything worked there. The strip beyond it on the right (the system bar and its margin) does not take taps even
     // though the safe area only says 84 points, so the game's buttons are kept inside that same width.
-    if (gScene != nil && gScene.screen != [UIScreen mainScreen]) {
+    if (gScene != nil && gScene.screen.bounds.size.width > [UIScreen mainScreen].bounds.size.width + 1.0) {
         CGFloat gap = (gScene.screen.bounds.size.width - [UIScreen mainScreen].bounds.size.width) / 2.0 + 8.0;
         if (gap > 0) s.right = MAX(s.right, gap);
     }
@@ -1745,7 +1745,7 @@ static NSString *SettingValue(NSString *rid) {
     [cog setImage:[gear imageWithTintColor:[UIColor whiteColor] renderingMode:UIImageRenderingModeAlwaysOriginal] forState:UIControlStateNormal];
     [cog addTarget:self action:@selector(openSettings) forControlEvents:UIControlEventTouchUpInside];
     [vc.view addSubview:cog];
-    if (gScene != nil && gScene.screen != [UIScreen mainScreen]) {
+    if (gScene != nil && gScene.screen.bounds.size.width > [UIScreen mainScreen].bounds.size.width + 1.0) {
         // A two-screen phone (the iPhone Duo): taps at the right-hand edge never reached the game's own friends list and sticker book buttons, so
         // here are two native buttons in the top-left corner, where taps work, that press the game's buttons.
         NSArray *symbols = @[@"person.2.fill", @"book.closed.fill"];
