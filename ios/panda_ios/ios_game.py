@@ -551,3 +551,60 @@ def send_crash_report(server, path, tag=""):
         except BaseException:
             pass
     threading.Thread(target=work, daemon=True).start()
+
+
+# ---- friends list and sticker book, pressed from native buttons on a two-screen phone (see main.m showControls) ----
+_hot_logged = set()
+
+
+def _hot_button(name):
+    import builtins
+    la = getattr(builtins, "localAvatar", None)
+    if la is None:
+        return None
+    if name == "friends":
+        return getattr(la, "bFriendsList", None)
+    if name == "book":
+        bk = getattr(la, "book", None)
+        return getattr(bk, "bookOpenButton", None) if bk is not None else None
+    return None
+
+
+def ui_hotspots():
+    """'name,x,y,w,h;...' for the buttons that are on screen now: fractions of the screen, top left origin."""
+    import builtins
+    b = getattr(builtins, "base", None)
+    if b is None:
+        return ""
+    out = []
+    for name in ("friends", "book"):
+        try:
+            btn = _hot_button(name)
+            if btn is None or btn.isEmpty() or btn.isHidden():
+                continue
+            tb = btn.getTightBounds(b.render2d)
+            if not tb:
+                continue
+            lo, hi = tb
+            x0, x1 = (lo.getX() + 1.0) / 2.0, (hi.getX() + 1.0) / 2.0
+            y0, y1 = 1.0 - (hi.getZ() + 1.0) / 2.0, 1.0 - (lo.getZ() + 1.0) / 2.0
+            if x1 <= x0 or y1 <= y0 or x1 < 0 or x0 > 1 or y1 < 0 or y0 > 1:
+                continue
+            if name not in _hot_logged:
+                _hot_logged.add(name)
+                print("HOTSPOT %s x=%.3f y=%.3f w=%.3f h=%.3f" % (name, x0, y0, x1 - x0, y1 - y0), flush=True)
+            out.append("%s,%.4f,%.4f,%.4f,%.4f" % (name, x0, y0, x1 - x0, y1 - y0))
+        except BaseException:
+            pass
+    return ";".join(out)
+
+
+def ui_press(name):
+    try:
+        btn = _hot_button(name)
+        if btn is None or btn.isEmpty() or btn.isHidden():
+            return
+        print("HOTSPOT press", name, flush=True)
+        btn.commandFunc(None)
+    except BaseException:
+        print("HOTSPOT press failed", name, traceback.format_exc(), flush=True)

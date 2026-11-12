@@ -399,6 +399,8 @@ static __kindof UIWindow *NewWindow(Class cls, CGRect frame) {
 // in-game touch helpers
 @property (strong, nonatomic) PadButton *actionButton;
 @property (strong, nonatomic) NSArray<UIView *> *hudViews;
+@property (strong, nonatomic) NSArray<UIButton *> *hotButtons;     // friends list and sticker book, pressed natively on a two-screen phone
+@property (assign, nonatomic) BOOL hotspots;
 @property (strong, nonatomic) JoystickView *joyView;
 @property (assign, nonatomic) BOOL hudWasVisible;
 @property (strong, nonatomic) PadButton *padLeft;
@@ -1723,6 +1725,21 @@ static NSString *SettingValue(NSString *rid) {
     five.numberOfTapsRequired = 5;
     [hot addGestureRecognizer:five];
     [vc.view addSubview:hot];
+    // On a two-screen phone (the iPhone Duo) taps at the right-hand edge never reached the game's own friends and sticker book buttons. UIKit's own
+    // hit-testing does work there (the joystick and jump button are native), so those two get an invisible native button laid over them that presses
+    // the game's button (the rectangles come from where the game draws them, see ios_game.ui_hotspots).
+    self.hotspots = (gScene != nil && gScene.screen != [UIScreen mainScreen]);
+    NSMutableArray *hbs = [NSMutableArray array];
+    for (int i = 0; i < 2; i++) {
+        UIButton *hbtn = [UIButton buttonWithType:UIButtonTypeCustom];
+        hbtn.backgroundColor = [UIColor clearColor];
+        hbtn.tag = i + 1;
+        hbtn.hidden = YES;
+        [hbtn addTarget:self action:@selector(hotTapped:) forControlEvents:UIControlEventTouchUpInside];
+        [vc.view addSubview:hbtn];
+        [hbs addObject:hbtn];
+    }
+    self.hotButtons = hbs;
     UIButton *cog = [UIButton buttonWithType:UIButtonTypeCustom];
     CGFloat cs = 30 * sc;
     cog.frame = CGRectMake(MAX(safe.left, 6) + 150 * sc, MAX(safe.top, 6), cs, cs);   // top-left, beside the two chat buttons: clear of the friends button and of the Pick-a-Toon title
@@ -1773,6 +1790,26 @@ static NSString *SettingValue(NSString *rid) {
         [self.kbField resignFirstResponder];
         self.kbActive = NO;
     }
+    if (self.hotspots && self.hotButtons) {
+        NSString *h = pyString("import ios_game\n_h = ios_game.ui_hotspots()\n", "_h");
+        CGRect vb = self.controls.rootViewController.view.bounds;
+        BOOL shown[2] = {NO, NO};
+        for (NSString *item in [h componentsSeparatedByString:@";"]) {
+            NSArray *q = [item componentsSeparatedByString:@","];
+            if (q.count != 5) continue;
+            int idx = [q[0] isEqualToString:@"friends"] ? 0 : ([q[0] isEqualToString:@"book"] ? 1 : -1);
+            if (idx < 0) continue;
+            CGRect r = CGRectMake([q[1] doubleValue] * vb.size.width, [q[2] doubleValue] * vb.size.height, [q[3] doubleValue] * vb.size.width, [q[4] doubleValue] * vb.size.height);
+            CGFloat w = MAX(r.size.width, 56), hh = MAX(r.size.height, 56);      // big enough for a finger
+            self.hotButtons[idx].frame = CGRectMake(CGRectGetMidX(r) - w / 2, CGRectGetMidY(r) - hh / 2, w, hh);
+            shown[idx] = YES;
+        }
+        for (int i = 0; i < 2; i++) self.hotButtons[i].hidden = !shown[i];
+    }
+}
+
+- (void)hotTapped:(UIButton *)sender {
+    pyRun(sender.tag == 1 ? "import ios_game\nios_game.ui_press('friends')\n" : "import ios_game\nios_game.ui_press('book')\n");
 }
 
 - (void)audioInterrupted:(NSNotification *)n {
