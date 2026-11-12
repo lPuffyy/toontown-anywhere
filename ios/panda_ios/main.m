@@ -114,6 +114,18 @@ static NSAttributedString *Outlined(NSString *text, UIFont *font, UIColor *fill,
 }
 @end
 
+// The app's window scene (UIKit requires the scene lifecycle for apps built with the iOS 27 SDK). Every window is made in it, and the screen's
+// size is the scene's, not UIScreen's: on a two-screen phone (iPhone Duo) they are not the same thing.
+static UIWindowScene *gScene = nil;
+static CGRect SceneBounds(void) {
+    if (gScene) { CGRect r = gScene.coordinateSpace.bounds; if (r.size.width > 0) return r; }
+    return [UIScreen mainScreen].bounds;
+}
+static __kindof UIWindow *NewWindow(Class cls, CGRect frame) {
+    UIWindow *w = gScene ? [[cls alloc] initWithWindowScene:gScene] : [[cls alloc] initWithFrame:frame];
+    w.frame = frame;
+    return w;
+}
 @interface JoystickView : UIView
 @property (strong, nonatomic) UIView *knob;
 @property (assign, nonatomic) int fwd, back, left, right;
@@ -236,6 +248,10 @@ static NSAttributedString *Outlined(NSString *text, UIFont *font, UIColor *fill,
 @end
 
 // ---------------------------------------------------------------------------------------------
+
+@interface SceneDelegate : UIResponder <UIWindowSceneDelegate>
+@property (strong, nonatomic) UIWindow *window;
+@end
 
 @interface AppDelegate : UIResponder <UIApplicationDelegate>
 @property (strong, nonatomic) UIWindow *window;
@@ -628,7 +644,7 @@ static NSString *ServerId(NSString *res, NSString *game) {
         [tf addGestureRecognizer:tap];
     }
     // its own window (like the game controls): touches reach it reliably
-    self.loginWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.loginWindow = NewWindow([UIWindow class], SceneBounds());
     self.loginWindow.windowLevel = UIWindowLevelAlert;
     self.loginWindow.backgroundColor = [UIColor clearColor];
     TTAViewController *lvc = [TTAViewController new];
@@ -809,7 +825,7 @@ static NSString *HexOf(NSString *s) {
     [self.recSecondary addTarget:self action:@selector(recoverySecondary) forControlEvents:UIControlEventTouchUpInside];
     [card addSubview:self.recSecondary];
 
-    self.recWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.recWindow = NewWindow([UIWindow class], SceneBounds());
     self.recWindow.windowLevel = UIWindowLevelAlert;
     self.recWindow.backgroundColor = [UIColor clearColor];
     UIViewController *rvc = [UIViewController new];
@@ -1036,7 +1052,7 @@ static NSString *HexOf(NSString *s) {
         [card addSubview:bk];
     }
 
-    self.serverWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.serverWindow = NewWindow([UIWindow class], SceneBounds());
     self.serverWindow.windowLevel = UIWindowLevelAlert;
     self.serverWindow.backgroundColor = [UIColor clearColor];
     UIViewController *svc = [UIViewController new];
@@ -1348,8 +1364,8 @@ static NSString *SettingValue(NSString *rid) {
     NSString *dp = [self dataPath];
     RegisterToonFont(dp);
     NSDictionary *spec = ReadSettingsSpec(dp);
-    CGRect sb = [UIScreen mainScreen].bounds;
-    UIWindow *w = [[UIWindow alloc] initWithFrame:sb];
+    CGRect sb = SceneBounds();
+    UIWindow *w = NewWindow([UIWindow class], sb);
     w.windowLevel = UIWindowLevelAlert + 10;
     w.backgroundColor = [UIColor clearColor];
     UIViewController *vc = [UIViewController new];
@@ -1519,9 +1535,9 @@ static NSString *SettingValue(NSString *rid) {
 
 - (void)showControls {
     // size from the app's own window, not UIScreen: on a two-screen phone (iPhone Duo) the main screen is not what the app is drawn into
-    CGRect b = (self.window && self.window.bounds.size.width > 0) ? self.window.bounds : [UIScreen mainScreen].bounds;
+    CGRect b = (self.window && self.window.bounds.size.width > 0) ? self.window.bounds : SceneBounds();
     UIEdgeInsets safe = self.window.safeAreaInsets;
-    self.controls = [[PassThroughWindow alloc] initWithFrame:b];
+    self.controls = NewWindow([PassThroughWindow class], b);
     self.controls.windowLevel = UIWindowLevelAlert;
     self.controls.backgroundColor = [UIColor clearColor];
     UIViewController *vc = [UIViewController new];
@@ -1669,7 +1685,7 @@ static NSString *SettingValue(NSString *rid) {
         return;
     }
     NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"tta_log.txt"];
-    self.logWindow = [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, [UIScreen mainScreen].bounds.size.width, 330)];
+    self.logWindow = NewWindow([UIWindow class], CGRectMake(0, 0, SceneBounds().size.width, 330));
     self.logWindow.windowLevel = UIWindowLevelAlert + 10;
     self.logWindow.userInteractionEnabled = NO;
     self.logWindow.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
@@ -1698,9 +1714,22 @@ static NSString *SettingValue(NSString *rid) {
     [[AVAudioSession sharedInstance] setActive:YES error:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(audioInterrupted:) name:AVAudioSessionInterruptionNotification object:nil];
     [self loadServerChoice];   // before the art, so the cached start screen belongs to the right server
-    self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    return YES;
+}
+
+- (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options {
+    UISceneConfiguration *c = [[UISceneConfiguration alloc] initWithName:@"Default Configuration" sessionRole:connectingSceneSession.role];
+    c.delegateClass = [SceneDelegate class];
+    return c;
+}
+
+// the window scene has connected: build the first window and start Python (what used to happen in didFinishLaunching)
+- (void)beginInScene:(UIWindowScene *)scene {
+    if (self.window) return;
+    gScene = scene;
+    self.window = NewWindow([UIWindow class], SceneBounds());
     UIViewController *vc = [UIViewController new];
-    vc.view = [self buildSplash:[UIScreen mainScreen].bounds];
+    vc.view = [self buildSplash:SceneBounds()];
     self.window.rootViewController = vc;
     [self.window makeKeyAndVisible];
     [self applyArt];   // cached art from an earlier launch, so the placeholder never flashes
@@ -1715,13 +1744,21 @@ static NSString *SettingValue(NSString *rid) {
         if (self.serverRes) [self beginDownload];
         else [self showServerChoiceCanGoBack:NO];
     });
-    return YES;
 }
 
 - (UIInterfaceOrientationMask)application:(UIApplication *)application supportedInterfaceOrientationsForWindow:(UIWindow *)window {
     return UIInterfaceOrientationMaskLandscape;
 }
 
+@end
+
+@implementation SceneDelegate
+- (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
+    if (![scene isKindOfClass:[UIWindowScene class]]) return;
+    self.window = ((AppDelegate *)[UIApplication sharedApplication].delegate).window;
+    [(AppDelegate *)[UIApplication sharedApplication].delegate beginInScene:(UIWindowScene *)scene];
+    self.window = ((AppDelegate *)[UIApplication sharedApplication].delegate).window;
+}
 @end
 
 int main(int argc, char *argv[]) {
