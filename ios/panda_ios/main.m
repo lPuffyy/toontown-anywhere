@@ -52,6 +52,7 @@ static int gCrashFd = -1;
 static char gMarkerPath[1024];
 static char gPrevLogPath[1024];
 static BOOL gSendPrevLog = NO;
+static BOOL gHavePrevLog = NO;
 
 static void CrashWrite(const char *s) {
     if (gCrashFd >= 0 && s) { ssize_t r = write(gCrashFd, s, strlen(s)); (void)r; }
@@ -107,7 +108,8 @@ static void InstallCrashHandlers(void) {
     if ([fm fileExistsAtPath:noaudio]) setenv("TTA_NOAUDIO", "1", 1);
     [fm removeItemAtPath:prev error:nil];
     if (d.length > 0) [fm moveItemAtPath:log toPath:prev error:nil];      // each run starts a fresh log; the last one is kept for the report
-    gSendPrevLog = (unfinished || crashed) && [fm fileExistsAtPath:prev];
+    gHavePrevLog = [fm fileExistsAtPath:prev];
+    gSendPrevLog = (unfinished || crashed) && gHavePrevLog;
     [fm removeItemAtPath:marker error:nil];
     gCrashFd = open(log.UTF8String, O_WRONLY | O_CREAT | O_APPEND, 0644);
     struct utsname u;
@@ -1740,6 +1742,7 @@ static NSString *SettingValue(NSString *rid) {
         [hbs addObject:hbtn];
     }
     self.hotButtons = hbs;
+    [vc.view bringSubviewToFront:hot];      // the 5-tap log area must never be covered
     UIButton *cog = [UIButton buttonWithType:UIButtonTypeCustom];
     CGFloat cs = 30 * sc;
     cog.frame = CGRectMake(MAX(safe.left, 6) + 150 * sc, MAX(safe.top, 6), cs, cs);   // top-left, beside the two chat buttons: clear of the friends button and of the Pick-a-Toon title
@@ -1800,8 +1803,12 @@ static NSString *SettingValue(NSString *rid) {
             int idx = [q[0] isEqualToString:@"friends"] ? 0 : ([q[0] isEqualToString:@"book"] ? 1 : -1);
             if (idx < 0) continue;
             CGRect r = CGRectMake([q[1] doubleValue] * vb.size.width, [q[2] doubleValue] * vb.size.height, [q[3] doubleValue] * vb.size.width, [q[4] doubleValue] * vb.size.height);
-            CGFloat w = MAX(r.size.width, 56), hh = MAX(r.size.height, 56);      // big enough for a finger
-            self.hotButtons[idx].frame = CGRectMake(CGRectGetMidX(r) - w / 2, CGRectGetMidY(r) - hh / 2, w, hh);
+            CGFloat w = MIN(MAX(r.size.width, 56), 150), hh = MIN(MAX(r.size.height, 56), 150);      // big enough for a finger, never a big area
+            CGFloat cx = CGRectGetMidX(r), cy = CGRectGetMidY(r);
+            if (cx < vb.size.width * 0.5 || cy < 0 || cy > vb.size.height) continue;      // both buttons live on the right: anything else is a wrong answer
+            CGRect nf = CGRectMake(cx - w / 2, cy - hh / 2, w, hh);
+            if (!CGRectEqualToRect(nf, self.hotButtons[idx].frame)) fprintf(stderr, "HOTBUTTON %d frame %s\n", idx, NSStringFromCGRect(nf).UTF8String);
+            self.hotButtons[idx].frame = nf;
             shown[idx] = YES;
         }
         for (int i = 0; i < 2; i++) self.hotButtons[i].hidden = !shown[i];
@@ -1918,9 +1925,12 @@ static NSString *SettingValue(NSString *rid) {
             return;
         }
         [self.spinner stopAnimating];
-        if (gSendPrevLog && self.serverRes) {
+        BOOL twoScreens = (gScene != nil && gScene.screen != [UIScreen mainScreen]);
+        if ((gSendPrevLog || (gHavePrevLog && twoScreens)) && self.serverRes) {
+            NSString *tag = gSendPrevLog ? @"" : @"PREV ";      // a crash report, or (two-screen phones only) the end of the last normal run
             gSendPrevLog = NO;
-            NSString *send = [NSString stringWithFormat:@"try:\n    import ios_game\n    ios_game.send_crash_report('%@', '%s')\nexcept BaseException:\n    pass\n", self.serverRes, gPrevLogPath];
+            gHavePrevLog = NO;
+            NSString *send = [NSString stringWithFormat:@"try:\n    import ios_game\n    ios_game.send_crash_report('%@', '%s', '%@')\nexcept BaseException:\n    pass\n", self.serverRes, gPrevLogPath, tag];
             pyRun(send.UTF8String);
         }
         if (self.serverRes) [self beginDownload];

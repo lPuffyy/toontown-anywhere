@@ -582,7 +582,11 @@ def ui_hotspots():
             btn = _hot_button(name)
             if btn is None or btn.isEmpty() or btn.isHidden():
                 continue
-            tb = btn.getTightBounds(b.render2d)
+            try:
+                base_state = btn.stateNodePath[0]      # the normal look only (the other looks carry text that is not on screen)
+            except BaseException:
+                base_state = btn
+            tb = base_state.getTightBounds(b.render2d)
             if not tb:
                 continue
             lo, hi = tb
