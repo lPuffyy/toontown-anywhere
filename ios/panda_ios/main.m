@@ -220,9 +220,9 @@ static UIEdgeInsets TTAInsets(UIEdgeInsets s, CGRect b) {
 // The view controller of the app's windows. On a two-screen phone in full-display mode iOS watches the right edge for a swipe that reveals a side
 // bar, and holds back or swallows taps there (the game's buttons at the right edge did nothing); asking iOS to defer its edge gestures on that side
 // gives the app the touches first.
-@interface TTAViewController : UIViewController
+@interface TTAEdgeViewController : UIViewController
 @end
-@implementation TTAViewController
+@implementation TTAEdgeViewController
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
     if (gScene != nil && gScene.screen.bounds.size.width > [UIScreen mainScreen].bounds.size.width + 1.0) return UIRectEdgeRight;
     return UIRectEdgeNone;
@@ -1698,7 +1698,7 @@ static NSString *SettingValue(NSString *rid) {
     self.controls = NewWindow([PassThroughWindow class], b);
     self.controls.windowLevel = UIWindowLevelAlert;
     self.controls.backgroundColor = [UIColor clearColor];
-    UIViewController *vc = [TTAViewController new];
+    UIViewController *vc = [TTAEdgeViewController new];
     vc.view.backgroundColor = [UIColor clearColor];
     self.controls.rootViewController = vc;
 
@@ -1924,7 +1924,7 @@ static NSString *SettingValue(NSString *rid) {
     if (self.window) return;
     gScene = scene;
     self.window = NewWindow([UIWindow class], SceneBounds());
-    UIViewController *vc = [TTAViewController new];
+    UIViewController *vc = [TTAEdgeViewController new];
     vc.view = [self buildSplash:SceneBounds()];
     self.window.rootViewController = vc;
     [self.window makeKeyAndVisible];
