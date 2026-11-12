@@ -8,6 +8,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/utsname.h>
+#include <objc/runtime.h>
+#include <string.h>
 #import <Security/Security.h>
 #import <AVFoundation/AVFoundation.h>
 #import <OpenAL/alc.h>
@@ -231,6 +233,39 @@ static UIEdgeInsets TTAInsets(UIEdgeInsets s, CGRect b) {
 static CGRect SceneBounds(void) {
     if (gScene) { CGRect r = gScene.coordinateSpace.bounds; if (r.size.width > 0) return r; }
     return [UIScreen mainScreen].bounds;
+}
+// The screen the app is on. On a two-screen phone UIScreen.mainScreen can be the other display (Apple calls it ambiguous): ask the scene instead.
+static UIScreen *TTAScreen(void) {
+    return gScene != nil ? gScene.screen : [UIScreen mainScreen];
+}
+
+// What the running iOS offers for the fold, the hinge and reserved regions (names only, written to the log once): the Objective-C spellings of the
+// iOS 27.1 interfaces are not documented anywhere readable, so the phone itself tells us.
+static void TTADumpFoldAPIs(void) {
+    const char *wanted[] = {"region", "hinge", "arrangement", "fold", "occlusion", "division"};
+    const char *names[] = {"UIView", "UIWindowScene", "UIScreen", "UIWindow", "UIViewController", "UITraitCollection"};
+    for (size_t c = 0; c < sizeof names / sizeof names[0]; c++) {
+        Class cls = objc_getClass(names[c]);
+        if (!cls) continue;
+        unsigned int n = 0;
+        Method *ms = class_copyMethodList(cls, &n);
+        for (unsigned int i = 0; i < n; i++) {
+            const char *sel = sel_getName(method_getName(ms[i]));
+            if (sel[0] == '_') continue;
+            for (size_t w = 0; w < sizeof wanted / sizeof wanted[0]; w++) {
+                if (strcasestr(sel, wanted[w])) { fprintf(stderr, "FOLDAPI %s -%s\n", names[c], sel); break; }
+            }
+        }
+        free(ms);
+    }
+    unsigned int total = 0;
+    Class __unsafe_unretained *all = objc_copyClassList(&total);
+    for (unsigned int i = 0; i < total; i++) {
+        const char *cn = class_getName(all[i]);
+        if (cn[0] == '_' || cn[0] != 'U' || cn[1] != 'I') continue;
+        if (strcasestr(cn, "ReservedRegion") || strcasestr(cn, "Hinge") || strcasestr(cn, "Arrangement")) fprintf(stderr, "FOLDAPI class %s\n", cn);
+    }
+    free(all);
 }
 static __kindof UIWindow *NewWindow(Class cls, CGRect frame) {
     UIWindow *w = gScene ? [[cls alloc] initWithWindowScene:gScene] : [[cls alloc] initWithFrame:frame];
@@ -1399,7 +1434,7 @@ static NSString *HexOf(NSString *s) {
 // on-screen items inside the safe area and lays out for the new shape. 
 // When the size or safe area changes while playing (rotation, fold, Stage Manager), the touch controls are laid out again as well.
 - (void)pushScreenMetrics:(BOOL)force {
-    UIScreen *scr = [UIScreen mainScreen];
+    UIScreen *scr = TTAScreen();
     CGFloat k = MIN(scr.scale, 2.0);   // the game view renders at most 2x (patch_sources.py)
     CGRect b = self.controls ? self.controls.bounds : ((self.window && self.window.bounds.size.width > 0) ? self.window.bounds : scr.bounds);
     UIEdgeInsets s = TTAInsets(self.controls ? self.controls.safeAreaInsets : self.window.safeAreaInsets, b);
@@ -1647,14 +1682,14 @@ static NSString *SettingValue(NSString *rid) {
     NSString *g = pyString(code.UTF8String, "_g");
     fprintf(stderr, "LAUNCH RESULT: %s%c", g.UTF8String, 10);
     if ([g hasPrefix:@"LAUNCH OK"]) {
-        self.link = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
+        self.link = [TTAScreen() displayLinkWithTarget:self selector:@selector(tick:)];      // the display the app is on, not the main one
         // up to the screen's top rate (120 Hz on ProMotion iPhones and iPads; the Info.plist key CADisableMinimumFrameDurationOnPhone lets an
         // iPhone go above 60). The system picks the highest rate in 60..120 that the game keeps up with, so a heavy scene drops to 60 instead of stuttering.
         if (@available(iOS 15.0, *)) {
             self.link.preferredFrameRateRange = CAFrameRateRangeMake(60, 60, 60);      // starts at 60; tick: raises it while frames are cheap enough
         }
         [self.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
-        fprintf(stderr, "DISPLAY maxFPS=%ld\n", (long)[UIScreen mainScreen].maximumFramesPerSecond);
+        fprintf(stderr, "DISPLAY maxFPS=%ld\n", (long)TTAScreen().maximumFramesPerSecond);
         [self.spinner stopAnimating];
         // the game draws into this window now: take the start-screen art out of the way
         [self.bgView removeFromSuperview];
@@ -1670,6 +1705,7 @@ static NSString *SettingValue(NSString *rid) {
         [self showControls];
         [self applyAllSettings];
         self.alContext = alcGetCurrentContext();
+        TTADumpFoldAPIs();
         fprintf(stderr, "AUDIO CONTEXT %p\n", self.alContext);
         // Opening or closing a two-screen phone changes the size of the app's window while it runs. The game's own window holds its view at a fixed size,
         // so it never followed: let it (and its view) resize with the window; the game view then tells the engine its new size.
