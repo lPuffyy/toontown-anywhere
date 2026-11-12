@@ -96,6 +96,15 @@ static void InstallCrashHandlers(void) {
     BOOL unfinished = [fm fileExistsAtPath:marker];
     NSData *d = [NSData dataWithContentsOfFile:log];
     BOOL crashed = d.length > 0 && [d rangeOfData:[@"NATIVE CRASH" dataUsingEncoding:NSUTF8StringEncoding] options:0 range:NSMakeRange(0, d.length)].location != NSNotFound;
+    // a crash inside the sound code turns the game's sound off on this phone (the same app version keeps it off; a new version tries again)
+    NSString *noaudio = [docs stringByAppendingPathComponent:@"tta_noaudio"];
+    NSString *appVer = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"?";
+    NSString *savedVer = [NSString stringWithContentsOfFile:noaudio encoding:NSUTF8StringEncoding error:nil];
+    if (savedVer && ![savedVer isEqualToString:appVer]) { [fm removeItemAtPath:noaudio error:nil]; }
+    if (crashed && [d rangeOfData:[@"libp3openal_audio" dataUsingEncoding:NSUTF8StringEncoding] options:0 range:NSMakeRange(0, d.length)].location != NSNotFound) {
+        [appVer writeToFile:noaudio atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    }
+    if ([fm fileExistsAtPath:noaudio]) setenv("TTA_NOAUDIO", "1", 1);
     [fm removeItemAtPath:prev error:nil];
     if (d.length > 0) [fm moveItemAtPath:log toPath:prev error:nil];      // each run starts a fresh log; the last one is kept for the report
     gSendPrevLog = (unfinished || crashed) && [fm fileExistsAtPath:prev];
@@ -1575,6 +1584,14 @@ static NSString *SettingValue(NSString *rid) {
     [self applySetting:@"smooth_edges" value:SettingValue(@"smooth_edges")];
     [self setupLog];
     fprintf(stderr, "LAUNCH BEGIN%c", 10);
+    {
+        NSError *e1 = nil, *e2 = nil;
+        AVAudioSession *as = [AVAudioSession sharedInstance];
+        BOOL c = [as setCategory:AVAudioSessionCategoryPlayback error:&e1];
+        BOOL a = [as setActive:YES error:&e2];
+        AVAudioSessionPortDescription *o = as.currentRoute.outputs.firstObject;
+        fprintf(stderr, "AUDIO SESSION category=%d active=%d err=%s / %s route=%s rate=%.0f\n", c, a, e1.localizedDescription.UTF8String ?: "-", e2.localizedDescription.UTF8String ?: "-", o.portType.UTF8String ?: "none", as.sampleRate);
+    }
     NSString *code = [NSString stringWithFormat:
         @"try:\n"
          "    import ios_game\n"
@@ -1603,6 +1620,8 @@ static NSString *SettingValue(NSString *rid) {
         [UIApplication sharedApplication].idleTimerDisabled = YES;   // do not dim or lock mid-game
         [self showControls];
         [self applyAllSettings];
+        self.alContext = alcGetCurrentContext();
+        fprintf(stderr, "AUDIO CONTEXT %p\n", self.alContext);
         {
             UIScreen *ms = [UIScreen mainScreen];
             fprintf(stderr, "GEOMETRY main=%s scale=%.2f native=%s | scene=%s sceneScreen=%s scale=%.2f | window=%s controls=%s safe=%s\n",
@@ -1620,7 +1639,12 @@ static NSString *SettingValue(NSString *rid) {
 - (void)tick:(CADisplayLink *)link {
     pyRun("import ios_game\nios_game.step()\n");
     if ((++self.frameTick % 20) == 0) [self pushScreenMetrics:NO];
-    if (self.frameTick == 300) CrashMarkerClear();      // the game ran for a few seconds: this start did not crash     // a few times a second is plenty for a rotation or a fold
+    if (self.frameTick == 300) CrashMarkerClear();      // the game ran for a few seconds: this start did not crash
+    if ((self.frameTick % 60) == 0 && self.alContext && !alcGetCurrentContext() && [UIApplication sharedApplication].applicationState == UIApplicationStateActive) {
+        fprintf(stderr, "AUDIO CONTEXT LOST: restoring\n");      // an interruption that never ended left the sound without a context (every sound call then failed)
+        [self resumeAudio];
+    }
+     // a few times a second is plenty for a rotation or a fold
 }
 
 // ----- controls and log overlay -------------------------------------------------------------
@@ -1734,6 +1758,7 @@ static NSString *SettingValue(NSString *rid) {
 
 - (void)audioInterrupted:(NSNotification *)n {
     NSUInteger type = [n.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
+    fprintf(stderr, "AUDIO INTERRUPTION type=%lu reason=%s\n", (unsigned long)type, [[n.userInfo[AVAudioSessionInterruptionReasonKey] description] UTF8String] ?: "-");
     if (type == AVAudioSessionInterruptionTypeBegan) {
         ALCcontext *c = alcGetCurrentContext();
         if (c) self.alContext = c;

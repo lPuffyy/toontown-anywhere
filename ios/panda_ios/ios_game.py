@@ -174,6 +174,48 @@ def set_option(name, value):
 
 
 # ---- the game
+def _openal_problem():
+    """None when the phone's OpenAL can make a source (what every sound needs), otherwise a short reason. Done before the game starts so a phone whose
+    sound does not work gets the game without sound instead of a crash in the sound code."""
+    try:
+        import ctypes
+        al = ctypes.CDLL("/System/Library/Frameworks/OpenAL.framework/OpenAL")
+    except BaseException:
+        return None                                   # cannot check: leave the sound on
+    try:
+        al.alcOpenDevice.restype = ctypes.c_void_p
+        al.alcOpenDevice.argtypes = [ctypes.c_char_p]
+        al.alcCreateContext.restype = ctypes.c_void_p
+        al.alcCreateContext.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        al.alcMakeContextCurrent.argtypes = [ctypes.c_void_p]
+        al.alcDestroyContext.argtypes = [ctypes.c_void_p]
+        al.alcCloseDevice.argtypes = [ctypes.c_void_p]
+        al.alGenSources.argtypes = [ctypes.c_int, ctypes.c_void_p]
+        al.alDeleteSources.argtypes = [ctypes.c_int, ctypes.c_void_p]
+        al.alGetError.restype = ctypes.c_int
+        dev = al.alcOpenDevice(None)
+        if not dev:
+            return "no audio device"
+        ctx = al.alcCreateContext(dev, None)
+        if not ctx:
+            al.alcCloseDevice(dev)
+            return "no audio context"
+        al.alcMakeContextCurrent(ctx)
+        src = (ctypes.c_uint * 8)()
+        al.alGetError()
+        al.alGenSources(8, ctypes.byref(src))
+        err = al.alGetError()
+        if err == 0:
+            al.alDeleteSources(8, ctypes.byref(src))
+        al.alcMakeContextCurrent(None)
+        al.alcDestroyContext(ctx)
+        al.alcCloseDevice(dev)
+        return None if err == 0 and src[0] else "alGenSources error %d" % err
+    except BaseException:
+        print("ios_game: sound check failed", traceback.format_exc(), flush=True)
+        return None
+
+
 def launch(docs, frameworks, game_server, cookie, app_dir):
     from panda3d.core import ExecutionEnvironment, Filename, VirtualFileSystem, loadPrcFile, loadPrcFileData
     server = (RESOURCE_SERVER_HINT[0] or "").rstrip("/")
@@ -211,6 +253,14 @@ def launch(docs, frameworks, game_server, cookie, app_dir):
 
     loadPrcFile(Filename("etc/Configrc.prc"))
     audio = "p3openal_audio" if os.path.exists(os.path.join(frameworks, "libp3openal_audio.dylib")) else "null"
+    if audio != "null":
+        problem = _openal_problem()
+        print("ios_game.launch: sound check:", problem or "ok", flush=True)
+        if problem:
+            audio = "null"
+    if audio != "null" and (os.environ.get("TTA_NOAUDIO") == "1" or os.path.exists(os.path.join(docs, "tta_noaudio"))):
+        audio = "null"
+        print("ios_game.launch: sound is off on this phone (the last run crashed in the sound code)", flush=True)
     for line in ("plugin-path " + frameworks, "load-display pandagles", "audio-library-name " + audio, "toontown-auto-run 0", "want-dev #f",
                  "connect-method native", "notify-level warning", "dna-path resources", "default-model-extension .bam", "interpolate-frames 1",
                  "aspect-ratio 0", "sync-video 1", "garbage-collect-states-rate 0.05", "dna-ram-cache-hood-models #f"):    # (no model cache: memory is what iOS kills for)
@@ -487,7 +537,7 @@ def send_crash_report(server, path, tag=""):
     thread so the start screen is not held up; lines that could hold the sign-in are dropped first."""
     def work():
         try:
-            data = open(path, "rb").read()[-9000:].decode("utf8", "replace")
+            data = open(path, "rb").read()[-40000:].decode("utf8", "replace")
             lines = [l for l in data.splitlines() if l.strip() and not any(w in l.lower() for w in ("cookie", "password", "ios_game.launch(", "check_login("))]
             chunk = ""
             for l in lines + [""]:

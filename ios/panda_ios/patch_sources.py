@@ -132,8 +132,17 @@ edit("panda/src/iphonedisplay/eaglView.mm", retina_view)
 
 def retina_window(s):
     s = s.replace("bounds.size.width, bounds.size.height", "bounds.size.width * [_gl_view contentScaleFactor], bounds.size.height * [_gl_view contentScaleFactor]")
+    # A touch is turned into the game's pixels by the ratio of the window size Panda believes in (the size its mouse regions are laid out for)
+    # to the view's size in points, not by a screen scale: the two can differ (a view that moved to another screen gets that screen's scale,
+    # which left the buttons at the right edge out of reach on the iPhone Duo) and this one cannot.
     s = s.replace("  sum.x /= count;" + NL + "  sum.y /= count;",
-                  "  sum.x = sum.x / count * [_gl_view contentScaleFactor];" + NL + "  sum.y = sum.y / count * [_gl_view contentScaleFactor];")
+                  "  {" + NL +
+                  "    CGRect vb = [_gl_view bounds];" + NL +
+                  "    double kx = (vb.size.width > 0) ? (double)get_x_size() / vb.size.width : [_gl_view contentScaleFactor];" + NL +
+                  "    double ky = (vb.size.height > 0) ? (double)get_y_size() / vb.size.height : [_gl_view contentScaleFactor];" + NL +
+                  "    sum.x = sum.x / count * kx;" + NL +
+                  "    sum.y = sum.y / count * ky;" + NL +
+                  "  }")
     return s
 
 
