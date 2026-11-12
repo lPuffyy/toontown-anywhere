@@ -612,3 +612,35 @@ def ui_press(name):
         btn.commandFunc(None)
     except BaseException:
         print("HOTSPOT press failed", name, traceback.format_exc(), flush=True)
+
+
+_live = {"pos": 0}
+
+
+def live_log(server, path):
+    """Sends what the log gained since the last call (on the big screen of a two-screen phone, every 15 s) as IOSAPP| LIVE lines."""
+    def work():
+        try:
+            size = os.path.getsize(path)
+            if size < _live["pos"]:
+                _live["pos"] = 0
+            if size == _live["pos"]:
+                return
+            with open(path, "rb") as f:
+                f.seek(max(_live["pos"], size - 14000))
+                data = f.read().decode("utf8", "replace")
+            _live["pos"] = size
+            skip = ("cookie", "password", "ios_game.launch(", "check_login(", "onscreentext.configure", "audio(error)")
+            lines = [l for l in data.splitlines() if l.strip() and not any(w in l.lower() for w in skip)]
+            chunk = ""
+            for l in lines + [""]:
+                if l and len(chunk) + len(l) < 1300:
+                    chunk += l + "\n"
+                    continue
+                if chunk:
+                    req = urllib.request.Request(server.rstrip("/") + "/__log", data=("IOSAPP| LIVE " + chunk).encode("utf8"), method="POST")
+                    urllib.request.urlopen(req, timeout=10).read()
+                chunk = (l[:1300] + "\n") if l else ""
+        except BaseException:
+            pass
+    threading.Thread(target=work, daemon=True).start()

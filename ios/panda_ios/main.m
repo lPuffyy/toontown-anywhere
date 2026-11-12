@@ -364,6 +364,26 @@ static __kindof UIWindow *NewWindow(Class cls, CGRect frame) {
 @property (strong, nonatomic) UIWindow *window;
 @end
 
+// Logs where the first touches land as iOS delivers them (before any window or view of ours sees them), so a screen where taps do not reach
+// the game shows up as touches that never arrive, or arrive somewhere else.
+@interface TTAApplication : UIApplication
+@end
+@implementation TTAApplication
+- (void)sendEvent:(UIEvent *)event {
+    static int count = 0;
+    if (event.type == UIEventTypeTouches && count < 150) {
+        for (UITouch *t in event.allTouches) {
+            if (t.phase != UITouchPhaseBegan) continue;
+            CGPoint p = [t locationInView:nil];
+            UIWindow *w = t.window;
+            fprintf(stderr, "UITOUCH %d at (%.0f, %.0f) of a %.0fx%.0f window, window=%s view=%s\n", ++count, p.x, p.y, w.bounds.size.width, w.bounds.size.height,
+                    NSStringFromClass([w class]).UTF8String, NSStringFromClass([t.view class]).UTF8String);
+        }
+    }
+    [super sendEvent:event];
+}
+@end
+
 @interface AppDelegate : UIResponder <UIApplicationDelegate>
 @property (strong, nonatomic) UIWindow *window;
 @property (strong, nonatomic) CADisplayLink *link;
@@ -1739,6 +1759,14 @@ static NSString *SettingValue(NSString *rid) {
     [self.kbField addTarget:self action:@selector(kbChanged:) forControlEvents:UIControlEventEditingChanged];
     [vc.view addSubview:self.kbField];
     self.uiPoll = [NSTimer scheduledTimerWithTimeInterval:0.25 target:self selector:@selector(pollUI:) userInfo:nil repeats:YES];
+    if (gScene != nil && gScene.screen.bounds.size.width > [UIScreen mainScreen].bounds.size.width + 1.0 && self.serverRes) {
+        NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"tta_log.txt"];
+        NSString *server = self.serverRes;
+        [NSTimer scheduledTimerWithTimeInterval:15.0 repeats:YES block:^(NSTimer *t) {
+            NSString *send = [NSString stringWithFormat:@"try:\n    import ios_game\n    ios_game.live_log('%@', '%@')\nexcept BaseException:\n    pass\n", server, logPath];
+            pyRun(send.UTF8String);
+        }];
+    }
 
     UIView *hot = [[UIView alloc] initWithFrame:CGRectMake(b.size.width / 2 - 50, 0, 100, 40)];   // top centre: nothing in the game lives here
     hot.backgroundColor = [UIColor clearColor];
@@ -1968,6 +1996,6 @@ static NSString *SettingValue(NSString *rid) {
 int main(int argc, char *argv[]) {
     @autoreleasepool {
         InstallCrashHandlers();
-        return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
+        return UIApplicationMain(argc, argv, NSStringFromClass([TTAApplication class]), NSStringFromClass([AppDelegate class]));
     }
 }
