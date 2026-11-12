@@ -438,6 +438,9 @@ def _fix_two_channel_textures():
                 print("LA convert failed", key, traceback.format_exc().splitlines()[-1], flush=True)
 
 
+_tap_state = {"in": False, "n": 0}
+
+
 def step():
     import builtins
     b = getattr(builtins, "base", None)
@@ -457,6 +460,17 @@ def step():
                     w.set_clear_stencil_active(True)                  # EAGL's buffer is undefined after presenting: clear all of it every frame
                 except BaseException:
                     pass
+            if _tap_state["n"] < 80:
+                try:
+                    w = getattr(b, "win", None)
+                    ptr = w.get_pointer(0) if w else None
+                    inside = bool(ptr is not None and ptr.get_in_window())
+                    if inside and not _tap_state["in"]:
+                        _tap_state["n"] += 1
+                        print("TAP %d at (%d, %d) in a %dx%d window" % (_tap_state["n"], ptr.get_x(), ptr.get_y(), w.get_x_size(), w.get_y_size()), flush=True)
+                    _tap_state["in"] = inside
+                except BaseException:
+                    _tap_state["n"] = 999
             if _frames[0] % 16 == 0:
                 _fix_two_channel_textures()
             b.taskMgr.step()
@@ -468,7 +482,7 @@ def step():
                 print("STEP ERROR:", traceback.format_exc(), flush=True)
 
 
-def send_crash_report(server, path):
+def send_crash_report(server, path, tag=""):
     """The end of the previous run's log (it crashed, or never finished starting) goes to the server's client.log as IOSAPP| lines. Runs in a
     thread so the start screen is not held up; lines that could hold the sign-in are dropped first."""
     def work():
@@ -481,7 +495,7 @@ def send_crash_report(server, path):
                     chunk += l + "\n"
                     continue
                 if chunk:
-                    req = urllib.request.Request(server.rstrip("/") + "/__log", data=("IOSAPP| " + chunk).encode("utf8"), method="POST")
+                    req = urllib.request.Request(server.rstrip("/") + "/__log", data=("IOSAPP| " + tag + chunk).encode("utf8"), method="POST")
                     urllib.request.urlopen(req, timeout=10).read()
                 chunk = (l[:1300] + "\n") if l else ""
         except BaseException:

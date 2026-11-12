@@ -189,6 +189,15 @@ static NSAttributedString *Outlined(NSString *text, UIFont *font, UIColor *fill,
 // The app's window scene (UIKit requires the scene lifecycle for apps built with the iOS 27 SDK). Every window is made in it, and the screen's
 // size is the scene's, not UIScreen's: on a two-screen phone (iPhone Duo) they are not the same thing.
 static UIWindowScene *gScene = nil;
+
+// The safe area plus a margin on the right for near-square iPhone windows (the iPhone Duo's inner screen): the system bar down its right side
+// swallows taps there, and it is not part of the safe area, so the game's right-hand buttons (friends list, sticker book) did nothing.
+static UIEdgeInsets TTAInsets(UIEdgeInsets s, CGRect b) {
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPhone && b.size.height > 0 && b.size.width / b.size.height < 1.9) {
+        s.right = MAX(s.right, MAX(44.0, b.size.width * 0.065));
+    }
+    return s;
+}
 static CGRect SceneBounds(void) {
     if (gScene) { CGRect r = gScene.coordinateSpace.bounds; if (r.size.width > 0) return r; }
     return [UIScreen mainScreen].bounds;
@@ -1341,7 +1350,7 @@ static NSString *HexOf(NSString *s) {
     UIScreen *scr = [UIScreen mainScreen];
     CGFloat k = MIN(scr.scale, 2.0);   // the game view renders at most 2x (patch_sources.py)
     CGRect b = self.controls ? self.controls.bounds : ((self.window && self.window.bounds.size.width > 0) ? self.window.bounds : scr.bounds);
-    UIEdgeInsets s = self.controls ? self.controls.safeAreaInsets : self.window.safeAreaInsets;
+    UIEdgeInsets s = TTAInsets(self.controls ? self.controls.safeAreaInsets : self.window.safeAreaInsets, b);
     NSString *m = [NSString stringWithFormat:@"%.1f,%.1f,%.1f,%.1f,%.1f,%.1f", b.size.width * k, b.size.height * k, s.left * k, s.right * k, s.top * k, s.bottom * k];
     if (!force && [m isEqualToString:self.lastMetrics]) return;
     BOOL playing = self.controls != nil;
@@ -1594,6 +1603,14 @@ static NSString *SettingValue(NSString *rid) {
         [UIApplication sharedApplication].idleTimerDisabled = YES;   // do not dim or lock mid-game
         [self showControls];
         [self applyAllSettings];
+        {
+            UIScreen *ms = [UIScreen mainScreen];
+            fprintf(stderr, "GEOMETRY main=%s scale=%.2f native=%s | scene=%s sceneScreen=%s scale=%.2f | window=%s controls=%s safe=%s\n",
+                    NSStringFromCGRect(ms.bounds).UTF8String, ms.scale, NSStringFromCGRect(ms.nativeBounds).UTF8String,
+                    NSStringFromCGRect(gScene.coordinateSpace.bounds).UTF8String, NSStringFromCGRect(gScene.screen.bounds).UTF8String, gScene.screen.scale,
+                    NSStringFromCGRect(self.window.bounds).UTF8String, NSStringFromCGRect(self.controls.bounds).UTF8String,
+                    NSStringFromUIEdgeInsets(self.window.safeAreaInsets).UTF8String);
+        }
         self.window.hidden = YES;   // the game has its own window underneath: do not cover it
     } else {
         [self showError:g];
@@ -1611,7 +1628,7 @@ static NSString *SettingValue(NSString *rid) {
 - (void)showControls {
     // size from the app's own window, not UIScreen: on a two-screen phone (iPhone Duo) the main screen is not what the app is drawn into
     CGRect b = (self.window && self.window.bounds.size.width > 0) ? self.window.bounds : SceneBounds();
-    UIEdgeInsets safe = self.window.safeAreaInsets;
+    UIEdgeInsets safe = TTAInsets(self.window.safeAreaInsets, b);
     self.controls = NewWindow([PassThroughWindow class], b);
     self.controls.windowLevel = UIWindowLevelAlert;
     self.controls.backgroundColor = [UIColor clearColor];
@@ -1755,11 +1772,15 @@ static NSString *SettingValue(NSString *rid) {
 }
 
 - (void)toggleLog {
+    NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"tta_log.txt"];
+    if ((!self.logWindow || self.logWindow.hidden) && self.serverRes) {      // opening the log also sends it to the server, so a problem on a phone can be read there
+        NSString *send = [NSString stringWithFormat:@"try:\n    import ios_game\n    ios_game.send_crash_report('%@', '%@', 'MANUAL ')\nexcept BaseException:\n    pass\n", self.serverRes, logPath];
+        pyRun(send.UTF8String);
+    }
     if (self.logWindow) {
         self.logWindow.hidden = !self.logWindow.hidden;
         return;
     }
-    NSString *logPath = [[self docsPath] stringByAppendingPathComponent:@"tta_log.txt"];
     self.logWindow = NewWindow([UIWindow class], CGRectMake(0, 0, SceneBounds().size.width, 330));
     self.logWindow.windowLevel = UIWindowLevelAlert + 10;
     self.logWindow.userInteractionEnabled = NO;
