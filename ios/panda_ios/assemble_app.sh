@@ -88,10 +88,10 @@ python3 "$W/ios/panda_ios/make_icon.py" "$APP" || echo "icon generation failed (
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=15.0 -fobjc-arc -Wno-deprecated-declarations \
   -I "$PYINC" -I "$W/out/gen" "$W/ios/panda_ios/main.m" -F "$PYXC" -framework Python -framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics -framework CoreText -framework Security -framework AVFoundation -framework OpenAL \
   -Wl,-rpath,@executable_path/Frameworks -o "$APP/TTAnywhere" 2>&1 | head -30
-# The runners only have the iOS 26 SDK, but iPhone Duo decides between its letterboxed compatibility mode and the full display by the SDK version
-# the app was built with (27.1 or later = full display). The app already follows its window's size (set_screen), so mark the build as 27.1.
-if [ -n "${APP_SDK_MARK:-27.1}" ] && [ -x "$APP/TTAnywhere" ]; then
-  xcrun vtool -set-build-version ios 15.0 "${APP_SDK_MARK:-27.1}" -replace -output "$APP/TTAnywhere.marked" "$APP/TTAnywhere" \
+# iPhone Duo decides between its letterboxed compatibility mode and the full display by the SDK version
+# the app was built with (27.1 or later = full display). The xcode-27 runner has the real SDK, so the mark below is only for older runners (APP_SDK_MARK=27.1).
+if [ -n "${APP_SDK_MARK:-}" ] && [ -x "$APP/TTAnywhere" ]; then
+  xcrun vtool -set-build-version ios 15.0 "$APP_SDK_MARK" -replace -output "$APP/TTAnywhere.marked" "$APP/TTAnywhere" \
     && mv "$APP/TTAnywhere.marked" "$APP/TTAnywhere" && chmod +x "$APP/TTAnywhere" || echo "WARNING: could not mark the SDK version"
 fi
 echo "--- build version of the app binary and the frameworks:"
