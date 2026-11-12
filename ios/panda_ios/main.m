@@ -3,6 +3,11 @@
 //  - starts the game, then overlays touch controls (joystick, jump)
 //  - 5 taps in the top-left corner toggles the developer log overlay
 #import <UIKit/UIKit.h>
+#include <signal.h>
+#include <execinfo.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/utsname.h>
 #import <Security/Security.h>
 #import <AVFoundation/AVFoundation.h>
 #import <OpenAL/alc.h>
@@ -37,6 +42,73 @@ static NSString *pyString(const char *code, const char *var) {
     }
     PyGILState_Release(gs);
     return s;
+}
+
+// ----- crash reporting ----------------------------------------------------------------------------------------------------------
+// The game's output goes to <docs>/tta_log.txt once a game starts. A crash writes what it was (signal and backtrace) at the end of that file, and a
+// marker file says a game start never finished. On the next start the app sends the end of the previous log to the server (client.log, "IOSAPP|"),
+// so a crash on a phone can be read there. Nothing is sent when the last run was fine.
+static int gCrashFd = -1;
+static char gMarkerPath[1024];
+static char gPrevLogPath[1024];
+static BOOL gSendPrevLog = NO;
+
+static void CrashWrite(const char *s) {
+    if (gCrashFd >= 0 && s) { ssize_t r = write(gCrashFd, s, strlen(s)); (void)r; }
+}
+
+static void CrashSignal(int sig) {
+    const char *name = sig == SIGSEGV ? "SIGSEGV" : sig == SIGBUS ? "SIGBUS" : sig == SIGABRT ? "SIGABRT" : sig == SIGILL ? "SIGILL" :
+                       sig == SIGFPE ? "SIGFPE" : sig == SIGTRAP ? "SIGTRAP" : "signal";
+    CrashWrite("\nNATIVE CRASH: ");
+    CrashWrite(name);
+    CrashWrite("\n");
+    void *frames[48];
+    int n = backtrace(frames, 48);
+    if (gCrashFd >= 0) backtrace_symbols_fd(frames, n, gCrashFd);
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+static void CrashException(NSException *e) {
+    NSString *t = [NSString stringWithFormat:@"\nNATIVE CRASH: uncaught exception %@: %@\n%@\n", e.name, e.reason, [e.callStackSymbols componentsJoinedByString:@"\n"]];
+    CrashWrite(t.UTF8String);
+}
+
+static void CrashMarkerSet(void) {
+    int fd = open(gMarkerPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd >= 0) { const char *t = "launching\n"; ssize_t r = write(fd, t, strlen(t)); (void)r; close(fd); }
+}
+
+static void CrashMarkerClear(void) {
+    unlink(gMarkerPath);
+}
+
+static void InstallCrashHandlers(void) {
+    NSString *docs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    if (!docs) return;
+    NSString *log = [docs stringByAppendingPathComponent:@"tta_log.txt"];
+    NSString *prev = [docs stringByAppendingPathComponent:@"tta_log.prev.txt"];
+    NSString *marker = [docs stringByAppendingPathComponent:@"tta_launching"];
+    strlcpy(gMarkerPath, marker.UTF8String, sizeof gMarkerPath);
+    strlcpy(gPrevLogPath, prev.UTF8String, sizeof gPrevLogPath);
+    NSFileManager *fm = [NSFileManager defaultManager];
+    BOOL unfinished = [fm fileExistsAtPath:marker];
+    NSData *d = [NSData dataWithContentsOfFile:log];
+    BOOL crashed = d.length > 0 && [d rangeOfData:[@"NATIVE CRASH" dataUsingEncoding:NSUTF8StringEncoding] options:0 range:NSMakeRange(0, d.length)].location != NSNotFound;
+    [fm removeItemAtPath:prev error:nil];
+    if (d.length > 0) [fm moveItemAtPath:log toPath:prev error:nil];      // each run starts a fresh log; the last one is kept for the report
+    gSendPrevLog = (unfinished || crashed) && [fm fileExistsAtPath:prev];
+    [fm removeItemAtPath:marker error:nil];
+    gCrashFd = open(log.UTF8String, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    struct utsname u;
+    uname(&u);
+    NSString *head = [NSString stringWithFormat:@"RUN START ios %@ model %s app %@\n", [[UIDevice currentDevice] systemVersion], u.machine,
+                      [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"?"];
+    CrashWrite(head.UTF8String);
+    int sigs[] = {SIGSEGV, SIGBUS, SIGABRT, SIGILL, SIGFPE, SIGTRAP};
+    for (size_t i = 0; i < sizeof sigs / sizeof sigs[0]; i++) signal(sigs[i], CrashSignal);
+    NSSetUncaughtExceptionHandler(CrashException);
 }
 
 static CGFloat UIScale(void) {
@@ -1489,9 +1561,11 @@ static NSString *SettingValue(NSString *rid) {
 }
 
 - (void)launchGameWithCookie:(NSString *)cookie {
+    CrashMarkerSet();                      // cleared again once the game has run for a few seconds (see tick:)
     [self pushScreenMetrics:YES];
     [self applySetting:@"smooth_edges" value:SettingValue(@"smooth_edges")];
     [self setupLog];
+    fprintf(stderr, "LAUNCH BEGIN%c", 10);
     NSString *code = [NSString stringWithFormat:
         @"try:\n"
          "    import ios_game\n"
@@ -1528,7 +1602,8 @@ static NSString *SettingValue(NSString *rid) {
 
 - (void)tick:(CADisplayLink *)link {
     pyRun("import ios_game\nios_game.step()\n");
-    if ((++self.frameTick % 20) == 0) [self pushScreenMetrics:NO];     // a few times a second is plenty for a rotation or a fold
+    if ((++self.frameTick % 20) == 0) [self pushScreenMetrics:NO];
+    if (self.frameTick == 300) CrashMarkerClear();      // the game ran for a few seconds: this start did not crash     // a few times a second is plenty for a rotation or a fold
 }
 
 // ----- controls and log overlay -------------------------------------------------------------
@@ -1741,6 +1816,11 @@ static NSString *SettingValue(NSString *rid) {
             return;
         }
         [self.spinner stopAnimating];
+        if (gSendPrevLog && self.serverRes) {
+            gSendPrevLog = NO;
+            NSString *send = [NSString stringWithFormat:@"try:\n    import ios_game\n    ios_game.send_crash_report('%@', '%s')\nexcept BaseException:\n    pass\n", self.serverRes, gPrevLogPath];
+            pyRun(send.UTF8String);
+        }
         if (self.serverRes) [self beginDownload];
         else [self showServerChoiceCanGoBack:NO];
     });
@@ -1763,6 +1843,7 @@ static NSString *SettingValue(NSString *rid) {
 
 int main(int argc, char *argv[]) {
     @autoreleasepool {
+        InstallCrashHandlers();
         return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
     }
 }

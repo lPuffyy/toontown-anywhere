@@ -210,6 +210,10 @@ connections, one line about the device (browser, screen size) and one line with 
 visit; nothing else (no passwords, touches or frame timings). The page decides this (`quietLog` in `web/tta-ui.js`), so a
 change needs only a new page script, with no server restart.
 
+The iOS app does the same for its own crashes: when a game start crashes (a signal or an uncaught exception) or never finishes, the app
+sends the end of that run's log (the app, iOS and device model, the game's output and the crash's backtrace) to the same file the next time
+it opens, as lines starting `IOSAPP|`. Lines that could hold the sign-in are dropped first. Nothing is sent after a normal run.
+
 The file stops growing at 30 MB, and each address may send 6,000 lines an hour (see `docker/auth_service.py` in the fork); when the file is
 full nothing more is saved, so look at its size now and then and move it aside (`mv client.log client.log.old`) when it grows.
 The privacy note in the README tells players what is recorded: keep it in step with this.

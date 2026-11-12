@@ -466,3 +466,24 @@ def step():
             if _step_err[0] < 5:
                 _step_err[0] += 1
                 print("STEP ERROR:", traceback.format_exc(), flush=True)
+
+
+def send_crash_report(server, path):
+    """The end of the previous run's log (it crashed, or never finished starting) goes to the server's client.log as IOSAPP| lines. Runs in a
+    thread so the start screen is not held up; lines that could hold the sign-in are dropped first."""
+    def work():
+        try:
+            data = open(path, "rb").read()[-9000:].decode("utf8", "replace")
+            lines = [l for l in data.splitlines() if l.strip() and not any(w in l.lower() for w in ("cookie", "password", "ios_game.launch(", "check_login("))]
+            chunk = ""
+            for l in lines + [""]:
+                if l and len(chunk) + len(l) < 1300:
+                    chunk += l + "\n"
+                    continue
+                if chunk:
+                    req = urllib.request.Request(server.rstrip("/") + "/__log", data=("IOSAPP| " + chunk).encode("utf8"), method="POST")
+                    urllib.request.urlopen(req, timeout=10).read()
+                chunk = (l[:1300] + "\n") if l else ""
+        except BaseException:
+            pass
+    threading.Thread(target=work, daemon=True).start()
