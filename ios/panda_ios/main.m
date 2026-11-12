@@ -1252,7 +1252,7 @@ static NSString *HexOf(NSString *s) {
 - (void)pushScreenMetrics:(BOOL)force {
     UIScreen *scr = [UIScreen mainScreen];
     CGFloat k = MIN(scr.scale, 2.0);   // the game view renders at most 2x (patch_sources.py)
-    CGRect b = self.controls ? self.controls.bounds : scr.bounds;
+    CGRect b = self.controls ? self.controls.bounds : ((self.window && self.window.bounds.size.width > 0) ? self.window.bounds : scr.bounds);
     UIEdgeInsets s = self.controls ? self.controls.safeAreaInsets : self.window.safeAreaInsets;
     NSString *m = [NSString stringWithFormat:@"%.1f,%.1f,%.1f,%.1f,%.1f,%.1f", b.size.width * k, b.size.height * k, s.left * k, s.right * k, s.top * k, s.bottom * k];
     if (!force && [m isEqualToString:self.lastMetrics]) return;
@@ -1518,7 +1518,8 @@ static NSString *SettingValue(NSString *rid) {
 // ----- controls and log overlay -------------------------------------------------------------
 
 - (void)showControls {
-    CGRect b = [UIScreen mainScreen].bounds;
+    // size from the app's own window, not UIScreen: on a two-screen phone (iPhone Duo) the main screen is not what the app is drawn into
+    CGRect b = (self.window && self.window.bounds.size.width > 0) ? self.window.bounds : [UIScreen mainScreen].bounds;
     UIEdgeInsets safe = self.window.safeAreaInsets;
     self.controls = [[PassThroughWindow alloc] initWithFrame:b];
     self.controls.windowLevel = UIWindowLevelAlert;
@@ -1527,7 +1528,8 @@ static NSString *SettingValue(NSString *rid) {
     vc.view.backgroundColor = [UIColor clearColor];
     self.controls.rootViewController = vc;
 
-    CGFloat sc = UIScale();
+    // the buttons follow the window's height (they were sized for a ~430 pt tall phone window): smaller on a short window, the old iPad size on a tall one
+    CGFloat sc = MAX(0.7, MIN(b.size.height / 430.0, 1.45));
     CGFloat js = 150 * sc;
     JoystickView *joy = [[JoystickView alloc] initWithFrame:CGRectMake(MAX(safe.left, 24) + 20 * sc, b.size.height - js - MAX(safe.bottom, 16) - 24 * sc, js, js)];
     [vc.view addSubview:joy];
