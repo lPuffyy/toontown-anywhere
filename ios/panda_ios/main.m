@@ -1727,22 +1727,6 @@ static NSString *SettingValue(NSString *rid) {
     five.numberOfTapsRequired = 5;
     [hot addGestureRecognizer:five];
     [vc.view addSubview:hot];
-    // On a two-screen phone (the iPhone Duo) taps at the right-hand edge never reached the game's own friends and sticker book buttons. UIKit's own
-    // hit-testing does work there (the joystick and jump button are native), so those two get an invisible native button laid over them that presses
-    // the game's button (the rectangles come from where the game draws them, see ios_game.ui_hotspots).
-    self.hotspots = (gScene != nil && gScene.screen != [UIScreen mainScreen]);
-    NSMutableArray *hbs = [NSMutableArray array];
-    for (int i = 0; i < 2; i++) {
-        UIButton *hbtn = [UIButton buttonWithType:UIButtonTypeCustom];
-        hbtn.backgroundColor = [UIColor clearColor];
-        hbtn.tag = i + 1;
-        hbtn.hidden = YES;
-        [hbtn addTarget:self action:@selector(hotTapped:) forControlEvents:UIControlEventTouchUpInside];
-        [vc.view addSubview:hbtn];
-        [hbs addObject:hbtn];
-    }
-    self.hotButtons = hbs;
-    [vc.view bringSubviewToFront:hot];      // the 5-tap log area must never be covered
     UIButton *cog = [UIButton buttonWithType:UIButtonTypeCustom];
     CGFloat cs = 30 * sc;
     cog.frame = CGRectMake(MAX(safe.left, 6) + 150 * sc, MAX(safe.top, 6), cs, cs);   // top-left, beside the two chat buttons: clear of the friends button and of the Pick-a-Toon title
@@ -1754,6 +1738,30 @@ static NSString *SettingValue(NSString *rid) {
     [cog setImage:[gear imageWithTintColor:[UIColor whiteColor] renderingMode:UIImageRenderingModeAlwaysOriginal] forState:UIControlStateNormal];
     [cog addTarget:self action:@selector(openSettings) forControlEvents:UIControlEventTouchUpInside];
     [vc.view addSubview:cog];
+    if (gScene != nil && gScene.screen != [UIScreen mainScreen]) {
+        // A two-screen phone (the iPhone Duo): taps at the right-hand edge never reached the game's own friends list and sticker book buttons, so
+        // here are two native buttons in the top-left corner, where taps work, that press the game's buttons.
+        NSArray *symbols = @[@"person.2.fill", @"book.closed.fill"];
+        NSMutableArray *sbs = [NSMutableArray array];
+        CGFloat bs = 40 * sc;
+        for (int i = 0; i < 2; i++) {
+            UIButton *b2 = [UIButton buttonWithType:UIButtonTypeCustom];
+            b2.frame = CGRectMake(cog.frame.origin.x + cs + 10 * sc + i * (bs + 10 * sc), cog.frame.origin.y + (cs - bs) / 2, bs, bs);
+            b2.backgroundColor = [UIColor colorWithRed:0.10 green:0.26 blue:0.62 alpha:0.78];
+            b2.layer.cornerRadius = bs / 2;
+            b2.layer.borderWidth = 1.5;
+            b2.layer.borderColor = [UIColor colorWithRed:0.85 green:0.92 blue:1 alpha:0.9].CGColor;
+            UIImage *im = [UIImage systemImageNamed:symbols[i] withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:bs * 0.5]];
+            [b2 setImage:[im imageWithTintColor:[UIColor whiteColor] renderingMode:UIImageRenderingModeAlwaysOriginal] forState:UIControlStateNormal];
+            b2.tag = i + 1;
+            b2.hidden = YES;
+            [b2 addTarget:self action:@selector(hotTapped:) forControlEvents:UIControlEventTouchUpInside];
+            [vc.view addSubview:b2];
+            [sbs addObject:b2];
+        }
+        self.hotButtons = sbs;
+        self.hotspots = YES;
+    }
     self.controls.hidden = NO;
 }
 
@@ -1793,26 +1801,7 @@ static NSString *SettingValue(NSString *rid) {
         [self.kbField resignFirstResponder];
         self.kbActive = NO;
     }
-    if (self.hotspots && self.hotButtons) {
-        NSString *h = pyString("import ios_game\n_h = ios_game.ui_hotspots()\n", "_h");
-        CGRect vb = self.controls.rootViewController.view.bounds;
-        BOOL shown[2] = {NO, NO};
-        for (NSString *item in [h componentsSeparatedByString:@";"]) {
-            NSArray *q = [item componentsSeparatedByString:@","];
-            if (q.count != 5) continue;
-            int idx = [q[0] isEqualToString:@"friends"] ? 0 : ([q[0] isEqualToString:@"book"] ? 1 : -1);
-            if (idx < 0) continue;
-            CGRect r = CGRectMake([q[1] doubleValue] * vb.size.width, [q[2] doubleValue] * vb.size.height, [q[3] doubleValue] * vb.size.width, [q[4] doubleValue] * vb.size.height);
-            CGFloat w = MIN(MAX(r.size.width, 56), 150), hh = MIN(MAX(r.size.height, 56), 150);      // big enough for a finger, never a big area
-            CGFloat cx = CGRectGetMidX(r), cy = CGRectGetMidY(r);
-            if (cx < vb.size.width * 0.5 || cy < 0 || cy > vb.size.height) continue;      // both buttons live on the right: anything else is a wrong answer
-            CGRect nf = CGRectMake(cx - w / 2, cy - hh / 2, w, hh);
-            if (!CGRectEqualToRect(nf, self.hotButtons[idx].frame)) fprintf(stderr, "HOTBUTTON %d frame %s\n", idx, NSStringFromCGRect(nf).UTF8String);
-            self.hotButtons[idx].frame = nf;
-            shown[idx] = YES;
-        }
-        for (int i = 0; i < 2; i++) self.hotButtons[i].hidden = !shown[i];
-    }
+    for (UIButton *hb in self.hotButtons) hb.hidden = !vis;      // the two-screen phone's Friends and Book buttons (see showControls)
 }
 
 - (void)hotTapped:(UIButton *)sender {
