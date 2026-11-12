@@ -1671,6 +1671,16 @@ static NSString *SettingValue(NSString *rid) {
         [self applyAllSettings];
         self.alContext = alcGetCurrentContext();
         fprintf(stderr, "AUDIO CONTEXT %p\n", self.alContext);
+        // Opening or closing a two-screen phone changes the size of the app's window while it runs. The game's own window holds its view at a fixed size,
+        // so it never followed: let it (and its view) resize with the window; the game view then tells the engine its new size.
+        for (UIWindow *pw in gScene.windows) {
+            if (pw == self.window || pw == self.controls) continue;
+            for (UIView *v in pw.subviews) {
+                v.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+                for (UIView *sv in v.subviews) sv.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            }
+            fprintf(stderr, "GAME WINDOW %s frame %s subviews %lu\n", NSStringFromClass([pw class]).UTF8String, NSStringFromCGRect(pw.frame).UTF8String, (unsigned long)pw.subviews.count);
+        }
         {
             UIScreen *ms = [UIScreen mainScreen];
             fprintf(stderr, "GEOMETRY main=%s scale=%.2f native=%s | scene=%s sceneScreen=%s scale=%.2f | window=%s controls=%s safe=%s\n",
