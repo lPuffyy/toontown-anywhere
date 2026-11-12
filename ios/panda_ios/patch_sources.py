@@ -151,7 +151,7 @@ def safe_area(s):
            "      UIEdgeInsets e = [w safeAreaInsets];" + NL +
            "      si.left = MAX(si.left, e.left); si.right = MAX(si.right, e.right); si.bottom = MAX(si.bottom, e.bottom);" + NL +
            "    }" + NL +
-           "    CGRect full = [[UIScreen mainScreen] bounds];" + NL +
+           "    CGRect full = tta_view_frame(iphonepipe->_window);" + NL +
            "    CGFloat inset = MAX(si.left, si.right);" + NL +
            "    UIView *container = [[UIView alloc] initWithFrame:full];" + NL +
            "    container.backgroundColor = [UIColor blackColor];" + NL +
@@ -185,3 +185,29 @@ def pipe_scene(s):
 
 
 edit("panda/src/iphonedisplay/iPhoneGraphicsPipe.mm", pipe_scene)
+
+
+# ---- the view is sized from the app's own window ----
+# Panda asked UIScreen for applicationFrame (deprecated since iOS 9). On the iPhone Duo with the iOS 27 SDK that is not a usable frame, and
+# UIView's initWithFrame: threw an NSException that nothing caught (the crash right after "Starting Toontown..."). The window the app made
+# in its scene has the right size; the main screen's bounds and a fixed size are only fallbacks.
+def view_frame(s):
+    helper = (
+        "static CGRect tta_view_frame(UIWindow *w) {" + NL +
+        "  CGRect f = (w != nil) ? w.bounds : CGRectZero;" + NL +
+        "  if (!(f.size.width >= 1.0 && f.size.height >= 1.0 && f.size.width < 20000.0 && f.size.height < 20000.0 && isfinite(f.origin.x) && isfinite(f.origin.y))) {" + NL +
+        "    f = [[UIScreen mainScreen] bounds];" + NL +
+        "  }" + NL +
+        "  if (!(f.size.width >= 1.0 && f.size.height >= 1.0 && f.size.width < 20000.0 && f.size.height < 20000.0 && isfinite(f.origin.x) && isfinite(f.origin.y))) {" + NL +
+        "    f = CGRectMake(0, 0, 1280, 720);" + NL +
+        "  }" + NL +
+        "  fprintf(stderr, \"tta: view frame %f %f %f %f\\n\", f.origin.x, f.origin.y, f.size.width, f.size.height);" + NL +
+        "  return f;" + NL +
+        "}" + NL + NL)
+    if "tta_view_frame(UIWindow" not in s:
+        s = re.sub(r"bool IPhoneGraphicsWindow::\s*open_window\(\) \{", lambda m: helper + m.group(0), s, count=1)
+    s = re.sub(r"\[ \[ UIScreen mainScreen \] applicationFrame \]", "tta_view_frame(DCAST(IPhoneGraphicsPipe, _pipe)->_window)", s, count=1)
+    return s
+
+
+edit("panda/src/iphonedisplay/iPhoneGraphicsWindow.mm", view_frame)

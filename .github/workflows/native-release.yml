@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      stage: ${{ steps.stage.outputs.stage }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +33,14 @@ jobs:
           if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
             echo "The tag $GITHUB_REF_NAME does not match the app version $VERSION"; exit 1
           fi
+      - name: Find the newest Panda engine build (stage-*)
+        id: stage
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 50 --json tagName,createdAt --jq '[.[] | select(.tagName | startswith("stage-"))] | sort_by(.createdAt) | last | .tagName // ""')
+          echo "stage=$TAG" >> "$GITHUB_OUTPUT"
+          echo "engine build: $TAG"
       - name: Start the draft release
         if: github.ref_type == 'tag'
         env:
@@ -47,7 +56,7 @@ jobs:
     uses: ./.github/workflows/ios-app.yml
     with:
       resource_server: ${{ vars.GAME_SERVER_URL || 'https://toontown.puffsco.com' }}
-      stage_release: ${{ vars.PANDA_STAGE_RELEASE }}
+      stage_release: ${{ needs.prepare.outputs.stage || vars.PANDA_STAGE_RELEASE }}
       version: ${{ needs.prepare.outputs.version }}
       build: ${{ github.run_number }}
       release_tag: ${{ github.ref_type == 'tag' && format('v{0}', needs.prepare.outputs.version) || '' }}
