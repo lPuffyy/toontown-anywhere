@@ -14,7 +14,12 @@ size = os.path.getsize(ipa)
 sha = hashlib.sha256(open(ipa, "rb").read()).hexdigest()
 today = datetime.date.today().isoformat()
 bundle = "com.puffsco.toontownanywhere"
-entry = {"version": version, "buildVersion": version, "date": today, "downloadURL": base + os.path.basename(ipa), "size": size, "sha256": sha,
+import plistlib
+import zipfile
+with zipfile.ZipFile(ipa) as z:    # SideStore refuses an IPA whose build number differs from the source's, so take it from the IPA itself
+    plist = [n for n in z.namelist() if n.endswith(".app/Info.plist") and n.count("/") == 2][0]
+    build = str(plistlib.loads(z.read(plist))["CFBundleVersion"])
+entry = {"version": version, "buildVersion": build, "date": today, "downloadURL": base + os.path.basename(ipa), "size": size, "sha256": sha,
          "minOSVersion": "15.0", "localizedDescription": "Version %s." % version}
 app = {"name": "Toontown: Anywhere", "bundleIdentifier": bundle, "developerName": "lPuffyy", "subtitle": "Native client for iPhone and iPad",
        "localizedDescription": "The native iPhone and iPad client for Toontown: Anywhere. It runs the same game as the website and the Windows app: "
