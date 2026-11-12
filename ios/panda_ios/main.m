@@ -1605,7 +1605,13 @@ static NSString *SettingValue(NSString *rid) {
     fprintf(stderr, "LAUNCH RESULT: %s%c", g.UTF8String, 10);
     if ([g hasPrefix:@"LAUNCH OK"]) {
         self.link = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
+        // up to the screen's top rate (120 Hz on ProMotion iPhones and iPads; the Info.plist key CADisableMinimumFrameDurationOnPhone lets an
+        // iPhone go above 60). The system picks the highest rate in 60..120 that the game keeps up with, so a heavy scene drops to 60 instead of stuttering.
+        if (@available(iOS 15.0, *)) {
+            self.link.preferredFrameRateRange = CAFrameRateRangeMake(60, 60, 60);      // starts at 60; tick: raises it while frames are cheap enough
+        }
         [self.link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+        fprintf(stderr, "DISPLAY maxFPS=%ld\n", (long)[UIScreen mainScreen].maximumFramesPerSecond);
         [self.spinner stopAnimating];
         // the game draws into this window now: take the start-screen art out of the way
         [self.bgView removeFromSuperview];
@@ -1637,9 +1643,22 @@ static NSString *SettingValue(NSString *rid) {
 }
 
 - (void)tick:(CADisplayLink *)link {
+    CFTimeInterval t0 = CACurrentMediaTime();
     pyRun("import ios_game\nios_game.step()\n");
+    static double stepEma = 0.016;                       // how long a frame's work takes (smoothed): the display rate follows it
+    stepEma += ((CACurrentMediaTime() - t0) - stepEma) * 0.05;
     if ((++self.frameTick % 20) == 0) [self pushScreenMetrics:NO];
     if (self.frameTick == 300) CrashMarkerClear();      // the game ran for a few seconds: this start did not crash
+    if (@available(iOS 15.0, *)) {
+        if ((self.frameTick % 90) == 0) {
+            // 120 only while a frame's work fits well inside 8.3 ms, 90 inside 11 ms, otherwise 60: a heavy scene steps down instead of stuttering
+            float want = stepEma < 0.0065 ? 120 : (stepEma < 0.0095 ? 90 : 60);
+            if (want != self.link.preferredFrameRateRange.preferred) {
+                self.link.preferredFrameRateRange = CAFrameRateRangeMake(60, want, want);
+                fprintf(stderr, "DISPLAY rate %.0f (frame work %.1f ms)\n", want, stepEma * 1000.0);
+            }
+        }
+    }
     if ((self.frameTick % 60) == 0 && self.alContext && !alcGetCurrentContext() && [UIApplication sharedApplication].applicationState == UIApplicationStateActive) {
         fprintf(stderr, "AUDIO CONTEXT LOST: restoring\n");      // an interruption that never ended left the sound without a context (every sound call then failed)
         [self resumeAudio];

@@ -71,6 +71,7 @@ cat > "$APP/Info.plist" <<'PLIST'
 <key>LSSupportsOpeningDocumentsInPlace</key><true/>
 <key>UIStatusBarHidden</key><true/>
 <key>UIRequiresFullScreen</key><true/>
+<key>CADisableMinimumFrameDurationOnPhone</key><true/>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationLandscapeRight</string><string>UIInterfaceOrientationLandscapeLeft</string></array>
 <key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationLandscapeRight</string><string>UIInterfaceOrientationLandscapeLeft</string></array>
 </dict></plist>
