@@ -207,6 +207,13 @@ static UIEdgeInsets TTAInsets(UIEdgeInsets s, CGRect b) {
     if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPhone && b.size.height > 0 && b.size.width / b.size.height < 1.9) {
         s.right = MAX(s.right, MAX(44.0, b.size.width * 0.065));
     }
+    // Two-screen phone in full-display mode: the earlier (compatibility mode) builds put the whole game inside a window as wide as the main screen,
+    // centred on the big one, and everything worked there. The strip beyond it on the right (the system bar and its margin) does not take taps even
+    // though the safe area only says 84 points, so the game's buttons are kept inside that same width.
+    if (gScene != nil && gScene.screen != [UIScreen mainScreen]) {
+        CGFloat gap = (gScene.screen.bounds.size.width - [UIScreen mainScreen].bounds.size.width) / 2.0 + 8.0;
+        if (gap > 0) s.right = MAX(s.right, gap);
+    }
     return s;
 }
 static CGRect SceneBounds(void) {
