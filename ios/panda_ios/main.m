@@ -401,6 +401,33 @@ static __kindof UIWindow *NewWindow(Class cls, CGRect frame) {
 
 // Logs where the first touches land as iOS delivers them (before any window or view of ours sees them), so a screen where taps do not reach
 // the game shows up as touches that never arrive, or arrive somewhere else.
+// The game's own window holds its GL view at the size it had when it was made. On a two-screen phone that is the small main-screen size, while the
+// window is the whole big screen: touches outside that small rectangle then never reach the game (they land on the bare window). Keep the view
+// (and what is inside it) exactly as large as its window. Returns how many frames were changed.
+static int TTAFitGameViews(UIWindowScene *scene, UIWindow *skipA, UIWindow *skipB, BOOL log) {
+    int changed = 0;
+    for (UIWindow *pw in scene.windows) {
+        if (pw == skipA || pw == skipB || [pw isKindOfClass:NSClassFromString(@"UITextEffectsWindow")]) continue;
+        CGRect want = pw.bounds;
+        if (want.size.width < 1) continue;
+        for (UIView *v in pw.subviews) {
+            if (!CGRectEqualToRect(v.frame, want)) {
+                if (log) fprintf(stderr, "GAME VIEW %s frame %s -> %s\n", NSStringFromClass([v class]).UTF8String, NSStringFromCGRect(v.frame).UTF8String, NSStringFromCGRect(want).UTF8String);
+                v.frame = want;
+                changed++;
+            }
+            for (UIView *sv in v.subviews) {
+                if (!CGRectEqualToRect(sv.frame, v.bounds)) {
+                    if (log) fprintf(stderr, "GAME SUBVIEW %s frame %s -> %s\n", NSStringFromClass([sv class]).UTF8String, NSStringFromCGRect(sv.frame).UTF8String, NSStringFromCGRect(v.bounds).UTF8String);
+                    sv.frame = v.bounds;
+                    changed++;
+                }
+            }
+        }
+    }
+    return changed;
+}
+
 @interface TTAApplication : UIApplication
 @end
 @implementation TTAApplication
@@ -1715,6 +1742,7 @@ static NSString *SettingValue(NSString *rid) {
                 v.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
                 for (UIView *sv in v.subviews) sv.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
             }
+            TTAFitGameViews(gScene, self.window, self.controls, YES);
             fprintf(stderr, "GAME WINDOW %s frame %s subviews %lu\n", NSStringFromClass([pw class]).UTF8String, NSStringFromCGRect(pw.frame).UTF8String, (unsigned long)pw.subviews.count);
         }
         {
@@ -1736,7 +1764,10 @@ static NSString *SettingValue(NSString *rid) {
     pyRun("import ios_game\nios_game.step()\n");
     static double stepEma = 0.016;                       // how long a frame's work takes (smoothed): the display rate follows it
     stepEma += ((CACurrentMediaTime() - t0) - stepEma) * 0.05;
-    if ((++self.frameTick % 20) == 0) [self pushScreenMetrics:NO];
+    if ((++self.frameTick % 20) == 0) {
+        [self pushScreenMetrics:NO];
+        if (gScene) TTAFitGameViews(gScene, self.window, self.controls, self.frameTick < 400);
+    }
     if (self.frameTick == 300) CrashMarkerClear();      // the game ran for a few seconds: this start did not crash
     if (@available(iOS 15.0, *)) {
         if ((self.frameTick % 90) == 0) {
