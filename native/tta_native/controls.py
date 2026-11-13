@@ -63,7 +63,7 @@ def _unstick_walking():
         ctl = getattr(la, "controlManager", None)
         if ctl is None or getattr(ctl, "isEnabled", 1):
             return
-        if _place_state() not in ("walk", "swim") or not _controls_visible():
+        if _place_state() not in ("walk", "swim", "finalBattle") or not _controls_visible():
             return
         now = time.time()
         if now - _unstick_last[0] < 1.0:
@@ -410,7 +410,7 @@ def _controls_visible():
             # switches it back on, so the toon would not move until the Shticker Book is opened and closed
             if _chat_prev[0] in _CHAT_OPEN_STATES and cname not in _CHAT_OPEN_STATES:
                 ctl = getattr(la, "controlManager", None)
-                if ctl is not None and not getattr(ctl, "isEnabled", 1) and _place_state() in ("walk", "swim"):
+                if ctl is not None and not getattr(ctl, "isEnabled", 1) and _place_state() in ("walk", "swim", "finalBattle"):
                     la.enableAvatarControls()
                     print("re-enabled walking after typed chat", flush=True)
             _chat_prev[0] = cname
@@ -420,7 +420,7 @@ def _controls_visible():
         if state != _last_ui_state[0]:
             _last_ui_state[0] = state
             print("UI place state:", state, flush=True)
-        if state in ("walk", "swim"):
+        if state in ("walk", "swim", "finalBattle"):
             return 1
         if _action_key() or ui_tug_active() or _arrowkeys_active():
             return 1
