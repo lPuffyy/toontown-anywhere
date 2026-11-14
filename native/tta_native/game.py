@@ -93,6 +93,12 @@ def start(server, user, password, data_root):
     os.environ["LOGIN_TOKEN"] = user
 
     out, err = sys.stdout, sys.stderr
+    # the app has no console window, so Python has no original stdout/stderr (both None); the game's launcher module wraps
+    # sys.__stdout__ / sys.__stderr__ and would crash on the first print, so hand it our log streams instead
+    if sys.__stdout__ is None:
+        sys.__stdout__ = out
+    if sys.__stderr__ is None:
+        sys.__stderr__ = err
     from toontown.launcher.ToontownDummyLauncher import ToontownDummyLauncher
     sys.stdout, sys.stderr = out, err        # the game's launcher module redirects output to its own file; keep ours
 
