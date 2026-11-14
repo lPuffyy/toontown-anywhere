@@ -4,7 +4,7 @@ import math
 import traceback
 
 from direct.gui import DirectGuiGlobals as DGG
-from direct.gui.DirectGui import DirectButton, DirectFrame
+from direct.gui.DirectGui import DirectButton, DirectFrame, DirectSlider
 from panda3d.core import PNMImage, SamplerState, Texture, TextNode, TransparencyAttrib
 
 from . import keymap as km
@@ -63,6 +63,7 @@ class SettingsUI:
         self.fps.setBin("gui-popup", 60)
         self.apply_fps()
         base.taskMgr.doMethodLater(0.5, self._fps_tick, "tta-fps")
+        self.apply_volume()
 
     # ---- what each row does here (the web app has its own table for the same row ids)
     def behaviour(self):
@@ -80,12 +81,38 @@ class SettingsUI:
             if self.note is not None:
                 self.note.show()
 
+        def set_volume(v):
+            s.data["volume"] = int(v)                  # saved a moment after the slider stops moving, not on every step of a drag
+            self.apply_volume()
+            self.base.taskMgr.remove("tta-volume-save")
+            self.base.taskMgr.doMethodLater(0.5, lambda task: (s.save(), task.done)[1], "tta-volume-save")
+
         return {
+            "volume": (lambda: self.volume(), set_volume),
             "window_mode": (lambda: "full" if self.fs.is_full() else "window", lambda v: self.fs.set_full(v == "full")),
             "window_size": (size_now, set_size),
             "smooth_edges": (lambda: str(s.get("smooth_edges", "1")), smooth),
             "fps": (lambda: str(s.get("fps", "1")), lambda v: (s.set("fps", v), self.apply_fps())),
         }
+
+    # ---- the volume slider: the game's sound effects and its music, together
+    MUSIC_BASE = 0.65                    # the level the game itself sets for its music manager (ToonBase) at full volume
+
+    def volume(self):
+        try:
+            return max(0, min(100, int(float(self.settings.get("volume", 100)))))
+        except (TypeError, ValueError):
+            return 100
+
+    def apply_volume(self):
+        v = self.volume() / 100.0
+        try:
+            for m in list(self.base.sfxManagerList):
+                m.setVolume(v)
+            if self.base.musicManager is not None:
+                self.base.musicManager.setVolume(self.MUSIC_BASE * v)
+        except BaseException:
+            print("native: could not set the volume", traceback.format_exc())
 
     # ---- the speed counter
     def apply_fps(self):
@@ -180,6 +207,25 @@ class SettingsUI:
                 if r.get("type") == "push" or r["id"] not in beh:
                     continue
                 get, setter = beh[r["id"]]
+                if r.get("type") == "slider":
+                    text_line(page, self.style, r["label"], (LEFT, 0, z), 0.052, fg=DARK, align=TextNode.ALeft)
+                    shown = text_line(page, self.style, "%d%%" % get(), (RIGHT, 0, z), 0.05, fg=DARK, align=TextNode.ARight)
+
+                    box = []
+
+                    def moved(shown=shown, setter=setter, box=box):
+                        if not box:                      # the slider calls this once while it is being built
+                            return
+                        v = int(round(box[0]["value"]))
+                        shown["text"] = "%d%%" % v
+                        setter(v)
+                    box.append(DirectSlider(parent=page, range=(r.get("min", 0), r.get("max", 100)), value=get(), pageSize=10,
+                                            pos=(0.22, 0, z + 0.018), frameSize=(-0.40, 0.40, -0.028, 0.028), relief=DGG.FLAT,
+                                            frameColor=(0.74, 0.81, 0.95, 1), thumb_relief=DGG.FLAT,
+                                            thumb_frameSize=(-0.04, 0.04, -0.06, 0.06), thumb_frameColor=(0.12, 0.30, 0.65, 1),
+                                            command=moved))
+                    z -= 0.13
+                    continue
                 text_line(page, self.style, r["label"], (LEFT, 0, z), 0.052, fg=DARK, align=TextNode.ALeft)
                 if r.get("hint"):
                     text_line(page, self.style, r["hint"], (LEFT, 0, z - 0.05), 0.034, fg=(0.30, 0.36, 0.55, 1), align=TextNode.ALeft)
@@ -187,9 +233,9 @@ class SettingsUI:
                 if r.get("restart_note"):
                     self.note = text_line(page, self.style, r["restart_note"], (RIGHT, 0, z - 0.075 - extra), 0.036, fg=(0.7, 0.35, 0.05, 1), align=TextNode.ARight)
                     self.note.hide()
-                z -= (0.19 if r.get("hint") else 0.13) + extra
+                z -= (0.17 if r.get("hint") else 0.13) + extra
             z -= 0.03
-        pill(page, self.style, "Done", (0, 0, -CARD_H / 2 + 0.12), (0.5, 0.11), (1.0, 0.851, 0.149, 1), (0.451, 0.22, 0.02, 1), 4,
+        pill(page, self.style, "Done", (0, 0, -CARD_H / 2 + 0.10), (0.5, 0.11), (1.0, 0.851, 0.149, 1), (0.451, 0.22, 0.02, 1), 4,
              (0.451, 0.22, 0.02, 1), 0.07, command=self.close)
 
     # ---- the keyboard keys page

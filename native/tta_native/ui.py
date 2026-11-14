@@ -63,10 +63,13 @@ class Style:
         path = os.path.join(ui_dir, "ToonDisplay.ttf")
         if os.path.exists(path):
             self.font = loader.loadFont(Filename.fromOsSpecific(path).getFullpath())
-            self.font.setPixelsPerUnit(110)
-            self.font.setPageSize(512, 512)
-            self.font.setMinfilter(SamplerState.FT_linear)
-            self.font.setMagfilter(SamplerState.FT_linear)
+            # Panda keeps one copy of a font per file for the whole process. The launcher screen already loaded and set up this one, and
+            # Panda refuses to change a font that has already drawn text (an assertion), which stopped the settings cog from starting in the game
+            if self.font.getNumPages() == 0:
+                self.font.setPixelsPerUnit(110)
+                self.font.setPageSize(512, 512)
+                self.font.setMinfilter(SamplerState.FT_linear)
+                self.font.setMagfilter(SamplerState.FT_linear)
 
     def image(self, name):
         p = os.path.join(self.ui_dir, name)

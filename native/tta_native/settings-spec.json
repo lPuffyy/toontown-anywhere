@@ -24,7 +24,8 @@
       "title": "Sound",
       "rows": [
         {"id": "mix_others", "label": "Other apps\u2019 audio", "hint": "Let music from other apps keep playing. The game then follows the silent switch",
-         "platforms": ["web", "ios", "android"], "choices": [["0", "Pause"], ["1", "Keep playing"]], "default": "0"}
+         "platforms": ["web", "ios", "android"], "choices": [["0", "Pause"], ["1", "Keep playing"]], "default": "0"},
+        {"id": "volume", "type": "slider", "label": "Volume", "platforms": ["desktop"], "min": 0, "max": 100, "default": "100"}
       ]
     },
     {
