@@ -43,7 +43,10 @@ class ChatHelper:
         try:
             e = controls._focused_entry()
             if e is not None:
-                raw = e.get()
+                # the plain text, without the colour markers the chat box puts around words that are not on its whitelist: with them in,
+                # stripping the invisible marker characters left the literal word "WLEnter" in the box, the box coloured that red again,
+                # and it grew by one "WLEnter" every tenth of a second (the browser version reads the plain text for the same reason)
+                raw = controls._plain_text(e)
                 clean = plain_chat(raw)
                 if clean != raw:
                     e.enterText(clean)

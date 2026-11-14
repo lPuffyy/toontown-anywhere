@@ -43,12 +43,29 @@ class KeyMap:
         base.accept("tta-btn-down", self.down)
         base.accept("tta-btn-up", self.up)
         self._until = 0.0
+        self._buttons = {}
         self._patch_chat()
 
     # ---- the game's typed chat opens on the first letter typed anywhere, so a letter the player gave to an action (W, A, S, D...) would
     # also start a chat message. While such a key is held (or was just let go) the chat box ignores what was typed.
     def suppressing(self):
-        return bool(self.held) or time.monotonic() < self._until
+        """True while a key the player gave to an action is down (asked of the keyboard itself, because the game's chat hears a typed letter
+        before this class hears the key press) or was let go a moment ago."""
+        if self.held or time.monotonic() < self._until:
+            return True
+        try:
+            from panda3d.core import ButtonRegistry
+            watcher = self.base.mouseWatcherNode
+            reg = ButtonRegistry.ptr()
+            for name in self.map:
+                btn = self._buttons.get(name)
+                if btn is None:
+                    btn = self._buttons[name] = reg.getButton(name)
+                if watcher.isButtonDown(btn):
+                    return True
+        except BaseException:
+            pass
+        return False
 
     def _patch_chat(self):
         km = self
