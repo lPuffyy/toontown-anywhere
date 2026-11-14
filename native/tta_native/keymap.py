@@ -74,7 +74,8 @@ class KeyMap:
             orig = cls.typeCallback
 
             def typeCallback(this, extraArgs, _orig=orig):
-                if km.suppressing():
+                # only while chat is closed: once the player is typing a message every letter must go through, whatever it is mapped to
+                if not km.typing() and km.suppressing():
                     try:
                         this.chatEntry.set("")
                     except BaseException:
