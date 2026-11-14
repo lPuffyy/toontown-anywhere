@@ -1,6 +1,7 @@
 """Keyboard key remapping, the same behaviour as the browser version: the player's key for an action is turned into the game's own key for that
 action (and the game's own keys keep working too). Keys are named the way Panda3D names them ('w', 'space', 'f8'); the spec lists the
 game's key for each action. Nothing is remapped while a text box (chat, a name) has the focus."""
+import time
 import traceback
 
 from . import controls, inputs
@@ -41,6 +42,39 @@ class KeyMap:
         node.setButtonUpEvent("tta-btn-up")
         base.accept("tta-btn-down", self.down)
         base.accept("tta-btn-up", self.up)
+        self._until = 0.0
+        self._patch_chat()
+
+    # ---- the game's typed chat opens on the first letter typed anywhere, so a letter the player gave to an action (W, A, S, D...) would
+    # also start a chat message. While such a key is held (or was just let go) the chat box ignores what was typed.
+    def suppressing(self):
+        return bool(self.held) or time.monotonic() < self._until
+
+    def _patch_chat(self):
+        km = self
+
+        def wrap(cls):
+            orig = cls.typeCallback
+
+            def typeCallback(this, extraArgs, _orig=orig):
+                if km.suppressing():
+                    try:
+                        this.chatEntry.set("")
+                    except BaseException:
+                        pass
+                    return
+                return _orig(this, extraArgs)
+            cls.typeCallback = typeCallback
+        try:
+            from toontown.chat.TTChatInputWhiteList import TTChatInputWhiteList
+            wrap(TTChatInputWhiteList)
+        except BaseException:
+            print("native: chat (white list) not patched", traceback.format_exc())
+        try:
+            from toontown.chat.TTChatInputNormal import TTChatInputNormal
+            wrap(TTChatInputNormal)
+        except BaseException:
+            print("native: chat (normal) not patched", traceback.format_exc())
 
     # ---- saved mapping
     def save(self):
@@ -82,11 +116,13 @@ class KeyMap:
         if not action or self.typing():
             return
         self.held[name] = action
+        self._until = time.monotonic() + 0.3
         self.fire(action, True)
 
     def up(self, button):
         action = self.held.pop(norm(button), None)
         if action:
+            self._until = time.monotonic() + 0.3
             self.fire(action, False)
 
     def fire(self, action, down):
