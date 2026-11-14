@@ -247,4 +247,6 @@ def install(base, settings, fullscreen, ui_dir):
         return ui
     except BaseException:
         print("native: settings cog not installed", traceback.format_exc())
+        from .nlog import note
+        note("settings cog not installed: " + traceback.format_exc())
         return None

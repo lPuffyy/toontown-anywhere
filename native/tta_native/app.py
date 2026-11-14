@@ -22,7 +22,9 @@ class Launcher:
         self.root = data_dir()
         from . import window
         smooth = str(self.settings.get("smooth_edges", "1")) != "0"
-        for line in ["window-title " + TITLE, "audio-library-name null", "notify-level warning", "sync-video 1",
+        # Panda loads its audio library once per process and keeps it, so this screen must use the same one the game will (a "null" library here
+        # left the game itself with no sound); only the offscreen picture tests run without audio
+        for line in ["window-title " + TITLE, "audio-library-name " + ("null" if offscreen else "p3openal_audio"), "notify-level warning", "sync-video 1",
                      "framebuffer-multisample %d" % (1 if smooth else 0), "multisamples %d" % (4 if smooth else 0)] + ([] if offscreen else window.prc_lines(self.settings)):
             loadPrcFileData("", line)
         if offscreen:

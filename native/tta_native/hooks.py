@@ -4,6 +4,7 @@ import builtins
 import traceback
 
 from . import hud
+from .nlog import note
 
 
 def install(base, settings=None):
@@ -30,6 +31,7 @@ def install(base, settings=None):
         settings_ui.install(base, settings, fs, os.path.join(data_dir(), "ui"))
     except BaseException:
         print("native: settings not installed", traceback.format_exc())
+        note("settings not installed: " + traceback.format_exc())
 
     def anchor(task):
         hud.anchor_hud(base)
@@ -40,8 +42,10 @@ def install(base, settings=None):
         chat.install(base)
     except BaseException:
         print("native: chat helpers not installed", traceback.format_exc())
+        note("chat helpers not installed: " + traceback.format_exc())
     try:
         from . import gamepad
         gamepad.install(base)
     except BaseException:
         print("native: controller support not installed", traceback.format_exc())
+        note("controller support not installed: " + traceback.format_exc())

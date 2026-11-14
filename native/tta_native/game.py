@@ -49,8 +49,12 @@ def start(server, user, password, data_root):
     log_path = os.path.join(data_root, "logs", "client.log")
     if os.path.exists(log_path) and os.path.getsize(log_path) > 5 * 1024 * 1024:
         os.replace(log_path, log_path + ".old")
+    out0 = sys.stdout
     sys.stdout, sys.stderr = _Tee(sys.stdout, log_path), _Tee(sys.stderr, log_path)
     print("native: starting the game as %s on %s (data %s)" % (user, server, data_root))
+    from .nlog import note
+    from . import __version__
+    note("start: version %s, stdout was %s" % (__version__, type(out0).__name__))
 
     os.chdir(game_dir)                       # the game's config and model paths are relative to its own folder
     sys.path.insert(0, game_dir)
@@ -158,6 +162,14 @@ def start(server, user, password, data_root):
             hooks.install(self, native_settings)
         except BaseException:
             print("native: extras not installed", traceback.format_exc())
+            note("extras not installed: " + traceback.format_exc())
+        try:
+            note("extras: cog=%s keys=%s fullscreen=%s; sfx manager %s, music manager %s (valid %s)" % (
+                hasattr(self, "tta_settings_ui"), hasattr(self, "tta_keymap"), hasattr(self, "tta_fullscreen"),
+                type(self.sfxManagerList[0]).__name__ if self.sfxManagerList else None, type(self.musicManager).__name__,
+                getattr(self, "musicManagerIsValid", None)))
+        except BaseException:
+            pass
         fs_test = os.environ.get("TTA_TEST_FULLSCREEN")     # testing: after N seconds go full screen, save a picture, go back, report ("path.png,seconds")
         if fs_test:
             fpath, fsecs = fs_test.rsplit(",", 1)
@@ -265,4 +277,5 @@ def start(server, user, password, data_root):
     except BaseException:
         print("native: the game stopped with an error")
         print(traceback.format_exc())
+        note("the game stopped with an error: " + traceback.format_exc())
         raise
