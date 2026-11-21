@@ -65,6 +65,8 @@ def _auto_reconnect():
             _rc["told"] = True
             print("webnet: closed, game shows lost connection: booted=%s %s" % (getattr(cr, "bootedIndex", None),
                                                                                   str(getattr(cr, "bootedText", "") or "")[:120]))
+        # 345 = "Server timed out while waiting for heartbeat": the tab was hidden long
+        # enough for its WebSocket to close. That is not a deliberate logout, so retry it.
         if getattr(cr, "bootedIndex", None) in (100, 127, 152):       # thrown out on purpose (100: the same account signed in somewhere else): do not retry by ourselves
             return
         if str(platform.window.document.visibilityState) != "visible":
