@@ -7,6 +7,7 @@
 # and downloads the game files into the browser's file system; this script runs the real game once the player has signed in.
 import asyncio
 import builtins
+import gc
 import json
 import os
 import sys
@@ -146,7 +147,14 @@ from panda3d.core import loadPrcFileData
 
 for line in ("load-display pandagles2", "audio-library-name null", "toontown-auto-run 0", "want-dev #f",
              "connect-method native", "sync-video 0", "notify-level warning",
-             "garbage-collect-states-rate 0.05", "uniquify-transforms 0", "transform-cache 0"):       # the engine's cache clean-up checked everything every frame and grew to 10 ms a frame
+             "uniquify-transforms 0", "transform-cache 0",        # transform-cache maintenance was taking 6-23 ms per frame on streets
+             "hardware-animated-vertices 1",                       # GPU vertex skinning instead of CPU
+             "gl-force-no-error 1",                                # skip WebGL error polling per draw call
+             "gl-finish 0",                                        # prevent CPU stalling to wait for GPU pipeline drain
+             "gl-force-flush 0",                                   # prevent explicit glFlush calls between frames
+             "preload-textures 1",                                 # upload textures to GPU VRAM up front
+             "textures-power-2 none",                              # WebGL2 supports NPOT natively; skip CPU rescaling
+             "flatten-geoms 1"):                                   # merge compatible geometry to reduce draw calls
     loadPrcFileData("", line)
 # The server runs in normal mode, so the game must too: dev mode makes the client ask the server for a cog factory's level spec (which a
 # normal server denies), run leak checks and call Python 2 code. "want-dev #f" alone is too late if the engine has already read the setting.
@@ -164,8 +172,13 @@ try:
     _ios = "iPhone" in _ua or "iPad" in _ua or ("Macintosh" in _ua and int(platform.window.navigator.maxTouchPoints or 0) > 1)
 except BaseException:
     _ios = True
-loadPrcFileData("", "dna-ram-cache-hood-models %s" % ("#f" if _ios else "#t"))
-print("web: keep area models in memory:", not _ios)
+# ?hoodcache=1 turns the cache back on for an iOS A/B test of its FPS cost.
+try:
+    _hoodcache = "hoodcache=1" in str(platform.window.location.search)
+except BaseException:
+    _hoodcache = False
+loadPrcFileData("", "dna-ram-cache-hood-models %s" % ("#t" if (_hoodcache or not _ios) else "#f"))
+print("web: keep area models in memory:", bool(_hoodcache or not _ios))
 # ?dmul=N : the building code (hosted DNA files) multiplies the depth offsets of windows, flat doors, cornices and door holes by N
 try:
     from urllib.parse import parse_qs as _pq0
@@ -216,8 +229,9 @@ except BaseException:
     _q = ""
 # ?cut=ms (multisample alpha-to-coverage) was tried and does not work in the browser: every see-through texel came out solid. Kept off.
 _MS = False
+_CUT_HARD = "cut=smooth" not in _q and "blend=1" not in _q   # hard alpha test by default; ?cut=smooth restores the blended shader
 _USE_TEST = "blend=1" not in _q and not _MS            # cut-out shader by default; ?blend=1 falls back to plain blending
-print("web: cut-out mode =", "multisample" if _MS else ("shader" if _USE_TEST else "blend"))
+print("web: cut-out mode =", "multisample" if _MS else ("hard" if _CUT_HARD else ("smooth" if _USE_TEST else "blend")))
 _VERT = """#version 100
 invariant gl_Position;
 uniform mat4 p3d_ModelViewProjectionMatrix;
@@ -233,7 +247,7 @@ void main() {
   col = p3d_Color * p3d_ColorScale;
 }
 """
-_FRAG = """#version 100
+_FRAG_HARD = """#version 100
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
@@ -248,17 +262,48 @@ void main() {
   gl_FragColor = vec4(t.rgb, 1.0);
 }
 """
+# Smooth alpha cut-outs: the mask is bilinearly sampled, so keeping its fractional
+# alpha blends the edge pixels instead of chopping them at a hard 0.5 threshold.
+# MSAA then antialiases the remaining silhouette. Only fully clear texels are
+# discarded; depth is still written so the art keeps its old occlusion behaviour.
+_FRAG = """#version 100
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform sampler2D p3d_Texture0;
+varying vec2 uv;
+varying vec4 col;
+void main() {
+  vec4 t = texture2D(p3d_Texture0, uv) * col;
+  if (t.a < 0.02) discard;
+  gl_FragColor = vec4(t.rgb, t.a);
+}
+"""
 _shader = [None]
+
+
+def _is_eye_part(np):
+    """The real eye/pupil quads live on the head. Eyelashes are separate meshes whose
+    names also contain 'eye'; they must keep their normal material."""
+    name = str(np).lower()
+    if "lash" in name:
+        return False
+    return "eye" in name or "pupil" in name
 
 
 def _cut_attrib():
     if _shader[0] is None:
-        _shader[0] = _Sh.make(_Sh.SL_GLSL, _VERT, _FRAG)
+        _shader[0] = _Sh.make(_Sh.SL_GLSL, _VERT, _FRAG_HARD if _CUT_HARD else _FRAG)
     return _SA.make(_shader[0], 1)
 
 
 def _cut_state(st):
-    st = st.setAttrib(_TA.make(_TA.MNone))
+    if _CUT_HARD:
+        st = st.setAttrib(_TA.make(_TA.MNone))
+    else:
+        st = st.setAttrib(_TA.make(_TA.MAlpha)).setAttrib(_DW.make(_DW.MOn))
     return st.setAttrib(_cut_attrib())
 
 
@@ -281,19 +326,41 @@ def fix_transparency(root, shader=True):
                             ns = ns.setAttrib(_DOA.make((cur.getOffset() if cur is not None else 0) + _OFF))      # added on top, so a piece that already sits in front of another still does
                         node.setGeomState(i, ns)
                     elif not shader:
-                        node.setGeomState(i, st.setAttrib(_TA.make(_TA.MAlpha)))        # characters: faces need the plain blend look
+                        # Actors (toons) load through this path. Keep their normal material;
+                        # only add a depth offset to eye/pupil quads so they don't sink into
+                        # the head at certain angles.
+                        is_eye = _is_eye_part(gn)
+                        if is_eye and _EYE_OFF:
+                            cur = st.getAttrib(_DOA)
+                            ns = st.setAttrib(_DOA.make((cur.getOffset() if cur is not None else 0) - _EYE_OFF))
+                            node.setGeomState(i, ns)
+                            _log_decal_node(gn, "eye-actor")
+                        else:
+                            node.setGeomState(i, st.setAttrib(_TA.make(_TA.MAlpha)))        # characters: faces need the plain blend look
                     else:
                         node.setGeomState(i, st.setAttrib(_TA.make(_TA.MAlpha)).setAttrib(_DW.make(_DW.MOff)))
         for n in root.findAllMatches("**"):
             ta = n.node().getAttrib(_TA)
             if ta is not None and ta.getMode() in _CUTOUT:
+                is_eye_node = _is_eye_part(n)
+                if any(k in str(n).lower() for k in ("sign", "eye", "pupil", "lash", "window", "trolley", "billboard", "poster", "banner")):
+                    _log_decal_node(n, "cutout")
                 if use_ms:
                     n.setTransparency(_TA.MMultisampleMask)
                 elif use_shader:
-                    n.setTransparency(_TA.MNone)
+                    if _CUT_HARD:
+                        n.setTransparency(_TA.MNone)
+                    else:
+                        n.setTransparency(_TA.MAlpha)
+                        n.setDepthWrite(True)   # keep occlusion; only the blended edge pixels are see-through
                     n.setAttrib(_cut_attrib())
                 elif not shader:
-                    n.setTransparency(_TA.MAlpha)
+                    if is_eye_node and _EYE_OFF:
+                        cur = n.getAttrib(_DOA)
+                        n.setAttrib(_DOA.make((cur.getOffset() if cur is not None else 0) - _EYE_OFF))
+                        _log_decal_node(n, "eye-actor")
+                    else:
+                        n.setTransparency(_TA.MAlpha)
                 else:
                     n.setTransparency(_TA.MAlpha)
                     n.setDepthWrite(False)     # see-through texels must not hide what is behind them
@@ -470,12 +537,45 @@ def _depth_reset(b):
 
 # Decals (windows and doors drawn on walls) are made to win over the wall only by a depth offset of 1 per level. On the phone's graphics
 # layer that is too little, which is what makes them flicker. ?decal=N adds N more per level.
-from panda3d.core import DecalEffect as _DE
+from panda3d.core import DecalEffect as _DECALFX
 try:
-    _DECAL = int((_pq2(_q.lstrip("?")).get("decal", ["0"]) or ["0"])[0])
+    _DECAL = int((_pq2(_q.lstrip("?")).get("decal", ["2"]) or ["2"])[0])
 except BaseException:
-    _DECAL = 0
+    _DECAL = 2
+try:
+    _EYE_OFF = int((_pq2(_q.lstrip("?")).get("eyeoff", ["0"]) or ["0"])[0])
+except BaseException:
+    _EYE_OFF = 0
 print("web: extra decal depth offset =", _DECAL)
+print("web: eye depth offset =", _EYE_OFF)
+
+_DECALSEEN = set()
+
+
+def _decal_name(np):
+    return str(np).lower()
+
+
+def _log_decal_node(np, tag):
+    try:
+        name = str(np)
+        key = tag + ':' + name
+        if key in _DECALSEEN:
+            return
+        _DECALSEEN.add(key)
+        if len(_DECALSEEN) > 40:
+            return
+        ta = np.getAttrib(_TA) if hasattr(np, 'getAttrib') else None
+        mode = ta.getMode() if ta is not None else '?'
+        dw = np.getAttrib(_DW) if hasattr(np, 'getAttrib') else None
+        doff = np.getAttrib(_DOA) if hasattr(np, 'getAttrib') else None
+        print("web: decal node %s name=%s ta=%s dw=%s doff=%s decal=%s" % (
+            tag, name[-90:], mode,
+            dw.getMode() if dw is not None else '?',
+            doff.getOffset() if doff is not None else '?',
+            np.hasEffect(_DECALFX.getClassType()) if hasattr(np, 'hasEffect') else '?'))
+    except BaseException:
+        pass
 
 
 def boost_decals(root):
@@ -484,10 +584,12 @@ def boost_decals(root):
     try:
         nodes = [root] + [n for n in root.findAllMatches("**")]
         for n in nodes:
-            if n.hasEffect(_DE):
+            if n.hasEffect(_DECALFX.getClassType()):
                 for i in range(n.getNumChildren()):
                     c = n.getChild(i)
                     c.setDepthOffset(_DECAL)
+                    if any(k in _decal_name(c) for k in ("sign", "window", "door", "trolley", "billboard")):
+                        _log_decal_node(c, "boost")
     except BaseException:
         print("web: decal boost failed", traceback.format_exc())
 
@@ -732,6 +834,31 @@ _A43 = 4.0 / 3.0
 
 
 _PERF = {"slow": [], "gc": []}
+_TASK_TIMERS = []
+
+
+def _perf_device_label():
+    """Tag frame samples with browser/device context to disambiguate shared logs."""
+    try:
+        win = platform.window
+        nav = win.navigator
+        ua = str(nav.userAgent)
+        if "iPhone" in ua:
+            device = "iPhone"
+        elif "iPad" in ua or ("Macintosh" in ua and int(nav.maxTouchPoints or 0) > 1):
+            device = "iPad"
+        else:
+            device = "other"
+        standalone = bool(getattr(nav, "standalone", False))
+        try:
+            standalone = standalone or bool(win.matchMedia("(display-mode: standalone)").matches)
+        except BaseException:
+            pass
+        return "%s mode=%s viewport=%sx%s dpr=%s" % (
+            device, "standalone" if standalone else "browser",
+            int(win.innerWidth), int(win.innerHeight), float(win.devicePixelRatio or 1))
+    except BaseException:
+        return "device=unknown"
 
 
 def _install_perf_probes(b):
@@ -775,13 +902,68 @@ def _install_perf_probes(b):
     print("web: perf probes installed")
 
 
+def _start_task_timers(b):
+    """Time PythonTask callbacks without Panda's incompatible web TaskProfiler."""
+    import time as _t
+    _TASK_TIMERS[:] = []
+    try:
+        tasks = b.taskMgr.getTasks()
+    except BaseException:
+        print("web: task timing unavailable", traceback.format_exc())
+        return 0
+    for task in tasks:
+        try:
+            original = task.getFunction()
+            if not callable(original) or getattr(original, "_tta_timed", False):
+                continue
+            metric = {"name": str(task.getName()), "calls": 0, "total": 0.0, "max": 0.0}
+
+            def timed(*args, __func=original, __metric=metric, **kwargs):
+                start = _t.perf_counter()
+                try:
+                    return __func(*args, **kwargs)
+                finally:
+                    elapsed = (_t.perf_counter() - start) * 1000.0
+                    __metric["calls"] += 1
+                    __metric["total"] += elapsed
+                    if elapsed > __metric["max"]:
+                        __metric["max"] = elapsed
+
+            timed._tta_timed = True
+            task.setFunction(timed)
+            _TASK_TIMERS.append((task, original, timed, metric))
+        except BaseException:
+            continue
+    print("web: task timing started callbacks=%d" % len(_TASK_TIMERS))
+    return len(_TASK_TIMERS)
+
+
+def _stop_task_timers(sample_frames=0):
+    for task, original, timed, _metric in _TASK_TIMERS:
+        try:
+            if task.getFunction() is timed:
+                task.setFunction(original)
+        except BaseException:
+            pass
+    rows = [metric for _task, _original, _timed, metric in _TASK_TIMERS if metric["calls"]]
+    rows.sort(key=lambda row: row["total"], reverse=True)
+    total_ms = sum(row["total"] for row in rows)
+    per_frame = total_ms / sample_frames if sample_frames else 0.0
+    print("web: task timing complete callbacks=%d sampled=%d aggregate=%.1fms avg/frame=%.2fms frames=%d" % (
+        len(_TASK_TIMERS), len(rows), total_ms, per_frame, sample_frames))
+    for row in rows[:20]:
+        print("web: task cost total=%.1fms avg=%.3fms max=%.1fms calls=%d name=%s" % (
+            row["total"], row["total"] / row["calls"], row["max"], row["calls"], row["name"]))
+    _TASK_TIMERS[:] = []
+
+
 def _anchor_hud(b):
     """The game lays its screen-edge buttons out for a 4:3 screen; hud.py hangs the ones near the sides from the screen's edges."""
     hud.anchor_hud(b)
 
 
 def _web_mouse_click_count():
-    """Read the page's mouse-click counter (the page counts left clicks on the game canvas)."""
+    """Read the wrapper click counter across the tta/ttr compatibility aliases."""
     try:
         bridge = getattr(platform.window, "tta", None)
         if bridge is None:
@@ -819,7 +1001,6 @@ def _install_chat_click_fallback(b):
                 if not av.nametag.hasButton():
                     continue
                 page = getattr(av, "_Avatar__chatPageNumber", None)
-
                 def advance_if_missed(task, av=av, page=page):
                     try:
                         if (getattr(av, "_Avatar__chatPageNumber", None) == page
@@ -891,7 +1072,7 @@ def TTA_mark(msg):
         pass
 
 
-async def main():
+async def main(_sleep=asyncio.sleep):
     TTA.pyReady = True
     print("web: ready, waiting for the page to download the game files and sign in")
     while not bool(TTA.go) and not bool(TTA.dbg):
@@ -921,8 +1102,15 @@ async def main():
         from panda3d.core import loadPrcFile
         loadPrcFile("etc/Configrc.prc")
         for line in ("load-display pandagles2", "audio-library-name null", "toontown-auto-run 0", "want-dev #f", "connect-method native",
-                     "sync-video 0", "notify-level warning", "garbage-collect-states-rate 0.05", "uniquify-transforms 0", "transform-cache 0", "dna-path resources", "default-model-extension .bam",
+                     "sync-video 0", "notify-level warning", "uniquify-transforms 0", "transform-cache 0", "dna-path resources", "default-model-extension .bam",
                      "interpolate-frames 1",       # blend between an animation's frames (the toon animations are authored at 24 fps and look choppy without it)
+                     "hardware-animated-vertices 1",    # GPU vertex skinning instead of CPU
+                     "gl-force-no-error 1",             # skip WebGL error polling per draw call
+                     "gl-finish 0",                     # prevent CPU stalling to wait for GPU pipeline drain
+                     "gl-force-flush 0",                # prevent explicit glFlush calls between frames
+                     "preload-textures 1",              # upload textures to GPU VRAM up front
+                     "textures-power-2 none",           # WebGL2 supports NPOT natively; skip CPU rescaling
+                     "flatten-geoms 1",                 # merge compatible geometry to reduce draw calls
                      "vertex-buffers 1", "aspect-ratio 0"):      # the game's own config turns vertex buffers OFF, which a browser (WebGL) cannot do
             loadPrcFileData("", line)
         try:
@@ -951,6 +1139,12 @@ async def main():
         print("web: running toontown.toonbase.ToontownStart as", user)
         runpy.run_module("toontown.toonbase.ToontownStart", run_name="__main__")
         print("web: ToontownStart returned; base =", getattr(builtins, "base", None))
+        try:
+            from panda3d.core import ClockObject
+            ClockObject.getGlobalClock().setMode(ClockObject.MNormal)
+            print("web: global clock mode explicitly set to MNormal (uncapped, matches display refresh rate)")
+        except BaseException:
+            pass
         _full_precision_shader(builtins.base)
         _depth_reset(builtins.base)
     except BaseException:
@@ -958,50 +1152,27 @@ async def main():
         print(traceback.format_exc())
     frames = 0
     import time as _time
-    import re as _re
-
-    _tt = {}                      # kind of task (the numbers in its name folded together) -> [total ms, runs, slowest ms] in this window
-
-    def _timed(fn, key):
-        def run(*args, **kw):
-            t0 = _time.perf_counter()
-            try:
-                return fn(*args, **kw)
-            finally:
-                ms = (_time.perf_counter() - t0) * 1000.0
-                r = _tt.get(key)
-                if r is None:
-                    r = _tt[key] = [0.0, 0, 0.0]
-                r[0] += ms
-                r[1] += 1
-                if ms > r[2]:
-                    r[2] = ms
-        run._tta_timed = True
-        return run
-
-    def _wrap_task(tk):
+    try:
+        _profile_location = platform.window.location
+        _profile_host = str(_profile_location.hostname).lower()
+        _profile_port = str(_profile_location.port)
+        _profile_standalone = bool(platform.window.navigator.standalone)
         try:
-            fn = tk.getFunction()
-            if fn is not None and not getattr(fn, "_tta_timed", False):
-                tk.setFunction(_timed(fn, _re.sub(r"\d+", "N", str(tk.getName()))[:40]))
+            _profile_standalone = _profile_standalone or bool(
+                platform.window.matchMedia("(display-mode: standalone)").matches)
         except BaseException:
             pass
-
-    def _instrument_tasks(b):
-        """Time every Python task (the tasks already running now, and the ones made from here on), to say what a slow frame was spent on."""
-        for tk in list(b.taskMgr.getTasks()):
-            _wrap_task(tk)
-        TM = type(b.taskMgr)
-        if not getattr(TM, "_tta_timed", False):
-            orig = TM._TaskManager__setupTask
-
-            def setup(self, *args, **kw):
-                tk = orig(self, *args, **kw)
-                _wrap_task(tk)
-                return tk
-            TM._TaskManager__setupTask = setup
-            TM._tta_timed = True
-
+        _profile_local = (_profile_port == "7380" or _profile_host in ("localhost", "127.0.0.1") or
+                          _profile_host.startswith(("192.168.", "10.", "172.16.")))
+        profile_requested = _profile_local and _profile_standalone
+    except BaseException:
+        _profile_host = "unknown"
+        _profile_port = "unknown"
+        _profile_standalone = False
+        profile_requested = False
+    print("web: task profiling requested =", profile_requested,
+          "local_host=", _profile_host, "port=", _profile_port, "standalone=", _profile_standalone)
+    profile_state = {"start_frame": None, "done": False}
     def _where(b):
         """Where the toon is and how much is around it: the zone, how many objects, toons and Cogs the game holds."""
         try:
@@ -1024,6 +1195,8 @@ async def main():
             return "place=?"
 
     _pf = {"last": None, "dts": [], "steps": []}      # frame timing: how long frames take, and how much of that is the game's own step
+    _perf_label = _perf_device_label()
+    print("web: perf device", _perf_label)
     while True:
         b = getattr(builtins, "base", None)
         if b is not None:
@@ -1038,7 +1211,7 @@ async def main():
             except BaseException:
                 print("web: STEP FAILED")
                 print(traceback.format_exc())
-                await asyncio.sleep(1)
+                await _sleep(1)
             # The browser runner may execute ToontownStart as __main__, which can disturb this module's import globals.
             # Keep these bridges on builtins so reconnects cannot kill the frame pump with NameError.
             try:
@@ -1076,21 +1249,31 @@ async def main():
             if len(_pf["dts"]) >= 300:
                 d, st = sorted(_pf["dts"]), sorted(_pf["steps"])
                 n = len(d)
-                print("web: perf fps=%.1f frame avg=%.1fms p95=%.1fms max=%.0fms slow(>50ms)=%d | step avg=%.1fms p95=%.1fms max=%.0fms" % (
-                    1000.0 * n / sum(d), sum(d) / n, d[int(n * 0.95)], d[-1], sum(1 for x in d if x > 50), sum(st) / len(st), st[int(len(st) * 0.95)], st[-1]))
-                # where the toon is; when the frame rate is low, which tasks used the time in this window
-                _fps_now = 1000.0 * n / sum(d)
-                _line = "web: perf where " + _where(b)
-                if _fps_now < 55 and _tt:
-                    _top = sorted(((v[0], v[1], v[2], k) for k, v in _tt.items()), reverse=True)[:7]
-                    _line += " | busiest tasks (total ms / runs / slowest ms): " + ", ".join("%s %.0f/%d/%.0f" % (k, tot, runs, mx) for tot, runs, mx, k in _top)
-                print(_line)
-                _tt.clear()
+                print("web: perf device=%s fps=%.1f frame avg=%.1fms p95=%.1fms max=%.0fms slow(>50ms)=%d | step avg=%.1fms p95=%.1fms max=%.0fms" % (
+                    _perf_label, 1000.0 * n / sum(d), sum(d) / n, d[int(n * 0.95)], d[-1], sum(1 for x in d if x > 50), sum(st) / len(st), st[int(len(st) * 0.95)], st[-1]))
+                print("web: perf where " + _where(b))
                 _pf["dts"], _pf["steps"] = [], []
                 if _PERF["slow"] or _PERF["gc"]:
                     print("web: hitches in that window: loads", _PERF["slow"][-8:], "| gc", _PERF["gc"][-6:])
                     _PERF["slow"], _PERF["gc"] = [], []
-        await asyncio.sleep(0)
+            # Time Python callbacks briefly after the world has settled. Panda's built-in
+            # TaskProfiler crashes in the browser Wasm build, so this opt-in timer wraps the
+            # active callbacks directly and restores them after one short sample.
+            if started and not profile_state["done"] and profile_requested:
+                try:
+                    if profile_state.get("start_frame") is None and frames >= 900:
+                        _start_task_timers(b)
+                        profile_state["start_frame"] = frames
+                        print("web: per-task timing sampling started (300 foreground frames)")
+                    elif profile_state.get("start_frame") is not None and frames - profile_state["start_frame"] >= 300:
+                        _stop_task_timers(frames - profile_state["start_frame"])
+                        profile_state["done"] = True
+                except BaseException:
+                    start_frame = profile_state.get("start_frame")
+                    _stop_task_timers(frames - start_frame if start_frame is not None else 0)
+                    profile_state["done"] = True
+                    print("web: per-task timing unavailable", traceback.format_exc())
+        await _sleep(0)
 
 
 asyncio.run(main())
