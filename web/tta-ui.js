@@ -5,7 +5,12 @@
   const ICONS = window.TTA_ICONS || {};
   const DEFAULT = { name: 'Toontown: Anywhere', host: 'toontown.puffsco.com' };
   const LS = (() => { try { return window.localStorage; } catch (e) { return { getItem() { return null; }, setItem() {}, removeItem() {} }; } })();
+// Bump when a new release should offer the texture choice once again on every device.
+const TEXTURE_PICK_VERSION = 2;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // The HD packs can be rebuilt with the same byte sizes but different bytes (e.g. an
+  // RLE fix). Bump this when that happens so cached packs are not reused.
+  const HD_PACK_V = 101;
   // settings and saved sign-ins were kept under another prefix before: copy them to the current names once, so nobody starts over
   // (the old copies stay where they are, so an older page still finds them)
   try {
@@ -17,7 +22,8 @@
   } catch (e) {}
   // storage names that hold the downloaded game files keep their earlier names, so those 390 MB are not fetched again
   const T = window.ttr = window.tta = {   // (the game code in the server pack still looks for window.ttr)
-    aa: (() => { try { return window.localStorage.getItem('tta_aa') === '0' ? '0' : '1'; } catch (e) { return '1'; } })(),
+    // The context takes this value once. The settings controls read the saved choice.
+    aa: LS.getItem('tta_aa') === '0' ? '0' : '1',
     pyReady: false, go: false, gameConfig: '', typeBtn: '', dbg: false, safeL: 0, safeR: 0, safeT: 0, safeB: 0, vh: 0, pycode: '', winW: 0, winH: 0, mc: 0, cookie: '', inp: '0,0,0,0,0,0,0,0', camN: 0, txtIn: 0, txtSub: 0, txtVal: '',
     // The game connection normally goes through the same address as the page (via the tunnel). A tester can use the direct route instead by opening
     // the page with ?ws=wss://ws.puffsco.com/ws (remembered on that device; ?ws=off goes back). Only addresses under our own domain are accepted:
@@ -76,8 +82,9 @@
     if (w != null) s.width = w + 'px';
     if (h != null) s.height = h + 'px';
   }
-  let W = 0, H = 0, sc = 1;
-  let lastInner = '';
+  let W = 0, H = 0, sc = 1, pixelRatio = 1;
+  let touchScreen = false;
+  let lastViewport = '', lastInner = '';
   let dn = 0;
   // Test sessions: open the page with ?log=1 (kept for the rest of the visit) and everything the game prints, plus any page error or crash
   // message, is sent to the server's /__log, where it is saved with the time and this device's address.
@@ -86,11 +93,11 @@
     if (/[?&]log=1/.test(location.search)) sessionStorage.setItem('tta.log', '1');
     if (sessionStorage.getItem('tta.log') === '1') LOGGING = true;
   } catch (e) {}
-  T.perfOn = LOGGING;            // the game times its tasks only in test sessions (see web/game/main.py)
   // Everyone else is logged quietly: crash information, one device/sign-in line and a few startup stage timings.
   // No passwords, touches or ongoing frame timings are recorded. At most 400 lines per visit.
   let quietSent = 0, tbLeft = 0, lastQuiet = '';
-  const QUIET_WANT = /Traceback|[A-Za-z_]*(Error|Exception)\b|STEP FAILED|reconnecting|webnet: (closed|error)|Aborted|TTA startup timing:/;
+  let perfNext = 0, perfFollow = 0;
+  const QUIET_WANT = /Traceback|[A-Za-z_]*(Error|Exception)\b|STEP FAILED|reconnecting|webnet: (closed|error)|Aborted|TTA startup timing:|web: (cut-out mode|smooth edges|decal node|extra decal|eye depth|eye smooth|starting gag map|battle overhaul|task timing|task cost|task profiling requested)|pnmimage|RLE error/;
   function quietLog(m) {
     if (quietSent >= 400) return;
     let want = false;
@@ -98,13 +105,20 @@
       const t = m.slice(3).trim();
       if (/Traceback \(most recent call last\)/.test(t)) { tbLeft = 150; want = true; }   // (the frame that failed comes last)
       else if (tbLeft > 0) { want = true; tbLeft--; if (/^[A-Za-z_.]*(Error|Exception)\b/.test(t)) tbLeft = 0; }
+      else if (/^web: perf device=/.test(t)) {
+        // One FPS/frame-time sample every 30s even in quiet mode, plus its context lines.
+        // This is what FPS reports need: the quiet log used to drop every perf line.
+        const now = Date.now();
+        if (now >= perfNext) { want = true; perfNext = now + 30000; perfFollow = 2; }
+      } else if (perfFollow > 0 && /^web: (perf where|hitches)/.test(t)) { want = true; perfFollow--; }
       else if (QUIET_WANT.test(t)) want = true;
-    } else if (/^JS\| (page error|unhandled|console\.error|session)/.test(m)) want = true;
+    } else if (/^JS\| (page error|unhandled|console\.error|session|startup (first-draw|login-ready|packs-ready|still-waiting|manifest)|auto reload|texture picker|return state|restored keyboard|resume prompt|resume tap)/.test(m)) want = true;
     if (!want || m === lastQuiet) return;
     lastQuiet = m; quietSent++;
     try { navigator.sendBeacon('/__log', m); } catch (e) {}
   }
   function plog(m) {
+    if (m.startsWith('PY| web: perf device=')) m += ' | browser raf=' + (T.rafFps || '?') + 'Hz pre-game=' + (T.preGameHz || '?') + 'Hz edges=' + T.aa;
     if (LOGGING) { try { navigator.sendBeacon('/__log', m); } catch (e) {} return; }
     if (m.indexOf('JS| env') !== 0) { quietLog(m); return; }
     // the real site: only the screen-fact lines, a few per visit, as a plain request the web server's log records
@@ -112,6 +126,7 @@
     dn++; try { new Image().src = '/__d?' + encodeURIComponent(m) + '&r=' + Date.now(); } catch (e) {}
   }
   T.plog = plog;
+  T.profileTasks = false;
   {
     addEventListener('error', (e) => plog('JS| page error: ' + e.message + ' @ ' + (e.filename || '') + ':' + (e.lineno || '')));
     addEventListener('unhandledrejection', (e) => plog('JS| unhandled rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)));
@@ -124,7 +139,15 @@
   const SAFE = { t: 0, b: 0, l: 0, r: 0 };
   const layouts = [];
   function measure() {
-    W = innerWidth; H = innerHeight; lastInner = W + 'x' + H;
+    // Pygbag converts pointer coordinates using the canvas rectangle; use that exact rectangle
+    // for Panda's logical window and the HUD layout so visual controls and taps share a space.
+    const canvas = document.querySelector('canvas.emscripten');
+    const r = (canvas || root).getBoundingClientRect();
+    const vv = window.visualViewport;
+    W = r.width || (vv && vv.width) || innerWidth;
+    H = r.height || (vv && vv.height) || innerHeight;
+    lastInner = innerWidth + 'x' + innerHeight;
+    lastViewport = [r.left, r.top, r.width, r.height].map((n) => Math.round(n * 100) / 100).join(',');
     sc = Math.min(W, H) >= 700 ? 1.45 : 1.0;      // the app scales up on iPad
     document.documentElement.style.setProperty('--sc', sc);
     const probe = el('div', null, root, { position: 'absolute', visibility: 'hidden', paddingTop: 'env(safe-area-inset-top,0px)', paddingBottom: 'env(safe-area-inset-bottom,0px)', paddingLeft: 'env(safe-area-inset-left,0px)', paddingRight: 'env(safe-area-inset-right,0px)' });
@@ -134,22 +157,25 @@
   }
   function relayout() {
     if (kbHold) return;
-    measure(); fitTitle(); layouts.forEach((f) => f());      // (the title first: the sign-in layout then shrinks and lifts it to clear the fields on a short screen)
-    // Open Toontown test build: draw at the page's own pixel size by default (a phone's full screen resolution is too slow); ?res=1.5 or ?res=2 for sharper
-    let cap = 2; try { cap = parseFloat(new URLSearchParams(location.search).get('res') || localStorage.getItem('tta_res') || '2') || 2; } catch (e) { cap = 2; }
-    cap = Math.max(0.5, Math.min(cap, 2));
-    const dpr = Math.min(window.devicePixelRatio || 1, cap);
-    // A tablet opened from the Home Screen reports a window a little shorter than its screen (iPad landscape: 796 of 820), so the game
-    // stopped short and a bar showed along the bottom. There is no browser bar in that mode, so draw to the screen's full height there.
-    let FH = H;
+    // Home-screen iPad Safari can report a short innerHeight; apply the same correction to the
+    // canvas and overlay, then measure their shared CSS viewport for Panda and touch controls.
+    let FH = innerHeight;
     try {
       const home = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
-      if (home && Math.min(W, H) >= 600 && outerWidth === innerWidth && outerHeight > innerHeight && outerHeight - innerHeight <= 100) FH = outerHeight;
-    } catch (e) { FH = H; }
-    if (FH !== H) document.documentElement.style.setProperty('--fh', FH + 'px');      // only the tablet case: everything else keeps the 100dvh canvas
+      if (home && Math.min(innerWidth, innerHeight) >= 600 && outerWidth === innerWidth && outerHeight > innerHeight && outerHeight - innerHeight <= 100) FH = outerHeight;
+    } catch (e) { FH = innerHeight; }
+    if (Math.abs(FH - innerHeight) > 0.5) document.documentElement.style.setProperty('--fh', FH + 'px');
     else document.documentElement.style.removeProperty('--fh');
-    T.winW = Math.round(W * dpr); T.winH = Math.round(FH * dpr);
-    T.safeL = SAFE.l; T.safeR = SAFE.r; T.safeT = SAFE.t; T.safeB = SAFE.b; T.vh = FH;      // the game keeps its on-screen items inside these
+    measure(); fitTitle(); layouts.forEach((f) => f());
+    // Render at a capped device scale, but derive the game window from the exact CSS viewport
+    // used by both the canvas and the browser HUD.
+    let cap = 2; try { cap = parseFloat(new URLSearchParams(location.search).get('res') || localStorage.getItem('tta_res') || '2') || 2; } catch (e) { cap = 2; }
+    cap = Math.max(0.5, Math.min(cap, 2));
+    touchScreen = navigator.maxTouchPoints > 0 || ('ontouchstart' in document.documentElement) ||
+      (window.matchMedia && matchMedia('(pointer: coarse)').matches);
+    pixelRatio = touchScreen && !T.canvasTouchEnabled ? 1 : Math.min(window.devicePixelRatio || 1, cap);
+    T.winW = Math.round(W * pixelRatio); T.winH = Math.round(H * pixelRatio);
+    T.safeL = SAFE.l; T.safeR = SAFE.r; T.safeT = SAFE.t; T.safeB = SAFE.b; T.vw = W; T.vh = H;
   }
   function fitTitle() {
     if (typeof title === 'undefined') return;
@@ -163,8 +189,13 @@
   // iOS (especially a Home Screen app) sometimes reports a stale window size until the phone is rotated: keep checking, and re-measure
   // a few times shortly after start-up, so the game never stays drawn for the wrong size
   addEventListener('pageshow', () => setTimeout(relayout, 100));
-  if (window.visualViewport) visualViewport.addEventListener('resize', () => { if (!kbHold) relayout(); });
-  setInterval(() => { if (!kbHold && (innerWidth + 'x' + innerHeight) !== lastInner) relayout(); }, 500);
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', () => { if (!kbHold) relayout(); });
+    visualViewport.addEventListener('scroll', () => { if (!kbHold) relayout(); });
+  }
+  setInterval(() => {
+    if (!kbHold && (innerWidth + 'x' + innerHeight) !== lastInner) relayout();
+  }, 500);
   // Opening the app already in landscape, iOS can report a viewport that is shorter than the screen (e.g. 932x371 on a 932x430 phone) and
   // not correct it until something nudges it: ask for a fresh measurement a few times right after the page starts
   // Opening the app already in landscape, iOS can stick on a viewport shorter than the window (932x371 on a 932x430 phone) until the phone is
@@ -488,20 +519,49 @@
     plog('JS| startup engine-ready waitMs=' + Math.round(engineReadyAt - engineWaitAt) + ' totalMs=' + Math.round(engineReadyAt - bootAt));
     setStatus('Checking game files...', '', 0);
     const base = prefs.base;
+    const packKey = (folder, size) => '?s=' + size + '&v=' + HD_PACK_V;
     const manifestAt = performance.now();
-    const packs = await (await fetch(base + '/packs.json?t=' + Date.now(), { cache: 'no-store' })).json();
+    const texMode = (() => { try { const v = LS.getItem('tta_textures'); return v == null ? 'original' : v; } catch (e) { return 'original'; } })();
+    T.textureMode = texMode;
+    try { LS.setItem('tta_textures_active', texMode); } catch (e) {}
+    const packPrefix = (texMode === 'remastered') ? '/_packs_hd' : '/_packs';
+    const packsJsonUrl = (texMode === 'remastered') ? (base + '/packs_hd.json?t=' + Date.now()) : (base + '/packs.json?t=' + Date.now());
+    let packs;
+    try {
+      const resp = await fetch(packsJsonUrl, { cache: 'no-store' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      packs = await resp.json();
+    } catch (e) {
+      if (texMode === 'remastered') throw new Error('Could not load the Remastered texture manifest: ' + e);
+      packs = await (await fetch(base + '/packs.json?t=' + Date.now(), { cache: 'no-store' })).json();
+    }
     const total = packs.reduce((a, p) => a + p[1], 0);
-    plog('JS| startup manifest ms=' + Math.round(performance.now() - manifestAt) + ' packs=' + packs.length + ' zipMB=' + Math.round(total / 1e6));
+    plog('JS| startup manifest mode=' + texMode + ' ms=' + Math.round(performance.now() - manifestAt) + ' packs=' + packs.length + ' zipMB=' + Math.round(total / 1e6));
     let got = 0, done = 0;
     const cachePrepAt = performance.now();
     let cache = null;
-    try { if (typeof caches !== 'undefined' && !/nocache/.test(location.search)) cache = await caches.open('ttr-packs-v1'); } catch (e) { cache = null; }
+    try { if (typeof caches !== 'undefined' && !/nocache/.test(location.search)) cache = await caches.open('ttr-packs-v2'); } catch (e) { cache = null; }
     store.cache = cache;
     if (LOWMEM && !cache) {            // low-memory mode needs the browser to keep the packs: check that it does
       try { await idb.put('tta-probe', new Blob(['x'])); const pb = await idb.get('tta-probe'); await idb.del('tta-probe'); if (!pb) throw new Error('not kept'); }
       catch (e) { LOWMEM = false; T.lowmem = false; plog('JS| mem low-memory mode turned off: this browser cannot keep the saved game files (' + e + ')'); }
     }
-    const want = new Set(packs.map((p) => base + '/_packs/' + p[0] + '.zip?s=' + p[1]));   // the size is part of the address: a browser cache ignores everything after a # , so a changed pack was never fetched again
+    const want = new Set(packs.map((p) => {
+      const folder = (p[0] === '_code') ? '/_packs/' : (packPrefix + '/');
+      return base + folder + p[0] + '.zip' + packKey(folder, p[1]);
+    }));
+    try {
+      const altUrl = (texMode === 'remastered') ? (base + '/packs.json?t=' + Date.now()) : (base + '/packs_hd.json?t=' + Date.now());
+      const altPrefix = (texMode === 'remastered') ? '/_packs/' : '/_packs_hd/';
+      const altResp = await fetch(altUrl, { cache: 'no-store' });
+      if (altResp.ok) {
+        const altPacks = await altResp.json();
+        altPacks.forEach((p) => {
+          const folder = (p[0] === '_code') ? '/_packs/' : altPrefix;
+          want.add(base + folder + p[0] + '.zip' + packKey(folder, p[1]));
+        });
+      }
+    } catch (e) { /* alternate manifest fetch is optional */ }
     try {
       if (cache) { for (const k of await cache.keys()) { if (!want.has(k.url.replace(location.origin, '')) && !want.has(k.url)) await cache.delete(k); } }
       else { for (const k of await idb.keys()) { if (!want.has(k)) await idb.del(k); } }
@@ -514,8 +574,9 @@
     const restoreAt = performance.now();
     for (const [name, size] of packs) {
       const packAt = performance.now();
-      const url = base + '/_packs/' + name + '.zip';
-      const key = url + '?s=' + size;
+      const folder = (name === '_code') ? '/_packs/' : (packPrefix + '/');
+      const url = base + folder + name + '.zip';
+      const key = url + packKey(folder, size);
       let body, putP = null, chunks = null, fresh = false;
       let resp = cache ? await cache.match(key) : null;
       if (cache && !resp && name !== '_code') {            // copy saved by an older page version (its address had no size in it): keep it, so game art is not downloaded twice
@@ -546,8 +607,8 @@
           MEM.stubs++; MEM.savedBytes += data.length - stub.length;
           return;
         }
-        if (LAZYFS && !path.startsWith('_code/') && data.length >= LZ_MIN) { fsLazy(dest, key, off, data.length); return; }
-        fsWrite(dest, data.slice());
+        // Emscripten FS.writeFile copies synchronously; pass this live zip-buffer view directly to avoid an extra per-file allocation.
+        fsWrite(dest, data);
       }, chunks ? (v) => chunks.push(v) : null);
       if (putP) await putP;
       if (chunks) { try { await idb.put(key, new Blob(chunks, { type: 'application/zip' })); } catch (e) { console.warn('could not save ' + name, e); } chunks = null; }
@@ -684,6 +745,77 @@
     LS.setItem(prefs.userKey, user); LS.setItem(prefs.userKey + '.pw', pw);
     const proceed = () => startGame(cookie);
     if (r.tag === 'setup') showRecoveryCard(false, cookie, user, proceed); else proceed();
+  }
+
+  // ------------------------------------------------------------------ pre-download texture picker card
+  function showTextureCard(done) {
+    const g = newCard(420);
+    // Keep the game title and background from showing through the picker text.
+    g.card.style.background = '#fff';
+    // Title
+    cText(g.card, 't', 'Choose Your Texture Quality', 16, 20);
+    // Subtitle
+    const sub = el('div', 's', g.card, {
+      top: 48 * sc + 'px', left: g.pad + 'px', right: g.pad + 'px',
+      fontSize: 13 * sc + 'px', lineHeight: '1.35', color: '#1a408c'
+    });
+    sub.textContent = 'Pick how the game looks. You can change this later in Shticker Book → Options → Device.';
+
+    // Helper: build a tall pick button tile
+    function pickTile(topPx, label, sublabel, badge, color, borderColor, pick) {
+      const tileH = 118, tileW = g.w / sc;
+      const tile = el('button', 'tta-btn on', g.card);
+      Object.assign(tile.style, {
+        position: 'absolute',
+        left: g.pad + 'px',
+        width: g.w + 'px',
+        height: tileH * sc + 'px',
+        top: topPx * sc + 'px',
+        background: color,
+        border: '3px solid ' + borderColor,
+        borderRadius: 16 * sc + 'px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4 * sc + 'px',
+        cursor: 'pointer',
+        textAlign: 'center',
+        padding: '0 ' + 10 * sc + 'px',
+      });
+      const lbl = el('span', null, tile);
+      lbl.textContent = label;
+      lbl.style.cssText = 'font-size:' + 20 * sc + 'px;font-weight:800;color:' + (color === '#ffd926' ? '#733805' : '#fff') + ';line-height:1.1;pointer-events:none;';
+      const slbl = el('span', null, tile);
+      slbl.textContent = sublabel;
+      slbl.style.cssText = 'font-size:' + 12 * sc + 'px;font-weight:600;color:' + (color === '#ffd926' ? '#5a2e02' : 'rgba(255,255,255,.85)') + ';pointer-events:none;';
+      if (badge) {
+        const bdg = el('span', null, tile);
+        bdg.textContent = badge;
+        bdg.style.cssText = 'margin-top:' + 3 * sc + 'px;font-size:' + 10 * sc + 'px;font-weight:700;color:#fff;background:rgba(0,0,0,.35);border-radius:' + 8 * sc + 'px;padding:1px ' + 7 * sc + 'px;pointer-events:none;';
+      }
+      tile.addEventListener('click', () => {
+        LS.setItem('tta_textures', pick);
+        LS.setItem('tta_textures_chosen', '1');
+        LS.setItem('tta_textures_chosen_v' + TEXTURE_PICK_VERSION, '1');
+        cardClose();
+        done();
+      });
+      return tile;
+    }
+
+    // Original tile (yellow/gold — primary action)
+    pickTile(92, '🎨  Original Textures', 'Classic look, faster loading', null, '#ffd926', '#8c520d', 'original');
+
+    // Remastered tile (world textures 4x; interface textures 2x to limit mobile memory use)
+    pickTile(220, '✨  Remastered Textures', 'Upscaled textures', '⚠ Work in Progress', '#1f4da6', '#0d2a6b', 'remastered');
+
+    // Fine-print note
+    const note = el('div', 's', g.card, {
+      top: 354 * sc + 'px', left: g.pad + 'px', right: g.pad + 'px',
+      fontSize: 11 * sc + 'px', color: '#888', lineHeight: '1.3'
+    });
+    note.textContent = 'Remastered maps are upscaled with a 512-pixel size cap. Changing textures later will restart the game.';
   }
   [uField, pField].forEach((f) => {
     f.setAttribute('enterkeyhint', f === pField ? 'go' : 'next');
@@ -872,11 +1004,25 @@
   // ------------------------------------------------------------------ the flow
   async function beginDownload() {
     T.bootStart = performance.now();
-    login.style.display = 'none'; showLoad(true);
     errBox.style.display = 'none'; errBtn.style.display = 'none'; spin.style.display = 'none';
     loadArt();
-    try { await downloadAll(); showLogin(); plog('JS| startup login-ready totalMs=' + Math.round(performance.now() - T.bootStart)); }
-    catch (e) { console.error(e); showError(String(e && e.stack || e)); }
+    const downloadSelectedPacks = async () => {
+      login.style.display = 'none'; showLoad(true);
+      try {
+        await downloadAll();
+        showLogin();
+        plog('JS| startup login-ready totalMs=' + Math.round(performance.now() - T.bootStart));
+      } catch (e) { console.error(e); showError(String(e && e.stack || e)); }
+    };
+    // The first texture choice must happen before downloadAll(): otherwise the
+    // picker appears after the default/original pack has already been unpacked.
+    if (LS.getItem('tta_textures_chosen_v' + TEXTURE_PICK_VERSION) !== '1') {
+      login.style.display = 'none'; showLoad(false);
+      plog('JS| texture picker shown v' + TEXTURE_PICK_VERSION);
+      showTextureCard(downloadSelectedPacks);
+      return;
+    }
+    await downloadSelectedPacks();
   }
   async function startGame(cookie) {
     T.gameStartAt = performance.now();
@@ -892,8 +1038,15 @@
     } catch (e) { }
     T.cookie = cookie; T.go = true;
     plog('JS| session user: ' + String(cookie).split(':')[0] + ' route ' + (T.wsUrl.indexOf('//' + location.host + '/') >= 0 ? 'tunnel' : 'direct'));       // the name only, never the password
+    // If the first drawn frame never arrives, leave one line in the quiet log, with the last Python line, so a
+    // "stuck on Starting Toontown" report can be diagnosed without reloading with ?log=1.
+    const waitAt = performance.now();
+    setTimeout(() => {
+      if (!T.didStart) plog('JS| startup still-waiting afterMs=' + Math.round(performance.now() - waitAt) + ' lastPy=' + (T.lastPy || '(none)'));
+    }, 90000);
   }
   T.started = function () {          // called by the game once it is drawing
+    T.didStart = true;
     if (Number.isFinite(T.gameStartAt)) plog('JS| startup first-draw afterLoginMs=' + Math.round(performance.now() - T.gameStartAt));
     bg.style.display = 'none'; logo.style.display = 'none'; title.style.display = 'none'; load.style.display = 'none';
     hud.style.display = '';
@@ -918,7 +1071,12 @@
     let n = 0, t0 = performance.now();
     function tick(t) {
       n++;
-      if (t - t0 >= 500) { if (hud.style.display !== 'none') fps.textContent = Math.round(n * 1000 / (t - t0)) + ' FPS'; n = 0; t0 = t; }
+      if (t - t0 >= 500) {
+        T.rafFps = Math.round(n * 1000 / (t - t0));
+        if (!T.go && !document.hidden && t - t0 < 800) T.preGameHz = T.rafFps;
+        if (hud.style.display !== 'none' && fps.textContent !== T.rafFps + ' FPS') fps.textContent = T.rafFps + ' FPS';
+        n = 0; t0 = t;
+      }
       requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
@@ -1019,15 +1177,29 @@
   // Game controller (standard layout, e.g. Android handhelds): presses the on-screen controls. Left stick or d-pad is the stick,
   // A is JUMP, B is ACTION, X is CAM, Y is TASKS, L1/R1 are the tug-of-war buttons. Only when the game would show the controls (even if
   // the player hid them), and not while typing. Like a keyboard, using one hides the on-screen controls (On-screen controls: Auto).
-  let padPrev = [], padSeen = false, padUsed = false;
-  requestAnimationFrame(function padPoll() {
+  function noteInput(kind) {
+    let override = 'auto';
+    try { override = LS.getItem('tta_input_method') || 'auto'; } catch (e) {}
+    T.inputMethod = (override === 'mouse' || override === 'touch' || override === 'controller') ? override : kind;
+  }
+  T.inputMethod = 'mouse';
+  let padPrev = [], padSeen = false, padUsed = false, hadPad = false, nextPadProbe = 0;
+  addEventListener('gamepadconnected', () => { nextPadProbe = 0; });
+  requestAnimationFrame(function padPoll(nowMs) {
     requestAnimationFrame(padPoll);
+    if (!hadPad && nowMs < nextPadProbe) return;
     let p = null;
     try { for (const x of (navigator.getGamepads ? navigator.getGamepads() : [])) if (x && x.connected) { p = x; break; } } catch (e) {}
-    const on = !!p && !!+uiArgs[0] && !textOn;
+    const hadPadLastFrame = hadPad;
+    hadPad = !!p;
+    if (!p) {
+      nextPadProbe = nowMs + 500;
+      if (!hadPadLastFrame) return;
+    }
+    const on = !!p && !!+uiArgs[0] && !textOn && !T.awaySince;
     if (on && (p.buttons.some((b) => b.pressed) || p.axes.slice(0, 2).some((v) => Math.abs(v) > 0.5))) {
-      lastKeyAt = Date.now();
       if (!padUsed) { padUsed = true; plog('JS| controller in use'); applyTouchUI(); }
+      noteInput('controller');
     }
     const btn = (i) => on && !!p.buttons[i] && (p.buttons[i].pressed || p.buttons[i].value > 0.5);
     const ax = (i) => (on && p.axes[i]) || 0;
@@ -1047,20 +1219,48 @@
   // ------------------------------------------------------------------ display settings (sign-in screen and in game)
   // The settings cog and the keyboard keys card are described by one spec shared with the native apps (shared/settings-spec.json,
   // served at /_ui/settings-spec.json). This is the same text, used when the spec cannot be fetched; tools/check_spec.py keeps them equal.
-  const SPEC_DEFAULT = {"version":1,"about":"The one description of the settings cog and the keyboard keys card. The web app and every native app build these screens from it (served at /_ui/settings-spec.json; each app also carries this same text as a fallback). A row shows on a platform when its platforms list includes it ('web': the browser app on any device, 'desktop': the Windows, Linux and Mac apps, 'android' and 'ios': the native phone apps). Each app implements the row ids.","title":"Settings","sections":[{"id":"display","title":"Display","rows":[{"id":"window_mode","label":"Window","hint":"Full screen or a window (F11 does the same)","platforms":["desktop"],"choices":[["window","Window"],["full","Full screen"]],"default":"window"},{"id":"window_size","label":"Window size","hint":"Used while it is a window","platforms":["desktop"],"choices":[["1280x720","1280x720"],["1600x900","1600x900"],["1920x1080","1920x1080"],["2560x1440","2560x1440"]],"default":"1280x720"},{"id":"picture_quality","label":"Picture quality","hint":"Lower is smoother on slower devices","platforms":["web","android","ios"],"choices":[["2","Sharp"],["1.5","Balanced"],["1","Fast"],["0.75","Fastest"]],"default":"2"},{"id":"smooth_edges","label":"Smooth edges","hint":"Softens jagged lines; off is faster","choices":[["1","On"],["0","Off"]],"default":"1","restart_note":"Smooth edges changes when the game restarts."},{"id":"fps","label":"Speed counter","hint":"The FPS number at the top","choices":[["1","Show"],["0","Hide"]],"default":"1"}]},{"id":"sound","title":"Sound","rows":[{"id":"mix_others","label":"Other apps\u2019 audio","hint":"Let music from other apps keep playing. The game then follows the silent switch","platforms":["web","ios","android"],"choices":[["0","Pause"],["1","Keep playing"]],"default":"0"},{"id":"volume","type":"slider","label":"Volume","platforms":["desktop"],"min":0,"max":100,"default":"100"}]},{"id":"controls","title":"Controls","rows":[{"id":"touch_ui","label":"On-screen controls","hint":"Auto hides them while you play with a keyboard or controller","platforms":["web","android","ios"],"choices":[["auto","Auto"],["show","Show"],["hide","Hide"]],"default":"auto"},{"id":"pointer_mode","label":"Touch pointer","hint":"Tap: a touch clicks where it lands. Cursor: drag anywhere to move a cursor, tap to click it","platforms":["web"],"choices":[["tap","Tap"],["cursor","Cursor"]],"default":"tap"},{"id":"stick_sensitivity","type":"slider","label":"Joystick sensitivity","hint":"Low: small pushes walk slowly (finer control). High: the toon speeds up sooner","platforms":["web","ios"],"min":50,"max":160,"default":"100","left":"Gentle","right":"Quick"},{"id":"keys","type":"page","label":"Keyboard keys","platforms":["web","desktop"]}]},{"id":"notifications","title":"Notifications","rows":[{"id":"push","type":"push","platforms":["web"]}]}],"keys":{"title":"Keyboard keys","tip":"Tap an action, then press the key you want for it. The game's own keys keep working too.","waiting":"Press a key... (Esc cancels)","reset":"Use the game's keys","wasd":"Use WASD and Space","wasd_map":{"w":"fwd","s":"back","a":"left","d":"right","space":"jump"},"actions":[{"id":"fwd","label":"Walk forward","game_key":"arrow_up","web_code":"ArrowUp"},{"id":"back","label":"Walk back","game_key":"arrow_down","web_code":"ArrowDown"},{"id":"left","label":"Turn left","game_key":"arrow_left","web_code":"ArrowLeft"},{"id":"right","label":"Turn right","game_key":"arrow_right","web_code":"ArrowRight"},{"id":"jump","label":"Jump","game_key":"control","web_code":"ControlLeft"},{"id":"pie","label":"Throw pie","game_key":"delete","web_code":"Delete"},{"id":"tasks","label":"Tasks","game_key":"end","web_code":"End"},{"id":"gags","label":"Gags","game_key":"home","web_code":"Home"},{"id":"map","label":"Map","game_key":"alt","web_code":"AltLeft"},{"id":"book","label":"Shticker Book","game_key":"f8","web_code":"F8"},{"id":"friends","label":"Friends","game_key":"f7","web_code":"F7"},{"id":"camera","label":"Camera view","game_key":"tab","web_code":"Tab"}]}};
-  let SPEC = SPEC_DEFAULT;
+  const SPEC_DEFAULT = {"version":1,"about":"The one description of the settings cog and the keyboard keys card. The web app and every native app build these screens from it (served at /_ui/settings-spec.json; each app also carries this same text as a fallback). A row shows on a platform when its platforms list includes it ('web': the browser app on any device, 'desktop': the Windows, Linux and Mac apps, 'android' and 'ios': the native phone apps). Each app implements the row ids.","title":"Settings","sections":[{"id":"display","title":"Graphics","rows":[{"id":"window_mode","label":"Window","hint":"Full screen or a window (F11 does the same)","platforms":["desktop"],"choices":[["window","Window"],["full","Full screen"]],"default":"window"},{"id":"window_size","label":"Window size","hint":"Used while it is a window","platforms":["desktop"],"choices":[["1280x720","1280x720"],["1600x900","1600x900"],["1920x1080","1920x1080"],["2560x1440","2560x1440"]],"default":"1280x720"},{"id":"picture_quality","label":"Picture quality","hint":"Lower is smoother on slower devices","platforms":["web","android","ios"],"choices":[["2","Sharp"],["1.5","Balanced"],["1","Fast"],["0.75","Fastest"]],"default":"2"},{"id":"smooth_edges","label":"Smooth edges","hint":"Softens jagged lines; off is faster","choices":[["1","On"],["0","Off"]],"default":"1","restart_note":"Smooth edges changes when the game restarts."},{"id":"fps","label":"Speed counter","hint":"The FPS number at the top","choices":[["1","Show"],["0","Hide"]],"default":"1"},{"id":"textures","label":"Textures","hint":"Original uses authentic textures; Remastered uses upscaled textures","platforms":["web"],"choices":[["original","Original"],["remastered","Remastered"]],"default":"original","restart_note":"Texture changes take effect after restarting the game."},{"id":"ui_style","label":"UI","platforms":["web"],"choices":[["minimalist","Minimalist"],["modern-tt","Modern TT"]],"default":"minimalist"},{"id":"ui_size","label":"UI size","hint":"Normal adapts to your screen. Large enlarges controls and keeps the book at Normal.","platforms":["web"],"choices":[["normal","Normal"],["large","Large"]],"default":"normal"}]},{"id":"sound","title":"Sound","rows":[{"id":"mix_others","label":"Other apps’ audio","hint":"Let music from other apps keep playing. The game then follows the silent switch","platforms":["web","ios","android"],"choices":[["0","Pause"],["1","Keep playing"]],"default":"0"},{"id":"volume","type":"slider","label":"Volume","platforms":["desktop"],"min":0,"max":100,"default":"100"}]},{"id":"controls","title":"Controls","rows":[{"id":"touch_ui","label":"On-screen controls","hint":"Auto shows them for touch and hides them while using a keyboard, mouse, or controller","platforms":["web","android","ios"],"choices":[["auto","Auto"],["show","Show"],["hide","Hide"]],"default":"auto"},{"id":"pointer_mode","label":"Touch pointer","hint":"Tap: a touch clicks where it lands. Cursor: drag anywhere to move a cursor, tap to click it","platforms":["web"],"choices":[["tap","Tap"],["cursor","Cursor"]],"default":"tap"},{"id":"stick_sensitivity","type":"slider","label":"Joystick sensitivity","hint":"Low: small pushes walk slowly (finer control). High: the toon speeds up sooner","platforms":["web","ios"],"min":50,"max":160,"default":"100","left":"Gentle","right":"Quick"},{"id":"keys","type":"page","label":"Keyboard keys","platforms":["web","desktop"]}]},{"id":"notifications","title":"Notifications","rows":[{"id":"push","type":"push","platforms":["web"]}]}],"keys":{"title":"Keyboard keys","tip":"Tap an action, then press the key you want for it. The game's own keys keep working too.","waiting":"Press a key... (Esc cancels)","reset":"Use the game's keys","wasd":"Use WASD and Space","wasd_map":{"w":"fwd","s":"back","a":"left","d":"right","space":"jump"},"actions":[{"id":"fwd","label":"Walk forward","game_key":"arrow_up","web_code":"ArrowUp"},{"id":"back","label":"Walk back","game_key":"arrow_down","web_code":"ArrowDown"},{"id":"left","label":"Turn left","game_key":"arrow_left","web_code":"ArrowLeft"},{"id":"right","label":"Turn right","game_key":"arrow_right","web_code":"ArrowRight"},{"id":"jump","label":"Jump","game_key":"control","web_code":"ControlLeft"},{"id":"pie","label":"Throw pie","game_key":"delete","web_code":"Delete"},{"id":"tasks","label":"Tasks","game_key":"end","web_code":"End"},{"id":"gags","label":"Gags","game_key":"home","web_code":"Home"},{"id":"map","label":"Map","game_key":"alt","web_code":"AltLeft"},{"id":"book","label":"Shticker Book","game_key":"f8","web_code":"F8"},{"id":"friends","label":"Friends","game_key":"f7","web_code":"F7"},{"id":"camera","label":"Camera view","game_key":"tab","web_code":"Tab"}]}};
+  let SPEC = withGraphicsSettings(SPEC_DEFAULT);
+  function withGraphicsSettings(spec) {
+    const display = spec.sections.find((section) => section.id === 'display');
+    if (display) {
+      display.title = 'Graphics';
+      SPEC_DEFAULT.sections.find((section) => section.id === 'display').rows.forEach((row) => {
+        if ((row.id === 'ui_size' || row.id === 'ui_style') && !display.rows.some((entry) => entry.id === row.id)) {
+          display.rows.push(row);
+        }
+      });
+    }
+    return spec;
+  }
   const lsGet = (k, d) => { try { const v = LS.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
   const lsSet = (k, v) => { try { LS.setItem(k, v); } catch (e) {} };
   function applyFps() { fps.style.display = lsGet('tta_fps', '1') === '0' ? 'none' : ''; }
   applyFps();
   const setWrap = el('div', null, root); setWrap.id = 'tta-set'; setWrap.style.display = 'none';
   const mine = (r) => !r.platforms || r.platforms.indexOf('web') >= 0;
-  let setNote = null, setRestart = null;
+  function activeSetting(id) {
+    if (id === 'smooth_edges') return T.aa;
+    if (id === 'textures') return lsGet('tta_textures_active', 'original');
+    return null;
+  }
   const BEHAVIOUR = {        // row id -> [current value, what choosing a value does]; a row this app has no behaviour for is left out
+    ui_size: [() => lsGet('tta_ui_size', 'normal') === 'large' ? 'large' : 'normal', (v) => {
+      if (v === 'normal' || v === 'large') lsSet('tta_ui_size', v);
+    }],
+    ui_style: [() => lsGet('tta_ui_style', 'minimalist'), (v) => {
+      if (v === 'minimalist' || v === 'modern-tt') lsSet('tta_ui_style', v);
+    }],
     picture_quality: [() => String(lsGet('tta_res', '') || '2'), (v) => { lsSet('tta_res', v); relayout(); }],
-    smooth_edges: [() => T.aa, (v) => { lsSet('tta_aa', v); if (setNote) setNote.style.visibility = v === T.aa ? 'hidden' : ''; if (setRestart) setRestart.style.display = v === T.aa ? 'none' : ''; }],
+    smooth_edges: [() => lsGet('tta_aa', T.aa), (v) => {
+      if (v === '0' || v === '1') lsSet('tta_aa', v);
+    }],
     fps: [() => lsGet('tta_fps', '1'), (v) => { lsSet('tta_fps', v); applyFps(); }],
+    textures: [() => lsGet('tta_textures', 'original'), (v) => lsSet('tta_textures', v)],
     mix_others: [() => lsGet('tta_mix', '0'), (v) => { lsSet('tta_mix', v); try { if (window.ttaAudio && window.ttaAudio.mixOthers) window.ttaAudio.mixOthers(v === '1'); } catch (e) {} }],
+    ui_volume: [() => lsGet('tta_ui_volume', '100'), (v) => { lsSet('tta_ui_volume', v); }],
+    ui_mute: [() => lsGet('tta_ui_mute', '0'), (v) => { lsSet('tta_ui_mute', v); }],
+    input_method: [() => lsGet('tta_input_method', 'auto'), (v) => { lsSet('tta_input_method', v); noteInput(T.inputMethod || 'mouse'); }],
     touch_ui: [() => lsGet('tta_touch', 'auto'), (v) => { lsSet('tta_touch', v); applyTouchUI(); }],
     stick_sensitivity: [() => String(Math.round(stickSens())), (v) => { lsSet('tta_stick', v); try { plog('JS| stick sensitivity set to ' + v); } catch (e) {} }],
     pointer_mode: [() => lsGet('tta_pointer', 'tap'), (v) => { lsSet('tta_pointer', v); if (window.ttaPointerRefresh) window.ttaPointerRefresh(); }],
@@ -1090,7 +1290,16 @@
       const hi = el('span', null, g); hi.textContent = r.right || '';
       inp.addEventListener('input', () => b[1](String(inp.value)));
     };
-    let note = null, restart = null;
+    const notes = new Map();
+    const refreshRestart = () => {
+      let pending = false;
+      for (const [id, note] of notes) {
+        const changed = BEHAVIOUR[id][0]() !== activeSetting(id);
+        note.hidden = !changed;
+        pending ||= changed;
+      }
+      restart.style.display = pending ? '' : 'none';
+    };
     (SPEC.sections || []).forEach((sc) => {
       const rows = (sc.rows || []).filter(mine);
       if (!rows.length) return;
@@ -1104,11 +1313,16 @@
         const b = BEHAVIOUR[r.id];
         if (!b) return;
         if (r.type === 'slider') { slider(r, b); return; }
-        row(r.label, r.hint, r.choices, b[0](), b[1]);
-        if (r.restart_note) { note = setNote = el('div', 'note', card); note.style.visibility = 'hidden'; note.textContent = r.restart_note; }
+        row(r.label, r.hint, r.choices, b[0](), (value) => { b[1](value); refreshRestart(); });
+        if (r.restart_note) {
+          const note = el('div', 'note', card);
+          note.textContent = r.restart_note;
+          notes.set(r.id, note);
+        }
       });
     });
-    restart = setRestart = el('button', 'act', card); restart.textContent = 'Restart game now'; restart.style.display = 'none';
+    const restart = el('button', 'act', card); restart.textContent = 'Restart game now';
+    refreshRestart();
     restart.addEventListener('click', () => location.reload());
     const done = el('button', 'act done', card); done.textContent = 'Done';
     done.addEventListener('click', () => { setWrap.style.display = 'none'; setWrap.innerHTML = ''; });
@@ -1119,14 +1333,14 @@
     (SPEC.sections || []).forEach((sc) => (sc.rows || []).filter(mine).forEach((r) => {
       if (r.type === 'push' || r.type === 'page') out.push({ section: sc.title, id: r.id, type: r.type, label: r.label || (r.type === 'push' ? 'Event notifications' : r.id), hint: r.hint || '' });
       else if (BEHAVIOUR[r.id] && r.type === 'slider') out.push({ section: sc.title, id: r.id, type: 'slider', label: r.label, hint: r.hint || '', min: r.min, max: r.max, left: r.left || '', right: r.right || '' });
-      else if (BEHAVIOUR[r.id]) out.push({ section: sc.title, id: r.id, type: 'choice', label: r.label, hint: r.hint || '', choices: r.choices, restart: r.restart_note || '' });
+      else if (BEHAVIOUR[r.id]) out.push({ section: sc.title, id: r.id, type: 'choice', label: r.label, hint: r.hint || '', choices: r.choices, restart: r.restart_note || '', active: activeSetting(r.id) });
     }));
     return JSON.stringify(out);
   };
   T.devGet = (id) => (BEHAVIOUR[id] ? String(BEHAVIOUR[id][0]()) : '');
   T.devSet = (id, v) => { if (BEHAVIOUR[id]) BEHAVIOUR[id][1](String(v)); };
   T.devOpen = (what) => { if (what === 'keys') { keysFromBook = true; showKeys(); } else showNotifications(); };
-  T.devRestart = () => location.reload();
+  T.devRestart = () => { plog('JS| device restart pressed'); location.reload(); };
   let keysFromBook = false;
   function showNotifications() {
     setWrap.innerHTML = ''; setWrap.style.display = '';
@@ -1263,7 +1477,10 @@
   // a desktop) stops reaching the game. Hand the focus back to the game's canvas.
   function gameFocus() {
     const cv = document.querySelector('canvas.emscripten'); if (!cv) return;
-    if (!cv.hasAttribute('tabindex')) cv.tabIndex = -1;
+    // Make the canvas a reliable keyboard target after a browser/tab switch.
+    // Pygbag's template gives it a positive tabindex, which may be skipped in
+    // some embedded browser focus-return paths.
+    cv.tabIndex = 0;
     try { cv.focus({ preventScroll: true }); } catch (e) {}
   }
   tin.addEventListener('blur', () => {
@@ -1347,7 +1564,7 @@
       const r = await fetch(prefs.base + '/_ui/settings-spec.json', { cache: 'no-cache' });
       if (!r.ok) return;
       const j = await r.json();
-      if (j && j.version === 1 && Array.isArray(j.sections) && j.keys && Array.isArray(j.keys.actions)) { SPEC = j; applyKeySpec(); }
+      if (j && j.version === 1 && Array.isArray(j.sections) && j.keys && Array.isArray(j.keys.actions)) { SPEC = withGraphicsSettings(j); applyKeySpec(); }
     } catch (e) {}
   })();
   const KEYINFO = { ArrowUp: ['ArrowUp', 38], ArrowDown: ['ArrowDown', 40], ArrowLeft: ['ArrowLeft', 37], ArrowRight: ['ArrowRight', 39],
@@ -1355,9 +1572,10 @@
   let keyMap = {};           // the player's key (event code) -> action id
   try { keyMap = JSON.parse(lsGet('tta_keys', '{}')) || {}; } catch (e) { keyMap = {}; }
   const saveKeys = () => lsSet('tta_keys', JSON.stringify(keyMap));
-  let kbUsed = false, lastKeyAt = 0, keyCapture = null;
+  let kbUsed = false, mouseUsed = false, keyCapture = null;
   const heldKeys = {};       // the player's key -> the game key sent for it, until it comes up
-  function touchHidden() { const m = lsGet('tta_touch', 'auto'); return m === 'hide' || (m === 'auto' && (kbUsed || padUsed)); }
+  let inputRestorePending = false; // one key receipt after returning focus, for diagnosing embedded-wrapper input loss
+  function touchHidden() { const m = lsGet('tta_touch', 'auto'); return m === 'hide' || (m === 'auto' && (kbUsed || mouseUsed || padUsed)); }
   function applyTouchUI() { T.setUI(uiArgs[0], uiArgs[1], uiArgs[2]); }
   function keyName(code) {
     const named = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', ControlLeft: 'Ctrl', ControlRight: 'Right Ctrl', AltLeft: 'Alt/Option',
@@ -1384,11 +1602,15 @@
   }
   function onKey(e) {
     if (e.ttaMade || !e.isTrusted) return;   // only a real keyboard counts (the TASKS button sends its own End key)
+    if (inputRestorePending && e.type === 'keydown') {
+      inputRestorePending = false;
+      plog('JS| restored keyboard input observed (' + e.code + ')');
+    }
     if (keyCapture) { e.preventDefault(); e.stopImmediatePropagation(); if (e.type === 'keydown') keyCapture(e); return; }
     if (hud.style.display === 'none' || typing()) return;
     if (e.type === 'keydown' && e.key !== 'Meta') {
-      lastKeyAt = Date.now();
       if (!kbUsed) { kbUsed = true; plog('JS| keyboard in use (' + e.code + ')'); applyTouchUI(); }
+      noteInput('mouse');
     }
     const id = keyMap[e.code];
     if (!id || !actTarget[id]) return;
@@ -1424,6 +1646,7 @@
     if (typing()) { plog('JS| input restore deferred while typing after ' + reason); return; }
     releaseAll();
     if (keyCapture) { keyCapture = null; plog('JS| cleared key capture after ' + reason); }
+    inputRestorePending = true;
     const cv = document.querySelector('canvas.emscripten');
     const active = document.activeElement;
     // Browsers can leave a wrapper div or control active after returning to the app. Clear stale focus, then refocus Panda's canvas.
@@ -1436,22 +1659,115 @@
       }
     }, 0);
   }
-  T.recoverInput = (reason) => regainGame(reason || 'reconnect');
-  addEventListener('blur', () => { releaseAll(); if (keyCapture) keyCapture = null; });
-  // A browser may preserve the canvas as active while the native window has lost its keyboard focus.
-  // Blur and refocus it after returning so Panda's input device is reattached too.
-  addEventListener('focus', () => setTimeout(() => regainGame('window focus'), 50));
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { releaseAll(); if (keyCapture) keyCapture = null; }
-    else setTimeout(() => regainGame('tab return'), 50);
-  });
-  addEventListener('pageshow', () => setTimeout(() => regainGame('page show'), 50));
-  addEventListener('pointerdown', (e) => {
-    if (e.target && e.target.classList && e.target.classList.contains('emscripten')) {
-      if (e.pointerType === 'mouse' && e.button === 0) T.mc = (T.mc + 1) >>> 0;
-      if (focusIsStale() && !typing()) gameFocus();
+  // The HUD inherits pointer-events:none from the page overlay. The resume
+  // button must opt back in so the gesture reaches it instead of the game.
+  const resumePad = el('button', 'tta-resume', hud);
+  resumePad.type = 'button';
+  resumePad.textContent = touchScreen ? 'Tap to resume' : 'Click to resume';
+  resumePad.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;' +
+    'z-index:2147483647;pointer-events:auto;width:100%;height:100%;border:0;cursor:pointer;' +
+    'background:rgba(0,0,0,.45);color:#fff;font-size:26px;font-weight:800;' +
+    '-webkit-user-select:none;user-select:none;touch-action:manipulation;';
+  let resumePending = false;
+  let awayTimeout = null;
+  T.awaySince = 0;
+  T.awayExpired = false;
+  const AWAY_LIMIT = 10 * 60 * 1000;
+  function notifyAway(state) {
+    const net = window.webnet;
+    if (net?.awayCapable && net.state === 'open') net.ws.send('tta-away-v1:' + state);
+  }
+  function expireAway() {
+    if (!T.awaySince || Date.now() - T.awaySince < AWAY_LIMIT) return;
+    T.awayExpired = true;
+    const net = window.webnet;
+    if (net?.state === 'open') net.ws.close(4001, 'Away for 10 minutes');
+  }
+  resumePad.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    resumePending = false;
+    resumePad.style.display = 'none';
+    plog('JS| resume tap accepted');
+    if (window.webnet && window.webnet.state === 'closed') {
+      plog('JS| auto reload after connection loss (resume)');
+      location.reload();
+      return;
     }
-    if (e.pointerType === 'touch' && (kbUsed || padUsed) && Date.now() - lastKeyAt > 20000) { kbUsed = padUsed = false; plog('JS| touch again: controls back'); applyTouchUI(); }
+    try { window.focus(); } catch (err) {}
+    if (textOn) {
+      tin.focus({ preventScroll: true });
+    } else {
+      regainGame('resume tap');
+      gameFocus();
+    }
+  });
+  function markGameAway() {
+    if (hud.style.display !== 'none') {
+      resumePending = true;
+      if (!T.awaySince && !T.awayExpired) {
+        T.awaySince = Date.now();
+        notifyAway('away');
+        awayTimeout = setTimeout(expireAway, AWAY_LIMIT);
+      }
+      Object.keys(st).forEach((key) => { st[key] = 0; gp[key] = 0; });
+      an.touch = an.pad = [0, 0];
+      pushInput();
+      pushAnalog();
+    }
+    releaseAll();
+    if (T.awaySince) {
+      try { window.webnet?.applyAway?.(); }
+      catch (error) { plog('JS| could not apply sleep immediately: ' + error); }
+    }
+    if (keyCapture) keyCapture = null;
+  }
+  T.recoverInput = (reason) => regainGame(reason || 'reconnect');
+  addEventListener('blur', markGameAway);
+  addEventListener('pagehide', markGameAway);
+  function recoverAfterReturn(reason) {
+    if (!resumePending || document.hidden || hud.style.display === 'none' ||
+        resumePad.style.display !== 'none') return;
+    expireAway();
+    clearTimeout(awayTimeout);
+    T.awaySince = 0;
+    if (T.awayExpired) {
+      resumePending = false;
+      return;
+    }
+    const net = window.webnet;
+    if (net?.state === 'open') {
+      notifyAway('return');
+      resumePending = false;
+      regainGame(reason);
+      return;
+    }
+    resumePad.style.display = 'flex';
+    plog('JS| resume prompt shown after ' + reason);
+  }
+  addEventListener('focus', () => recoverAfterReturn('window focus'));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) markGameAway();
+    else recoverAfterReturn('tab return');
+  });
+  addEventListener('pageshow', () => recoverAfterReturn('page show'));
+  addEventListener('pointerdown', (e) => {
+    const cv = document.querySelector('canvas.emscripten');
+    if (e.isTrusted && cv && (e.target === cv || cv.contains(e.target))) {
+      if (e.pointerType === 'mouse' && e.button === 0) T.mc = (T.mc + 1) >>> 0;
+      // A real click/tap on the game is the most reliable focus gesture after
+      // returning from another tab or app, even if the browser left a stale
+      // canvas/wrapper as document.activeElement. Focusing the top-level page
+      // from this user gesture also helps native wrappers hand keyboard focus
+      // back to their embedded game surface.
+      if (!typing()) {
+        try { window.focus(); } catch (err) {}
+        regainGame('game pointer');
+      }
+    }
+    if (e.pointerType === 'mouse' && !mouseUsed) { mouseUsed = true; plog('JS| mouse in use'); applyTouchUI(); }
+    if (e.pointerType === 'mouse') noteInput('mouse');
+    if (e.pointerType === 'touch') noteInput('touch');
+    if (e.pointerType === 'touch' && (kbUsed || mouseUsed || padUsed)) { kbUsed = mouseUsed = padUsed = false; plog('JS| touch in use: controls back'); applyTouchUI(); }
   }, true);
   function wasdMap() {        // the spec names keys the way the native apps do ('w', 'space'); the page uses event codes ('KeyW', 'Space')
     const out = {};
@@ -1559,16 +1875,20 @@
   function glInfo(c) {
     try {
       if (!c) return '-';
-      const gl = c.getContext('webgl2') || c.getContext('webgl'); if (!gl) return 'none';
+      // Do not call canvas.getContext() here: it creates a context if Panda has not
+      // created one yet, and its browser-default attributes can lock in MSAA before
+      // Emscripten/Panda requests the game's intended settings.
+      const gl = c.GLctxObject && c.GLctxObject.GLctx; if (!gl) return 'not-created';
       const a = gl.getContextAttributes() || {};
-      return (gl instanceof WebGL2RenderingContext ? 'webgl2' : 'webgl1') + ' depth=' + gl.getParameter(gl.DEPTH_BITS) + ' stencil=' + gl.getParameter(gl.STENCIL_BITS) + ' aa=' + a.antialias + ' samples=' + gl.getParameter(gl.SAMPLES);
+      const isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
+      return (isWebGL2 ? 'webgl2' : 'webgl1') + ' depth=' + gl.getParameter(gl.DEPTH_BITS) + ' stencil=' + gl.getParameter(gl.STENCIL_BITS) + ' aa=' + a.antialias + ' samples=' + gl.getParameter(gl.SAMPLES);
     } catch (e) { return 'err ' + e; }
   }
   function envLog(tag) {
     try {
       const c = document.querySelector('canvas.emscripten'); const r = c ? c.getBoundingClientRect() : null; const vv = window.visualViewport;
       plog('JS| env ' + tag + ' inner ' + innerWidth + 'x' + innerHeight + ' outer ' + outerWidth + 'x' + outerHeight + ' screen ' + screen.width + 'x' + screen.height + ' avail ' + screen.availWidth + 'x' + screen.availHeight +
-        ' dpr ' + devicePixelRatio + ' vv ' + (vv ? Math.round(vv.width) + 'x' + Math.round(vv.height) + '@' + Math.round(vv.offsetLeft) + ',' + Math.round(vv.offsetTop) + ' s' + vv.scale : '-') +
+        ' dpr ' + devicePixelRatio + ' gameScale ' + pixelRatio + ' touchScreen ' + touchScreen + ' vv ' + (vv ? Math.round(vv.width) + 'x' + Math.round(vv.height) + '@' + Math.round(vv.offsetLeft) + ',' + Math.round(vv.offsetTop) + ' s' + vv.scale : '-') +
         ' standalone ' + standalone + ' dm ' + (matchMedia('(display-mode: standalone)').matches ? 'standalone' : matchMedia('(display-mode: fullscreen)').matches ? 'fullscreen' : 'browser') +
         ' orient ' + ((screen.orientation && screen.orientation.type) || '-') + ' safe ' + SAFE.t + ',' + SAFE.r + ',' + SAFE.b + ',' + SAFE.l +
         ' canvas ' + (c ? c.width + 'x' + c.height + ' css ' + Math.round(r.width) + 'x' + Math.round(r.height) + '@' + Math.round(r.left) + ',' + Math.round(r.top) : '-') + ' win ' + T.winW + 'x' + T.winH + ' panda ' + T.pw + 'x' + T.ph + ' gl ' + glInfo(c) + ' ua ' + ua);
@@ -1582,6 +1902,20 @@
   // after the move (a few frames), and held a moment before it is released. Sending all three at once made quick taps on small
   // buttons (the chat menus) miss.
   (function () {
+    const nativeTouch = 'ontouchstart' in document.documentElement;
+    const pointerQueue = [];
+    T.enableCanvasPointer = () => {
+      T.canvasPointerEnabled = true;
+      T.canvasTouchEnabled = touchScreen && typeof window.PointerEvent === "function";
+      relayout();
+      return true;
+    };
+    T.disableCanvasPointer = () => {
+      T.canvasPointerEnabled = T.canvasTouchEnabled = false;
+      pointerQueue.length = 0;
+      relayout();
+    };
+    T.takeCanvasPointer = () => pointerQueue.shift()?.join(',') || '';
     const DOWN_DELAY = 70, MIN_HOLD = 60;
     let active = null, last = null, pressed = false, downTimer = null, downPlanned = 0;
     // Cursor mode (Settings > Touch pointer): the screen is a trackpad. Dragging anywhere moves the glove cursor drawn over the game (the
@@ -1609,15 +1943,57 @@
       setTimeout(() => fire('mousedown', at), DOWN_DELAY);
       setTimeout(() => fire('mouseup', at), DOWN_DELAY + MIN_HOLD);
     }
-    const isGame = (t) => t && t.classList && t.classList.contains('emscripten');
+    const isGame = (t) => t && t.id === 'canvas';
+    function queuePointer(type, e, button = 1) {
+      const canvas = document.getElementById('canvas');
+      const rect = canvas && canvas.getBoundingClientRect();
+      if (!rect || !rect.width || !rect.height) return;
+      const fraction = (value) => Math.max(0, Math.min(0.999999, value));
+      if (type === 'mousemove' && pointerQueue[pointerQueue.length - 1]?.[0] === type) pointerQueue.pop();
+      pointerQueue.push([type, fraction((e.clientX - rect.left) / rect.width),
+        fraction((e.clientY - rect.top) / rect.height), button]);
+    }
+    const mouseButtons = new Set();
+    let lastMouse;
+    for (const type of ['mousemove', 'mousedown', 'mouseup']) {
+      window.addEventListener(type, (e) => {
+        if (!T.canvasPointerEnabled || document.pointerLockElement || !e.isTrusted) return;
+        if ((!isGame(e.target) && !mouseButtons.size) || (pixelRatio === 1 && !mouseButtons.size)) return;
+        const button = e.button + 1;
+        if (type !== 'mousemove' && (button < 1 || button > 3)) return;
+        if (type === 'mousedown') mouseButtons.add(button);
+        if (type === 'mouseup') {
+          if (!mouseButtons.delete(button)) return;
+        }
+        lastMouse = e;
+        queuePointer(type, e, button);
+        e.stopImmediatePropagation();
+      }, true);
+    }
+    window.addEventListener('blur', () => {
+      for (const button of mouseButtons) queuePointer('mouseup', lastMouse, button);
+      mouseButtons.clear();
+    });
     function fire(type, e, buttons) {
       const cv = document.querySelector('canvas.emscripten'); if (!cv) return;
-      cv.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window, clientX: e.clientX, clientY: e.clientY,
-        screenX: e.screenX, screenY: e.screenY, button: 0, buttons: buttons !== undefined ? buttons : (type === 'mouseup' ? 0 : 1) }));
+      if (T.canvasTouchEnabled) {
+        queuePointer(type, e);
+        return;
+      }
+      const mouse = new MouseEvent(type, { bubbles: true, cancelable: true, view: window, clientX: e.clientX, clientY: e.clientY,
+        screenX: e.screenX, screenY: e.screenY, button: 0, buttons: type === 'mouseup' ? 0 : 1 });
+      // Pygbag scales mouse input from pageX/pageY against the canvas rectangle. Preserve the
+      // original pointer's document coordinates; Safari can derive a different page coordinate
+      // for a synthetic mouse event after the visual viewport has moved or zoomed.
+      try { Object.defineProperties(mouse, {
+        pageX: { configurable: true, value: Number.isFinite(e.pageX) ? e.pageX : e.clientX + (window.scrollX || 0) },
+        pageY: { configurable: true, value: Number.isFinite(e.pageY) ? e.pageY : e.clientY + (window.scrollY || 0) }
+      }); } catch (_) {}
+      cv.dispatchEvent(mouse);
     }
     function press() { if (downTimer) { clearTimeout(downTimer); downTimer = null; } if (!pressed) { pressed = true; fire('mousedown', last); } }
     document.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'mouse' || !isGame(e.target) || active !== null) return;
+      if ((nativeTouch && !T.canvasTouchEnabled) || e.pointerType === 'mouse' || !isGame(e.target) || active !== null || downTimer || pressed) return;
       active = e.pointerId; last = e; e.preventDefault();
       if (cursorOn()) {
         const ses = session = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false, dragging: false, timer: null };
@@ -1661,12 +2037,29 @@
         return;
       }
       active = null; last = e;
+      if (e.type === 'pointercancel') {
+        clearTimeout(downTimer);
+        downTimer = null;
+        if (pressed) { pressed = false; fire('mouseup', e); }
+        return;
+      }
       const wait = Math.max(0, downPlanned + MIN_HOLD - Date.now());
       setTimeout(() => { press(); pressed = false; fire('mouseup', e); }, wait);
     };
     document.addEventListener('pointerup', up, true);
     document.addEventListener('pointercancel', up, true);
-    document.addEventListener('touchstart', (e) => { if (isGame(e.target)) e.preventDefault(); }, { capture: true, passive: false });   // no second, browser-made set of mouse events
+    // Consume native canvas touch events before SDL can emit a second click.
+    for (const type of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) {
+      window.addEventListener(type, (e) => {
+        if (!isGame(e.target)) return;
+        if (T.canvasTouchEnabled) {
+          // Keep iOS's real-gesture keyboard request in tap mode.
+          if (type === 'touchend' && !cursorOn()) kbOnce(e);
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        } else if (!nativeTouch && type === 'touchstart') e.preventDefault();
+      }, { capture: true, passive: false });
+    }
   })();
   // The page's own start-up code resizes the drawing surface when the window changes, without telling the game, so the game can end up
   // drawing into a smaller area than the surface (a grey strip at the edge). If the game agrees with the size we asked for but the surface

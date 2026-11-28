@@ -6,6 +6,8 @@ import platform
 import time
 import traceback
 
+from panda3d.core import ClockObject, MouseButton
+
 import webui_core as core
 
 T = platform.window.tta
@@ -65,9 +67,11 @@ def _auto_reconnect():
             _rc["told"] = True
             print("webnet: closed, game shows lost connection: booted=%s %s" % (getattr(cr, "bootedIndex", None),
                                                                                   str(getattr(cr, "bootedText", "") or "")[:120]))
+        # 345 = "Server timed out while waiting for heartbeat": the tab was hidden long
+        # enough for its WebSocket to close. That is not a deliberate logout, so retry it.
         if getattr(cr, "bootedIndex", None) in (100, 127, 152):       # thrown out on purpose (100: the same account signed in somewhere else): do not retry by ourselves
             return
-        if str(platform.window.document.visibilityState) != "visible":
+        if bool(getattr(T, "awayExpired", False)) or str(platform.window.document.visibilityState) != "visible":
             return
         now = time.time()
         if not _rc["since"]:
@@ -95,8 +99,73 @@ def _auto_reconnect():
         print(traceback.format_exc())
 
 
+_pointer_device = None
+_pointer_window = None
+
+
+def _poll_pointer():
+    global _pointer_device, _pointer_window
+    window = getattr(getattr(builtins, "base", None), "win", None)
+    if window is None:
+        return
+    if window != _pointer_window:
+        _pointer_window = window
+        _pointer_device = None
+        if getattr(T, "takeCanvasPointer", None) is None or window.getNumInputDevices() == 0:
+            return
+        device = window.getInputDevice(0)
+        if not all(hasattr(device, method) for method in ("setPointerInWindow", "buttonDown", "buttonUp")):
+            return
+        if T.enableCanvasPointer():
+            _pointer_device = device
+            print("webui: calibrated canvas pointer enabled")
+    if _pointer_device is None:
+        return
+    event = str(T.takeCanvasPointer())
+    if not event:
+        return
+    kind, x, y, button = event.split(",")
+    now = ClockObject.getGlobalClock().getRealTime()
+    # The JS event is in canvas fractions. Match the Panda window actually in use
+    # even if a resize/rotation has requested a different framebuffer size.
+    _pointer_device.setPointerInWindow(float(x) * window.getXSize(), float(y) * window.getYSize(), now)
+    if kind == "mousedown":
+        _pointer_device.buttonDown(MouseButton.button(int(button) - 1), now)
+    elif kind == "mouseup":
+        _pointer_device.buttonUp(MouseButton.button(int(button) - 1), now)
+
+
+def pause_for_away():
+    since = int(getattr(T, "awaySince", 0) or 0)
+    if not since:
+        _state.pop("away_sleep", None)
+        return
+    avatar = getattr(builtins, "localAvatar", None)
+    if avatar is None or _state.get("away_sleep") == since or core._place_state() != "walk":
+        return
+    if avatar.hp > 0:
+        core._release_inputs()
+        core.ui_analog(0.0, 0.0)
+        if avatar.getAutoRun():
+            avatar.setAutoRun(0)
+        if avatar.sleepFlag:
+            timeout = avatar.uniqueName("afkTimeout")
+            builtins.taskMgr.remove(timeout)
+            builtins.taskMgr.doMethodLater(avatar.afkTimeout, avatar._Toon__handleAfkTimeout, timeout)
+        else:
+            avatar.gotoSleep()
+        _state["away_sleep"] = since
+
+
 def poll():
+    global _pointer_device
     _auto_reconnect()
+    try:
+        _poll_pointer()
+    except Exception:
+        print("webui: calibrated canvas pointer failed", traceback.format_exc())
+        T.disableCanvasPointer()
+        _pointer_device = None
     try:
         vals = tuple(int(x) for x in str(T.inp).split(","))
         if len(vals) == 8 and vals != _state["vals"]:
@@ -147,6 +216,7 @@ def poll():
                 except BaseException:
                     pass
                 T.setText(1 if on else 0, st[2:])
+        pause_for_away()
         if now - _state["ui_at"] > 0.25:
             _state["ui_at"] = now
             ui = (int(core.ui_controls_visible()), int(core.ui_action_available()), int(core.ui_tug_active()))

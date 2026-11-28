@@ -17,7 +17,7 @@ STATESERVER_OBJECT_SET_FIELD = 2020
 
 _JS = """
 window.webnet = {
-  ws: null, state: 'idle', rx: [], err: '', openedAt: 0, lastRx: 0, shownAt: Date.now(),
+  ws: null, state: 'idle', rx: [], err: '', openedAt: 0, lastRx: 0, shownAt: Date.now(), awayCapable: false,
   // why a connection ended, for the server's client log (the page sends lines starting "PY| webnet: closed" even when quiet):
   // the close code, whether the page was on screen, and for how long nothing had come in
   log: function (what) {
@@ -30,12 +30,24 @@ window.webnet = {
   open: function (url) {
     var n = window.webnet;
     try {
-      var ws = new WebSocket(url);
+      var endpoint = new URL(url, location.href);
+      endpoint.searchParams.set('tta-away', '1');
+      var ws = new WebSocket(endpoint);
       ws.binaryType = 'arraybuffer';
-      n.ws = ws; n.state = 'connecting'; n.rx = []; n.err = ''; n.openedAt = 0; n.lastRx = 0;
-      ws.onopen = function () { if (n.ws === ws) { n.state = 'open'; n.openedAt = Date.now(); } };
+      n.ws = ws; n.state = 'connecting'; n.rx = []; n.err = ''; n.openedAt = 0; n.lastRx = 0; n.awayCapable = false;
+      ws.onopen = function () {
+        if (n.ws !== ws) return;
+        n.state = 'open';
+        n.openedAt = Date.now();
+        if (window.tta && !window.tta.awaySince) window.tta.awayExpired = false;
+      };
       ws.onmessage = function (e) {
         if (n.ws !== ws) return;
+        if (e.data === 'tta-away-v1') {
+          n.awayCapable = true;
+          if (window.tta && window.tta.awaySince) ws.send('tta-away-v1:away');
+          return;
+        }
         n.lastRx = Date.now();
         var b = new Uint8Array(e.data), s = '';
         for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
@@ -44,10 +56,27 @@ window.webnet = {
       ws.onclose = function (e) {
         if (n.ws !== ws) return;
         n.state = 'closed';
+        if (e.code === 4001 && window.tta) window.tta.awayExpired = true;
         n.log('closed code=' + e.code + ' clean=' + e.wasClean + (e.reason ? ' reason=' + e.reason : ''));
       };
       ws.onerror = function () { if (n.ws === ws) { n.err = 'websocket error'; n.log('error'); } };
     } catch (x) { n.state = 'closed'; n.err = String(x); }
+  },
+  applyAway: function () {
+    // A hidden tab can stop the frame loop immediately. Dispatch this one
+    // fixed call before that happens, with the regular game poll as a fallback.
+    var m = window.Module;
+    if (!m || !m._PyRun_SimpleString || !m._PyMem_RawMalloc || !m._PyMem_RawFree) return;
+    var code = new TextEncoder().encode('import webui; webui.pause_for_away()');
+    var pointer = m._PyMem_RawMalloc(code.length + 1);
+    if (!pointer) return;
+    try {
+      m.HEAPU8.set(code, pointer);
+      m.HEAPU8[pointer + code.length] = 0;
+      m._PyRun_SimpleString(pointer);
+    } finally {
+      m._PyMem_RawFree(pointer);
+    }
   },
   send: function (b64) {
     var n = window.webnet;

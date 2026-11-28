@@ -57,6 +57,16 @@ toon in another district stops the game); it can go out on its own, ahead of eve
   `game_ot-<number>.tar.gz` and point `index.html` at it. Without this the sticker book has no Device tab (it shows only when the page and
   the glue both have the Device settings).
 
+### 4. The browser away timer
+
+- Ship `web/tta-ui.js`, `web/game/webui.py` and `web/game/webnet.py` together in the page and browser glue.
+- Bind mount `ops/deploy/wsbridge.py` at `/ot/wsbridge.py` and set the Astron client agent's `heartbeat_timeout` to `660000` milliseconds in the deployment's existing configuration. Restart the game container to apply both changes.
+- Keep the WebSocket route's idle timeout longer than ten minutes. The new browser opts in through the `tta-away=1` query parameter, and the relay ends an away session after 600 seconds. Older browsers can still connect.
+
+### Gag progression overlays
+
+Deploy the client and server files from `battle-src` with the matching DC files. Apply `battle-src/resources/phase_3/etc/QuestScripts.txt` to both the Original and Remastered phase 3 packs so the Toontorial runs the starter gag picker. Include `TutorialManagerAI.py` for the gag handout and `QuestRewardCounter.py` for saved track access.
+
 ## Checks after it is live
 
 - Districts page during an invasion: the countdown ticks; Groups page: post a Field Office group, join it from another toon, see the
